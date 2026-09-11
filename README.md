@@ -18,10 +18,11 @@ VITA 백엔드. 패키지 구조/코딩 컨벤션은 [../docs/08_개발표준.md
 ## 패키지 구조
 
 ```
-com.vita.api/
+com.vita/
 ├── VitaApplication.java
-├── common/            공통 응답 포맷(ApiResponse/ErrorResponse), 전역 예외 처리(BusinessException +
-│                       GlobalExceptionHandler), 공통 엔티티(BaseTimeEntity), 공통 페이징
+├── common/            공통 응답 포맷(ErrorResponse — 성공 응답은 wrapper 없이 DTO 그대로 반환),
+│                       전역 예외 처리(BusinessException + GlobalExceptionHandler), 공통 엔티티
+│                       (BaseTimeEntity), 공통 페이징(PageRequest/PageResponse, sortBy 화이트리스트)
 └── sample/            구조 예시용 도메인 — entity/repository/controller/service/dto 전 계층 샘플
     ├── SampleItemNotFoundException.java   도메인 예외는 서브패키지 없이 도메인 루트에 위치
     ├── entity/SampleItem.java

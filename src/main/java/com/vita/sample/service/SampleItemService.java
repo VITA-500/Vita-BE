@@ -4,9 +4,11 @@ import com.vita.common.page.PageRequest;
 import com.vita.common.page.PageResponse;
 import com.vita.sample.SampleItemNotFoundException;
 import com.vita.sample.dto.SampleItemCreateRequest;
+import com.vita.sample.dto.SampleItemDeletedResponse;
 import com.vita.sample.dto.SampleItemResponse;
 import com.vita.sample.entity.SampleItem;
 import com.vita.sample.repository.SampleItemRepository;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +20,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class SampleItemService {
 
+	// 04_API명세서 8절 "정렬 가능 필드" 패턴 — 이 API가 허용하는 sortBy 화이트리스트.
+	private static final Set<String> ALLOWED_SORT_FIELDS = Set.of("createdAt", "title");
+	private static final String DEFAULT_SORT = "createdAt,desc";
+
 	private final SampleItemRepository sampleItemRepository;
 
 	public SampleItemService(SampleItemRepository sampleItemRepository) {
@@ -25,9 +31,10 @@ public class SampleItemService {
 	}
 
 	public PageResponse<SampleItemResponse> list(PageRequest pageRequest) {
+		var springPageRequest = pageRequest.toSpringPageRequest(ALLOWED_SORT_FIELDS, DEFAULT_SORT);
 		var page = (pageRequest.keyword() != null && !pageRequest.keyword().isBlank())
-				? sampleItemRepository.findByTitleContainingIgnoreCase(pageRequest.keyword(), pageRequest.toSpringPageRequest())
-				: sampleItemRepository.findAll(pageRequest.toSpringPageRequest());
+				? sampleItemRepository.findByTitleContainingIgnoreCase(pageRequest.keyword(), springPageRequest)
+				: sampleItemRepository.findAll(springPageRequest);
 
 		return PageResponse.from(page, SampleItemResponse::from);
 	}
@@ -50,8 +57,9 @@ public class SampleItemService {
 	}
 
 	@Transactional
-	public void delete(Long id) {
+	public SampleItemDeletedResponse delete(Long id) {
 		sampleItemRepository.delete(getOrThrow(id));
+		return new SampleItemDeletedResponse(id, true);
 	}
 
 	private SampleItem getOrThrow(Long id) {

@@ -1,7 +1,6 @@
 package com.vita.common.exception;
 
 import com.vita.common.response.ErrorResponse;
-import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,17 +16,17 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(BusinessException.class)
 	public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException e) {
 		log.warn("BusinessException: {}", e.getErrorCode(), e);
-		return ResponseEntity.status(e.getErrorCode().getHttpStatus()).body(ErrorResponse.of(e.getErrorCode()));
+		return ResponseEntity.status(e.getErrorCode().getHttpStatus()).body(ErrorResponse.of(e.getErrorCode(), e.getMessage()));
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)
 	public ResponseEntity<ErrorResponse> handleValidationException(MethodArgumentNotValidException e) {
-		String message = Optional.ofNullable(e.getBindingResult().getFieldError())
-				.map(fieldError -> fieldError.getField() + ": " + fieldError.getDefaultMessage())
-				.orElse(ErrorCode.VALIDATION_ERROR.getMessage());
+		var fieldErrors = e.getBindingResult().getFieldErrors().stream()
+				.map(fieldError -> new ErrorResponse.FieldError(fieldError.getField(), fieldError.getDefaultMessage()))
+				.toList();
 		return ResponseEntity
 				.status(ErrorCode.VALIDATION_ERROR.getHttpStatus())
-				.body(new ErrorResponse(false, ErrorCode.VALIDATION_ERROR.name(), message));
+				.body(ErrorResponse.ofValidation(fieldErrors));
 	}
 
 	@ExceptionHandler(Exception.class)

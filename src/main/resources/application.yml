@@ -17,5 +17,10 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+  jackson:
+    # ErrorResponse.fieldErrors처럼 값이 없을 때(null) 응답 body에서 아예 빼기 위함 (04_API명세서 0절)
+    default-property-inclusion: non_null
+    time-zone: Asia/Seoul
+
 server:
   port: 8080
