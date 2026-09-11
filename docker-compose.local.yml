@@ -1,0 +1,40 @@
+# 로컬 개발용. 09_인프라구성.md 2절 기준.
+# 코드 반영 시 `docker compose -f docker-compose.local.yml up -d --build` (--build 필수, README 참고)
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vita-backend-local
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env.local
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: vita-postgres-local
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: vita_local
+      POSTGRES_USER: vita
+      POSTGRES_PASSWORD: local1234
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init/init-extensions.sql:/docker-entrypoint-initdb.d/init-extensions.sql
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    container_name: vita-redis-local
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
