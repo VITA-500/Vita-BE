@@ -1,0 +1,10 @@
+# 텍스트 파일은 기본적으로 checkout 시 LF로 강제 (팀원 개인 core.autocrlf 설정과 무관하게 통일).
+# 특히 gradlew는 Docker 빌드 시 Linux 컨테이너 안에서 그대로 실행되는 쉘 스크립트라
+# CRLF로 체크아웃되면 shebang이 깨져서 빌드가 실패한다 (`./gradlew: not found`).
+* text=auto eol=lf
+
+# Windows 전용 배치 스크립트만 예외로 CRLF 유지
+*.bat text eol=crlf
+
+# 바이너리 명시
+*.jar binary
