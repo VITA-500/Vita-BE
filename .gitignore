@@ -32,3 +32,6 @@ bin/
 ### OS ###
 .DS_Store
 Thumbs.db
+
+### 개인용 Claude 협업 규칙 (팀 공용 아님) ###
+CLAUDE.md
