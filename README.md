@@ -27,6 +27,19 @@ docker exec vita-postgres-local psql -U vita -d vita_local -c "\dt"
 `users`, `user_oauth`, `faq`, `store`, `chat_session`, `chat_message`, `chat_message_faq_ref`,
 `store_reservation`, `flyway_schema_history`가 보이면 정상이다.
 
+## EC2 dev/prod 배포 (로컬에서 실행 금지 — EC2 전용)
+
+postgres는 컨테이너가 아니라 RDS(`vita-db`, DB는 `vita_dev`/`vita_prod`로 분리)를 쓴다. 최초 1회, EC2 안에서:
+
+```bash
+cp .env.dev.example .env.dev    # 또는 .env.prod.example → .env.prod
+# DB_PASSWORD, JWT_SECRET을 CHANGE_ME에서 실제 값으로 채우기
+docker compose -f docker-compose.dev.yml up -d --build    # dev는 8080, prod는 docker-compose.prod.yml로 8000
+```
+
+RDS 보안그룹(`vita-rds-sg`)이 EC2 보안그룹(`vita-ec2-sg`)의 5432 포트를 허용해야 연결된다. 스키마는
+로컬과 마찬가지로 Flyway가 최초 기동 시 자동 적용한다(수동 SQL 불필요).
+
 ## 시작하기 (일반)
 
 ```bash
