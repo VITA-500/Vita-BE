@@ -1,0 +1,23 @@
+name: Deploy to EC2 (prod)
+
+# 09_인프라구성.md 5절 기준: main 브랜치 push(=develop→main PR 머지) 시 EC2 prod 컨테이너 자동 배포.
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH into EC2 and redeploy prod
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/Vita-BE
+            git checkout main
+            git pull origin main
+            docker compose -f docker-compose.prod.yml up -d --build
