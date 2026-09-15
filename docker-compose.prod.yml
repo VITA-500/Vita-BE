@@ -1,0 +1,24 @@
+# EC2 prod(발표/데모)용. 09_인프라구성.md 2~3절 기준. 로컬에서 실행하지 않음 — EC2에서만.
+# postgres는 컨테이너로 안 올림(RDS 사용), redis만 컨테이너로 띄운다.
+# dev와 같은 EC2 인스턴스에서 포트로만 구분해서 같이 띄운다 (8080=dev, 8000=prod).
+# 배포: docker compose -f docker-compose.prod.yml up -d --build
+name: vita-prod
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vita-backend-prod
+    ports:
+      - "8000:8080"
+    env_file:
+      - .env.prod
+    depends_on:
+      - redis
+    restart: always
+
+  redis:
+    image: redis:7
+    container_name: vita-redis-prod
+    restart: always
