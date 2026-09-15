@@ -40,6 +40,22 @@ docker compose -f docker-compose.dev.yml up -d --build    # dev는 8080, prod는
 RDS 보안그룹(`vita-rds-sg`)이 EC2 보안그룹(`vita-ec2-sg`)의 5432 포트를 허용해야 연결된다. 스키마는
 로컬과 마찬가지로 Flyway가 최초 기동 시 자동 적용한다(수동 SQL 불필요).
 
+## CI/CD (GitHub Actions)
+
+`develop` push → dev 자동 배포(`.github/workflows/deploy-dev.yml`), `main` push → prod 자동 배포
+(`.github/workflows/deploy-prod.yml`). GitHub Actions가 SSH로 EC2에 접속해 `git pull` +
+`docker compose up -d --build`를 그대로 실행하는 구조 — 별도 이미지 레지스트리 없음.
+
+**최초 1회 설정 필요**
+- GitHub 레포 Settings → Secrets and variables → Actions에 등록:
+  - `EC2_HOST`: EC2 퍼블릭 DNS/IP
+  - `EC2_SSH_KEY`: `vita-key.pem` 파일 내용 전체(그대로 복붙)
+- EC2 보안그룹(`vita-ec2-sg`)의 SSH(22) 인바운드 소스를 **본인 IP → `0.0.0.0/0`으로 넓혀야 함** —
+  GitHub Actions 러너는 고정 IP가 아니라 매번 다른 IP에서 접속하기 때문. 비밀번호 인증이 아니라
+  키 기반 인증이라 무차별 대입 공격 위험은 낮지만, 주기적으로 EC2 로그인 시도 로그(`/var/log/secure`)
+  정도는 확인 권장.
+- EC2에 `~/Vita-BE`로 레포가 이미 clone되어 있어야 함(이번 세션에서 완료됨)
+
 ## 시작하기 (일반)
 
 ```bash
