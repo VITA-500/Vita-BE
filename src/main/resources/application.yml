@@ -27,3 +27,16 @@ server:
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+
+jwt:
+  # HS256은 32바이트 이상을 요구한다. 운영 값은 반드시 환경변수로 주입하고 커밋하지 않는다.
+  secret: ${JWT_SECRET:local-dev-secret-key-change-me-in-production-32bytes}
+  access-token-expire-millis: ${JWT_ACCESS_EXPIRE:3600000}   # 1시간
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    # 태그/API를 알파벳순이 아니라 선언 순서로 보여준다
+    operations-sorter: alpha
+    tags-sorter: alpha
+  default-produces-media-type: application/json
