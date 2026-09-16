@@ -40,6 +40,43 @@ docker compose -f docker-compose.dev.yml up -d --build    # dev는 8080, prod는
 RDS 보안그룹(`vita-rds-sg`)이 EC2 보안그룹(`vita-ec2-sg`)의 5432 포트를 허용해야 연결된다. 스키마는
 로컬과 마찬가지로 Flyway가 최초 기동 시 자동 적용한다(수동 SQL 불필요).
 
+**프론트/브라우저에서 실제로 호출할 땐 8080/8000이 아니라 아래 HTTPS 주소를 쓸 것** — "HTTPS
+(Nginx + Let's Encrypt)" 절 참고.
+
+## HTTPS (Nginx + Let's Encrypt)
+
+프론트(Vercel, HTTPS)가 브라우저에서 백엔드를 직접 호출하려면 백엔드도 HTTPS여야 한다 — HTTPS
+페이지에서 HTTP로 나가는 요청은 브라우저가 Mixed Content로 차단한다(CORS와는 별개 문제). EC2가
+한 대뿐이라 로드밸런서(ALB) 대신, **EC2 안에 Nginx를 리버스 프록시로 세우고 Let's Encrypt 무료
+인증서로 HTTPS를 처리**한다.
+
+**접속 주소**
+
+| 환경 | URL | 내부적으로 전달되는 곳 |
+| --- | --- | --- |
+| prod | `https://54-116-34-131.sslip.io` (443, 기본 포트라 생략 가능) | `127.0.0.1:8000` |
+| dev | `https://54-116-34-131.sslip.io:8443` | `127.0.0.1:8080` |
+
+**왜 `sslip.io`를 쓰는지**: EC2의 AWS 기본 도메인(`*.compute.amazonaws.com`)은 Let's Encrypt가
+정책상 인증서 발급을 거부한다. `sslip.io`는 IP를 도메인처럼 쓰게 해주는 무료 서비스라(`54-116-34-131.sslip.io` →
+자동으로 `54.116.34.131`) 별도 도메인 구매 없이 인증서를 받을 수 있다.
+
+⚠️ **반드시 하이픈(`-`) 버전으로만 접속할 것.** 점(`.`) 버전(`54.116.34.131.sslip.io`)도 DNS는
+같은 IP로 풀리지만, 인증서는 하이픈 버전 이름으로만 발급받았기 때문에 점 버전으로 접속하면
+`SEC_E_WRONG_PRINCIPAL`(인증서 이름 불일치)로 접속이 거부된다 — 실제 테스트로 확인됨.
+
+**설정 요약** (EC2에서 1회 진행, 이미 완료됨)
+- `vita-ec2-sg`에 `80`(인증서 발급용), `443`(prod), `8443`(dev) 인바운드 추가, 전부 `0.0.0.0/0`
+- Nginx 설치, Certbot은 Amazon Linux 2023에 기본 패키지가 없어 Python venv(`/opt/certbot`)로 설치
+- `certbot certonly --nginx -d 54-116-34-131.sslip.io`로 인증서 발급
+- `/etc/nginx/conf.d/vita.conf`에 443→8000, 8443→8080 리버스 프록시 설정
+- systemd 타이머(`certbot-renew.timer`, 매일 03/15시 체크)로 자동 갱신 — 인증서는 90일마다 만료.
+  `sudo /opt/certbot/bin/certbot renew --dry-run`으로 정상 동작 확인됨
+
+**TODO**: `vita-ec2-sg`에서 `8080`, `8000` 인바운드 규칙 삭제 필요 — 지금은 예전 HTTP 직접 접근
+(`http://ec2-...:8080` 등)도 여전히 열려 있는 상태. Nginx는 로컬(127.0.0.1)로 컨테이너에 붙는
+구조라 이 두 포트를 막아도 서비스엔 영향 없음 — HTTPS 경로만 쓰도록 강제하려면 닫아야 한다.
+
 ## RDS 직접 접근이 필요할 때 (SSH 터널링)
 
 RDS는 퍼블릭 액세스가 꺼져 있고 EC2에서만 접근 가능하다(보안그룹). 본인 노트북에서 직접
