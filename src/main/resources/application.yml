@@ -24,9 +24,12 @@ spring:
 
 server:
   port: 8080
+  # Nginx 뒤에 있을 때 원 요청 프로토콜(X-Forwarded-Proto)을 인식시킨다.
+  # 없으면 Swagger가 서버 주소를 http://로 만들어, HTTPS 페이지에서 mixed content로 차단된다.
+  forward-headers-strategy: framework
 
 cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
 
 jwt:
   # HS256은 32바이트 이상을 요구한다. 운영 값은 반드시 환경변수로 주입하고 커밋하지 않는다.
