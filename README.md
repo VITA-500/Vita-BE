@@ -69,13 +69,31 @@ RDS 보안그룹(`vita-rds-sg`)이 EC2 보안그룹(`vita-ec2-sg`)의 5432 포�
 - `vita-ec2-sg`에 `80`(인증서 발급용), `443`(prod), `8443`(dev) 인바운드 추가, 전부 `0.0.0.0/0`
 - Nginx 설치, Certbot은 Amazon Linux 2023에 기본 패키지가 없어 Python venv(`/opt/certbot`)로 설치
 - `certbot certonly --nginx -d 54-116-34-131.sslip.io`로 인증서 발급
-- `/etc/nginx/conf.d/vita.conf`에 443→8000, 8443→8080 리버스 프록시 설정
+- `/etc/nginx/conf.d/vita.conf`에 443→8000, 8443→8080 리버스 프록시 설정. `location /`에
+  `X-Forwarded-Proto`/`X-Forwarded-Host`/`X-Forwarded-Port`를 모두 넘겨야 한다(아래 참고).
 - systemd 타이머(`certbot-renew.timer`, 매일 03/15시 체크)로 자동 갱신 — 인증서는 90일마다 만료.
   `sudo /opt/certbot/bin/certbot renew --dry-run`으로 정상 동작 확인됨
 
 **TODO**: `vita-ec2-sg`에서 `8080`, `8000` 인바운드 규칙 삭제 필요 — 지금은 예전 HTTP 직접 접근
 (`http://ec2-...:8080` 등)도 여전히 열려 있는 상태. Nginx는 로컬(127.0.0.1)로 컨테이너에 붙는
 구조라 이 두 포트를 막아도 서비스엔 영향 없음 — HTTPS 경로만 쓰도록 강제하려면 닫아야 한다.
+
+**Swagger "Try it out"이 Failed to fetch로 실패하는 문제 (2026-09-16 발견/수정)**: springdoc이
+OpenAPI 문서의 서버 주소를 자동 추론하는데, Nginx가 원 요청의 프로토콜/호스트/포트 정보를
+백엔드에 안 넘겨주면 Spring이 이를 잘못 판단해서(예: dev `:8443`으로 접속했는데 서버 주소를
+포트 없는 443짜리로 잘못 생성) Swagger의 요청이 엉뚱한 곳(주로 prod 443)으로 나가버린다.
+해결을 위해 두 가지가 다 필요하다:
+1. `application.yml`에 `server.forward-headers-strategy: framework` 추가 (Spring이 forwarded
+   헤더를 신뢰하게 함) — 완료됨.
+2. `/etc/nginx/conf.d/vita.conf`의 두 `server` 블록 `location /`에 아래 두 줄 추가 — 완료됨:
+   ```nginx
+   proxy_set_header X-Forwarded-Host $host;
+   proxy_set_header X-Forwarded-Port $server_port;
+   ```
+   (`$server_port`는 nginx가 그 블록에서 실제 `listen`한 포트를 자동으로 넣어주므로 443/8443
+   블록에 그대로 써도 됨)
+
+수정 후 컨테이너 재시작은 필요 없고 `sudo nginx -t && sudo systemctl reload nginx`만 하면 된다.
 
 ## RDS 직접 접근이 필요할 때 (SSH 터널링)
 

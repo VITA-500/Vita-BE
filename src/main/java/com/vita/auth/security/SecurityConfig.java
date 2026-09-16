@@ -31,10 +31,23 @@ public class SecurityConfig {
 	private final JwtAuthenticationFilter jwtAuthenticationFilter;
 	private final ObjectMapper objectMapper;
 
+	/**
+	 * 관리자 전용 경로. 04_API명세서 기준 경로는 /admin/** 이지만, 접두사 표기가 흔들려도
+	 * 인가가 통째로 비활성화되지 않도록 /api/admin/** 도 함께 막는다 — 실제로 컨트롤러가
+	 * /admin/stores 로 매핑되어 있는데 규칙만 /api/admin/** 이라 hasRole이 적용되지 않고
+	 * anyRequest().authenticated() 로 떨어진 사고가 있었다.
+	 */
+	private static final String[] ADMIN_PATHS = {
+			"/admin/**",
+			"/api/admin/**"
+	};
+
 	/** 인증 없이 열어둘 경로. 구체적인 경로를 먼저 나열하고 anyRequest()는 마지막에 둔다. */
 	private static final String[] PUBLIC_PATHS = {
-			"/api/auth/**",
-			"/api/search/**",
+			"/auth/**",
+			"/search/**",
+			"/stores/nearest",
+			"/stores/nearby",
 			"/swagger-ui/**",
 			"/v3/api-docs/**",
 			"/swagger-ui.html"
@@ -59,9 +72,11 @@ public class SecurityConfig {
 				.sessionManagement(session ->
 						session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
+				// 위에서부터 먼저 매칭되는 규칙이 이긴다. 관리자 경로를 가장 먼저 두어,
+				// PUBLIC_PATHS 패턴이 넓어지더라도 관리자 API가 열리지 않게 한다.
 				.authorizeHttpRequests(auth -> auth
+						.requestMatchers(ADMIN_PATHS).hasRole("ADMIN")
 						.requestMatchers(PUBLIC_PATHS).permitAll()
-						.requestMatchers("/api/admin/**").hasRole("ADMIN")
 						.anyRequest().authenticated())
 
 				.exceptionHandling(ex -> ex
