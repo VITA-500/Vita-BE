@@ -2,6 +2,7 @@ package com.vita.store.controller;
 
 import com.vita.common.exception.BusinessException;
 import com.vita.common.exception.ErrorCode;
+import com.vita.store.dto.response.StoreNearbyListResponse;
 import com.vita.store.dto.response.StoreNearestResponse;
 import com.vita.store.service.StoreService;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,18 @@ public class StoreController {
             @RequestParam(required = false) BigDecimal lng){
         requireLocation(lat, lng);
         return storeService.findNearest(lat, lng);
+    }
+
+    @GetMapping("/stores/nearby")
+    public StoreNearbyListResponse nearby(
+            @RequestParam(required = false) BigDecimal lat,
+            @RequestParam(required = false) BigDecimal lng,
+            @RequestParam(required = false) Double radius){
+        requireLocation(lat, lng);
+        if(radius == null){
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "반경(radius)은 필수입니다.");
+        }
+        return storeService.findNearby(lat, lng, radius);
     }
 
     private void requireLocation(BigDecimal lat, BigDecimal lng){
