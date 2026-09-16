@@ -6,7 +6,9 @@ package com.vita.embedding;
  */
 public interface EmbeddingProvider {
 
+	/** 사용자 질문 원문을 받아 query prefix가 적용된 벡터를 반환한다. */
 	float[] embedQuery(String text);
 
+	/** 문서 원문을 받아 passage prefix가 적용된 벡터를 반환한다. */
 	float[] embedDocument(String text);
 }

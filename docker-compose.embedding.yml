@@ -1,0 +1,13 @@
+services:
+  embedding:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9
+    container_name: vita-embedding-local
+    command: --model-id intfloat/multilingual-e5-base
+    ports:
+      - "8081:80"
+    volumes:
+      - embedding-model-data:/data
+    restart: unless-stopped
+
+volumes:
+  embedding-model-data:

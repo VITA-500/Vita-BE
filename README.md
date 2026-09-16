@@ -155,9 +155,67 @@ $env:FAQ_IMPORT_ENABLED = "true"
 `faq_id`를 지정한다. 다른 파일을 사용할 때는
 `FAQ_IMPORT_RESOURCE=file:C:/path/to/faq_cleaned.jsonl`처럼 지정할 수 있다.
 
-BE3 검색 코드는 `com.vita.embedding.EmbeddingProvider`를 주입받아 `embedQuery()`를 호출하면 된다.
-FAQ 임베딩 적재 구현은 같은 인터페이스의 `embedDocument()`를 사용한다. 실제 E5/Bedrock 구현체는
-모델과 호출 방식이 확정된 뒤 별도 `@Component`로 추가한다.
+## FAQ E5 임베딩 생성 및 저장
+
+로컬 모델 서버는 Hugging Face Text Embeddings Inference(TEI) CPU 이미지를 사용한다. 최초 실행은
+`intfloat/multilingual-e5-base` 모델을 내려받기 때문에 시간이 걸리며, 이후에는 Docker volume의
+캐시를 재사용한다.
+
+```powershell
+docker compose -f docker-compose.embedding.yml up -d
+```
+
+`http://localhost:8081/health`가 정상 응답하면 FAQ 임베딩 배치를 실행한다. 일반 애플리케이션 기동
+중에는 실행되지 않으며 `faq.embedding.enabled`를 명시적으로 켠 경우에만 `ACTIVE`이면서
+`embedding IS NULL`인 FAQ를 처리한다.
+
+```powershell
+$env:JAVA_HOME = "C:\Users\anthi\.jdks\ms-21.0.11"
+$env:DB_URL = "jdbc:postgresql://localhost:5432/vita_local"
+$env:DB_USERNAME = "vita"
+$env:DB_PASSWORD = "local1234"
+$env:EMBEDDING_BASE_URL = "http://localhost:8081"
+.\gradlew.bat bootRun --args="--faq.embedding.enabled=true --server.port=0"
+```
+
+`server.port=0`은 이미 실행 중인 로컬 백엔드와 포트가 겹치지 않도록 임시 포트를 사용한다. 로그에
+`FAQ 임베딩 저장 완료: count=23`이 보이면 종료해도 된다. 다시 실행하면 이미 벡터가 있는 FAQ는
+건너뛰어 `count=0`이 된다.
+
+E5 입력 규칙은 `E5EmbeddingProvider` 내부에서 적용한다.
+
+- query: `query: {사용자 질문}`
+- document: `passage: 질문: {question}\n답변: {answer}`
+- model: `intfloat/multilingual-e5-base`
+- dimension: 768, L2 normalized
+
+BE3는 모델명이나 prefix를 알 필요 없이 아래처럼 주입받아 사용한다.
+
+```java
+private final EmbeddingProvider embeddingProvider;
+
+float[] queryVector = embeddingProvider.embedQuery(userQuestion);
+```
+
+로컬 DB 확인:
+
+```sql
+SELECT
+    count(*) FILTER (WHERE embedding IS NULL) AS embedding_null_count,
+    count(*) FILTER (WHERE embedding IS NOT NULL) AS embedding_count
+FROM faq
+WHERE status = 'ACTIVE' AND category = '로밍';
+
+SELECT id,
+       embedding_model,
+       embedding_version,
+       embedded_at,
+       vector_dims(embedding) AS dimensions
+FROM faq
+WHERE status = 'ACTIVE' AND category = '로밍'
+ORDER BY id;
+```
+
 
 ## CI/CD (GitHub Actions)
 

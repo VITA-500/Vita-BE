@@ -42,6 +42,13 @@ faq:
   import:
     enabled: ${FAQ_IMPORT_ENABLED:false}
     resource: ${FAQ_IMPORT_RESOURCE:classpath:data/faq/cleaned/faq_roaming_test.jsonl}
+  embedding:
+    enabled: ${FAQ_EMBEDDING_ENABLED:false}
+    batch-size: ${FAQ_EMBEDDING_BATCH_SIZE:100}
+
+embedding:
+  # 로컬 Hugging Face Text Embeddings Inference 서버
+  base-url: ${EMBEDDING_BASE_URL:http://localhost:8081}
 
 springdoc:
   swagger-ui:
