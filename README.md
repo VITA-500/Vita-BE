@@ -101,6 +101,46 @@ psql -h localhost -p 5433 -U vita -d vita_dev
 **주의**: `vita-key.pem`은 EC2 SSH 접속 키라 아무한테나 공유하면 안 된다 — 필요한 사람에게 직접
 전달하거나, 별도 팀원용 키를 EC2 `~/.ssh/authorized_keys`에 추가해서 개인별로 발급하는 걸 권장.
 
+## 로밍 FAQ 정책 JSONL 적재
+
+정책 원본은 `src/main/resources/data/faq/policy_cleaned.jsonl`, 생성 초안은
+`data/faq/raw/faq_roaming_test_raw.jsonl`, 최종 적재본은
+`data/faq/cleaned/faq_roaming_test.jsonl`에서 관리한다. 현재 최종 적재본에는 로밍 6개
+subcategory의 검수된 FAQ 23건이 들어 있다. 애플리케이션은 기본적으로 적재기를 실행하지 않으며,
+아래처럼 명시적으로 켠 경우에만 시작 시 최종 JSONL을 검증하고 `faq` 테이블에 적재한다.
+
+로컬 PostgreSQL:
+
+```powershell
+$env:SPRING_PROFILES_ACTIVE = "local"
+$env:DB_URL = "jdbc:postgresql://localhost:5432/vita_local"
+$env:DB_USERNAME = "vita"
+$env:DB_PASSWORD = "local1234"
+$env:FAQ_IMPORT_ENABLED = "true"
+.\gradlew.bat bootRun
+```
+
+AWS dev는 먼저 위의 SSH 터널을 연 뒤 별도 터미널에서 같은 코드를 `aws-dev` profile로 실행한다.
+비밀번호는 실제 RDS 암호를 환경변수로만 전달한다.
+
+```powershell
+$env:SPRING_PROFILES_ACTIVE = "aws-dev"
+$env:DB_USERNAME = "vita"
+$env:DB_PASSWORD = "<RDS 비밀번호>"
+$env:FAQ_IMPORT_ENABLED = "true"
+.\gradlew.bat bootRun
+```
+
+적재기는 category/subcategory/question으로 안정적인 내부 키를 만들어 재실행해도 같은 FAQ를
+중복 추가하지 않는다. 같은 질문의 답변이 바뀌면 기존 임베딩을 비워 재생성 대상으로 만들며,
+내용이 같으면 임베딩을 보존한다. 질문 문구 변경까지 같은 행으로 관리하려면 JSONL에 선택 필드인
+`faq_id`를 지정한다. 다른 파일을 사용할 때는
+`FAQ_IMPORT_RESOURCE=file:C:/path/to/faq_cleaned.jsonl`처럼 지정할 수 있다.
+
+BE3 검색 코드는 `com.vita.embedding.EmbeddingProvider`를 주입받아 `embedQuery()`를 호출하면 된다.
+FAQ 임베딩 적재 구현은 같은 인터페이스의 `embedDocument()`를 사용한다. 실제 E5/Bedrock 구현체는
+모델과 호출 방식이 확정된 뒤 별도 `@Component`로 추가한다.
+
 ## CI/CD (GitHub Actions)
 
 `develop` push → dev 자동 배포(`.github/workflows/deploy-dev.yml`), `main` push → prod 자동 배포
