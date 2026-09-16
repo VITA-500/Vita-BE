@@ -1,0 +1,23 @@
+{"category":"로밍","subcategory":"로밍 신청","question":"가입한 로밍 상품이 정상적으로 등록됐는지 어디서 확인하나요?","answer":"U+one 앱의 해외 로밍 > 이용 현황에서 가입한 로밍 상품을 조회할 수 있습니다.","source_policy_ids":["POL-ROAM-APPLY-001"]}
+{"category":"로밍","subcategory":"로밍 신청","question":"가입한 로밍 요금제의 시작 시간을 바꿀 수 있나요?","answer":"요금제 시작 전이라면 U+one 앱의 해외 로밍 > 로밍 이용 조회에서 시작 시간을 변경할 수 있습니다.","source_policy_ids":["POL-ROAM-APPLY-002"]}
+{"category":"로밍","subcategory":"로밍 신청","question":"로밍 요금제가 이미 시작된 후에도 시작 시간을 변경할 수 있나요?","answer":"로밍 요금제 시작 시간 이후에는 시작 시간을 변경할 수 없습니다.","source_policy_ids":["POL-ROAM-APPLY-002"]}
+{"category":"로밍","subcategory":"로밍 신청","question":"시작된 로밍 요금제를 삭제하고 다시 가입하면 요금이 두 번 청구될 수 있나요?","answer":"시작 후 삭제하고 재가입할 때 이용 이력이 한 번이라도 있으면 요금이 발생해 이중 과금될 수 있습니다.","source_policy_ids":["POL-ROAM-APPLY-002"]}
+{"category":"로밍","subcategory":"로밍 요금","question":"해외에서 음성통화를 하면 요금이 어떻게 적용되나요?","answer":"해외 음성통화의 발신 및 수신 요금은 국가마다 다르게 적용됩니다.","source_policy_ids":["POL-ROAM-FEE-001"]}
+{"category":"로밍","subcategory":"로밍 요금","question":"해외에서 전화를 받기만 해도 로밍 요금이 나오나요?","answer":"네, 해외에서 전화를 받는 경우에도 로밍 수신 요금이 발생합니다.","source_policy_ids":["POL-ROAM-FEE-001"]}
+{"category":"로밍","subcategory":"로밍 요금","question":"한국에서 해외 로밍 중인 사람에게 전화하면 발신자에게 추가 요금이 붙나요?","answer":"한국에서 전화한 사람에게는 추가 요금이 없으며, 해외 로밍 이용자에게 수신료가 청구됩니다.","source_policy_ids":["POL-ROAM-FEE-001"]}
+{"category":"로밍","subcategory":"로밍 요금","question":"로밍 요금제 없이 해외 데이터를 쓰면 요금이 계속 늘어나나요?","answer":"U+모바일 고객에게는 해외 데이터 안심옵션이 자동 적용됩니다. 하루 데이터 이용 금액이 5,500원을 넘으면 속도가 제한되며 추가 요금 없이 이용할 수 있습니다.","source_policy_ids":["POL-ROAM-FEE-002"]}
+{"category":"로밍","subcategory":"로밍 요금","question":"해외 데이터 안심옵션을 따로 신청해야 하나요?","answer":"해외 데이터 안심옵션은 U+모바일 고객에게 자동으로 적용됩니다.","source_policy_ids":["POL-ROAM-FEE-002"]}
+{"category":"로밍","subcategory":"데이터 로밍","question":"해외에서 데이터 로밍을 사용하려면 휴대폰 설정을 바꿔야 하나요?","answer":"해외에서 데이터 로밍을 이용하려면 기기에 따라 데이터 로밍 허용을 설정해야 합니다.","source_policy_ids":["POL-ROAM-DATA-001"]}
+{"category":"로밍","subcategory":"데이터 로밍","question":"안드로이드폰에서 데이터 로밍은 어떻게 켜나요?","answer":"전원을 껐다 켠 뒤 상단 바에서 데이터 로밍 허용을 선택하거나, 설정 > 연결 > 해외 로밍 > 데이터 로밍 사용 허용을 선택하세요.","source_policy_ids":["POL-ROAM-DATA-001"]}
+{"category":"로밍","subcategory":"데이터 로밍","question":"아이폰에서 데이터 로밍을 어떻게 허용하나요?","answer":"설정 > 셀룰러 > 셀룰러 데이터 옵션 > 데이터 로밍 허용을 선택하세요.","source_policy_ids":["POL-ROAM-DATA-001"]}
+{"category":"로밍","subcategory":"데이터 로밍","question":"음성과 데이터 로밍을 차단해도 해외에서 사진이나 영상 메시지를 받을 수 있나요?","answer":"기기의 와이파이와 데이터 로밍을 켜면 사진 및 영상 메시지를 받을 수 있습니다.","source_policy_ids":["POL-ROAM-DATA-002"]}
+{"category":"로밍","subcategory":"통화·문자 로밍","question":"해외에서도 익시오 로밍콜을 사용할 수 있나요?","answer":"LG U+ 로밍 서비스 제공 국가에서는 국내와 동일하게 익시오 로밍콜을 이용할 수 있습니다.","source_policy_ids":["POL-ROAM-CALL-001"]}
+{"category":"로밍","subcategory":"통화·문자 로밍","question":"로밍 요금제에 가입하면 익시오 로밍콜 사용 시 데이터가 차감되나요?","answer":"로밍 요금제에 가입하면 데이터 차감 없이 내 번호 그대로 음성통화를 이용할 수 있습니다.","source_policy_ids":["POL-ROAM-CALL-001"]}
+{"category":"로밍","subcategory":"통화·문자 로밍","question":"해외 와이파이에서 익시오 로밍콜을 무료로 이용할 수 있나요?","answer":"와이파이 환경에서는 제3국 발신과 영상통화를 제외한 음성통화를 무료로 이용할 수 있습니다.","source_policy_ids":["POL-ROAM-CALL-001"]}
+{"category":"로밍","subcategory":"통화·문자 로밍","question":"해외 로밍 중 듀얼번호의 가상 번호로 전화나 문자를 받을 수 있나요?","answer":"해외 로밍 중에도 가상 번호로 전화나 문자메시지를 받을 수 있습니다.","source_policy_ids":["POL-ROAM-CALL-002"]}
+{"category":"로밍","subcategory":"통화·문자 로밍","question":"해외에서 듀얼번호의 가상 번호로 전화하거나 문자를 보낼 수 있나요?","answer":"일반적인 해외 로밍에서는 가상 번호로 전화하거나 문자메시지를 보낼 수 없습니다. LTE 음성통화 로밍 중에는 이용할 수 있습니다.","source_policy_ids":["POL-ROAM-CALL-002"]}
+{"category":"로밍","subcategory":"로밍 해지","question":"고객센터에서 예약 가입한 로밍 상품은 어디서 변경하거나 해지하나요?","answer":"고객센터를 통해 기간 연장 또는 예약 가입한 로밍 상품은 고객센터에서만 변경하거나 해지할 수 있습니다.","source_policy_ids":["POL-ROAM-CANCEL-001"]}
+{"category":"로밍","subcategory":"로밍 해지","question":"해외에서 와이파이만 쓰고 데이터 로밍 요금은 나오지 않게 할 수 있나요?","answer":"해외에서 데이터를 이용하지 않고 와이파이만 사용할 계획이라면 해외 데이터 로밍 차단 부가서비스를 신청할 수 있습니다.","source_policy_ids":["POL-ROAM-CANCEL-002"]}
+{"category":"로밍","subcategory":"국가별 이용","question":"방문할 나라의 로밍 요금은 어떻게 확인하나요?","answer":"방문 국가를 검색하면 로밍 요금제에 가입하지 않았을 때 자동 적용되는 서비스 방식별 요금을 확인할 수 있습니다.","source_policy_ids":["POL-ROAM-COUNTRY-001"]}
+{"category":"로밍","subcategory":"국가별 이용","question":"가입한 로밍 상품을 방문 국가에서 사용할 수 있는지 언제 확인해야 하나요?","answer":"출국 전에 가입한 로밍 상품이 방문 국가에서 이용 가능한지 확인해야 합니다.","source_policy_ids":["POL-ROAM-COUNTRY-002"]}
+{"category":"로밍","subcategory":"국가별 이용","question":"방문 국가의 로밍 이용 정보가 확인되지 않으면 어떻게 하나요?","answer":"국가 정보가 확인되지 않으면 로밍 센터로 문의하세요.","source_policy_ids":["POL-ROAM-COUNTRY-002"]}

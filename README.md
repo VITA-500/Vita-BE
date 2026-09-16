@@ -119,6 +119,104 @@ psql -h localhost -p 5433 -U vita -d vita_dev
 **주의**: `vita-key.pem`은 EC2 SSH 접속 키라 아무한테나 공유하면 안 된다 — 필요한 사람에게 직접
 전달하거나, 별도 팀원용 키를 EC2 `~/.ssh/authorized_keys`에 추가해서 개인별로 발급하는 걸 권장.
 
+## 로밍 FAQ 정책 JSONL 적재
+
+정책 원본은 `src/main/resources/data/faq/policy_cleaned.jsonl`, 생성 초안은
+`data/faq/raw/faq_roaming_test_raw.jsonl`, 최종 적재본은
+`data/faq/cleaned/faq_roaming_test.jsonl`에서 관리한다. 현재 최종 적재본에는 로밍 6개
+subcategory의 검수된 FAQ 23건이 들어 있다. 애플리케이션은 기본적으로 적재기를 실행하지 않으며,
+아래처럼 명시적으로 켠 경우에만 시작 시 최종 JSONL을 검증하고 `faq` 테이블에 적재한다.
+
+로컬 PostgreSQL:
+
+```powershell
+$env:SPRING_PROFILES_ACTIVE = "local"
+$env:DB_URL = "jdbc:postgresql://localhost:5432/vita_local"
+$env:DB_USERNAME = "vita"
+$env:DB_PASSWORD = "local1234"
+$env:FAQ_IMPORT_ENABLED = "true"
+.\gradlew.bat bootRun
+```
+
+AWS dev는 먼저 위의 SSH 터널을 연 뒤 별도 터미널에서 같은 코드를 `aws-dev` profile로 실행한다.
+비밀번호는 실제 RDS 암호를 환경변수로만 전달한다.
+
+```powershell
+$env:SPRING_PROFILES_ACTIVE = "aws-dev"
+$env:DB_USERNAME = "vita"
+$env:DB_PASSWORD = "<RDS 비밀번호>"
+$env:FAQ_IMPORT_ENABLED = "true"
+.\gradlew.bat bootRun
+```
+
+적재기는 category/subcategory/question으로 안정적인 내부 키를 만들어 재실행해도 같은 FAQ를
+중복 추가하지 않는다. 같은 질문의 답변이 바뀌면 기존 임베딩을 비워 재생성 대상으로 만들며,
+내용이 같으면 임베딩을 보존한다. 질문 문구 변경까지 같은 행으로 관리하려면 JSONL에 선택 필드인
+`faq_id`를 지정한다. 다른 파일을 사용할 때는
+`FAQ_IMPORT_RESOURCE=file:C:/path/to/faq_cleaned.jsonl`처럼 지정할 수 있다.
+
+## FAQ E5 임베딩 생성 및 저장
+
+로컬 모델 서버는 Hugging Face Text Embeddings Inference(TEI) CPU 이미지를 사용한다. 최초 실행은
+`intfloat/multilingual-e5-base` 모델을 내려받기 때문에 시간이 걸리며, 이후에는 Docker volume의
+캐시를 재사용한다.
+
+```powershell
+docker compose -f docker-compose.embedding.yml up -d
+```
+
+`http://localhost:8081/health`가 정상 응답하면 FAQ 임베딩 배치를 실행한다. 일반 애플리케이션 기동
+중에는 실행되지 않으며 `faq.embedding.enabled`를 명시적으로 켠 경우에만 `ACTIVE`이면서
+`embedding IS NULL`인 FAQ를 처리한다.
+
+```powershell
+$env:JAVA_HOME = "C:\Users\anthi\.jdks\ms-21.0.11"
+$env:DB_URL = "jdbc:postgresql://localhost:5432/vita_local"
+$env:DB_USERNAME = "vita"
+$env:DB_PASSWORD = "local1234"
+$env:EMBEDDING_BASE_URL = "http://localhost:8081"
+.\gradlew.bat bootRun --args="--faq.embedding.enabled=true --server.port=0"
+```
+
+`server.port=0`은 이미 실행 중인 로컬 백엔드와 포트가 겹치지 않도록 임시 포트를 사용한다. 로그에
+`FAQ 임베딩 저장 완료: count=23`이 보이면 종료해도 된다. 다시 실행하면 이미 벡터가 있는 FAQ는
+건너뛰어 `count=0`이 된다.
+
+E5 입력 규칙은 `E5EmbeddingProvider` 내부에서 적용한다.
+
+- query: `query: {사용자 질문}`
+- document: `passage: 질문: {question}\n답변: {answer}`
+- model: `intfloat/multilingual-e5-base`
+- dimension: 768, L2 normalized
+
+BE3는 모델명이나 prefix를 알 필요 없이 아래처럼 주입받아 사용한다.
+
+```java
+private final EmbeddingProvider embeddingProvider;
+
+float[] queryVector = embeddingProvider.embedQuery(userQuestion);
+```
+
+로컬 DB 확인:
+
+```sql
+SELECT
+    count(*) FILTER (WHERE embedding IS NULL) AS embedding_null_count,
+    count(*) FILTER (WHERE embedding IS NOT NULL) AS embedding_count
+FROM faq
+WHERE status = 'ACTIVE' AND category = '로밍';
+
+SELECT id,
+       embedding_model,
+       embedding_version,
+       embedded_at,
+       vector_dims(embedding) AS dimensions
+FROM faq
+WHERE status = 'ACTIVE' AND category = '로밍'
+ORDER BY id;
+```
+
+
 ## CI/CD (GitHub Actions)
 
 `develop` push → dev 자동 배포(`.github/workflows/deploy-dev.yml`), `main` push → prod 자동 배포
