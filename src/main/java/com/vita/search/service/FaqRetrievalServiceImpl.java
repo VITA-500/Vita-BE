@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class FaqRetrievalServiceImpl implements FaqRetrievalService {
 
+	/** 항상 빈 컨텍스트를 반환하는 임시 구현. 실제 로직은 BE2 인터페이스 확보 후 채운다. */
 	@Override
 	public FaqRetrievalContext search(String query, int topK) {
 		log.warn("FaqRetrievalServiceImpl은 아직 임시 구현체라 항상 빈 결과를 반환합니다. query={}", query);

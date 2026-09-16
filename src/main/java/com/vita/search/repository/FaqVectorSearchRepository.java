@@ -45,6 +45,15 @@ public class FaqVectorSearchRepository {
 		this.jdbcTemplate = new JdbcTemplate(dataSource);
 	}
 
+	/**
+	 * 코사인 유사도 기준으로 가장 유사한 FAQ를 topK개 반환한다.
+	 *
+	 * @param queryVector        검색할 쿼리 벡터 (embedding 컬럼과 같은 차원이어야 함)
+	 * @param status             이 상태인 FAQ만 대상 (보통 ACTIVE)
+	 * @param similarityThreshold 이 값 미만인 결과는 제외 (0~1, 1에 가까울수록 유사)
+	 * @param topK               최대 반환 개수
+	 * @return 유사도 내림차순으로 정렬된 결과 목록
+	 */
 	public List<FaqSimilarityResult> searchBySimilarity(
 			float[] queryVector, FaqStatus status, double similarityThreshold, int topK) {
 

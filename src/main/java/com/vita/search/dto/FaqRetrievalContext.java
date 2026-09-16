@@ -9,10 +9,12 @@ import java.util.List;
  */
 public record FaqRetrievalContext(List<FaqReference> references) {
 
+	/** 참고할 FAQ가 없을 때(threshold 미달 등) 사용하는 빈 컨텍스트. */
 	public static FaqRetrievalContext empty() {
 		return new FaqRetrievalContext(List.of());
 	}
 
+	/** references가 비어있지 않으면 true. 별도 필드가 아니라 매번 계산되는 값이라 불일치가 날 수 없다. */
 	public boolean hasRelevantFaq() {
 		return !references.isEmpty();
 	}
