@@ -47,6 +47,7 @@ public class SecurityConfig {
 			"/auth/**",
 			"/search/**",
 			"/stores/nearest",
+			"/stores/nearby",
 			"/swagger-ui/**",
 			"/v3/api-docs/**",
 			"/swagger-ui.html"
