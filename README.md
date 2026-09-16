@@ -40,6 +40,30 @@ docker compose -f docker-compose.dev.yml up -d --build    # dev는 8080, prod는
 RDS 보안그룹(`vita-rds-sg`)이 EC2 보안그룹(`vita-ec2-sg`)의 5432 포트를 허용해야 연결된다. 스키마는
 로컬과 마찬가지로 Flyway가 최초 기동 시 자동 적용한다(수동 SQL 불필요).
 
+## RDS 직접 접근이 필요할 때 (SSH 터널링)
+
+RDS는 퍼블릭 액세스가 꺼져 있고 EC2에서만 접근 가능하다(보안그룹). 본인 노트북에서 직접
+`psql -h vita-db...`를 치면 연결 자체가 안 된다 — DB 계정/비밀번호를 알아도 네트워크 단에서
+막혀있기 때문. FAQ 시드 스크립트처럼 로컬에서 AWS(dev) RDS에 직접 데이터를 넣어야 하는
+경우(BE2 등)엔 EC2를 경유하는 SSH 터널을 열어야 한다.
+
+**1. 터널 열기** (별도 터미널 창에 하나 띄워두고, 작업 끝날 때까지 그 창은 그대로 둔다 — `Ctrl+C`로 종료)
+```bash
+ssh -i "vita-key.pem" -L 5433:vita-db.cbouowac2f97.ap-northeast-2.rds.amazonaws.com:5432 ec2-user@ec2-54-116-34-131.ap-northeast-2.compute.amazonaws.com -N
+```
+로컬 `5433` 포트로 들어오는 트래픽을 EC2를 거쳐 RDS의 `5432`로 그대로 전달해준다 (로컬
+5432는 이미 `docker-compose.local.yml`의 로컬 postgres가 쓰고 있어서 5433으로 뺐다).
+
+**2. 다른 터미널에서 localhost:5433으로 접속** (실제로는 RDS에 붙는 것과 동일)
+```bash
+psql -h localhost -p 5433 -U vita -d vita_dev
+```
+스크립트에서 접속하는 경우엔 `DB_URL=jdbc:postgresql://localhost:5433/vita_dev`처럼 호스트만
+`localhost:5433`으로 바꿔서 쓰면 된다. 계정/비밀번호는 `.env.dev`와 동일(`vita` / 실제 RDS 비밀번호).
+
+**주의**: `vita-key.pem`은 EC2 SSH 접속 키라 아무한테나 공유하면 안 된다 — 필요한 사람에게 직접
+전달하거나, 별도 팀원용 키를 EC2 `~/.ssh/authorized_keys`에 추가해서 개인별로 발급하는 걸 권장.
+
 ## CI/CD (GitHub Actions)
 
 `develop` push → dev 자동 배포(`.github/workflows/deploy-dev.yml`), `main` push → prod 자동 배포
