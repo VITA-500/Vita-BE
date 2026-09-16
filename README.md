@@ -40,6 +40,61 @@ docker compose -f docker-compose.dev.yml up -d --build    # dev는 8080, prod는
 RDS 보안그룹(`vita-rds-sg`)이 EC2 보안그룹(`vita-ec2-sg`)의 5432 포트를 허용해야 연결된다. 스키마는
 로컬과 마찬가지로 Flyway가 최초 기동 시 자동 적용한다(수동 SQL 불필요).
 
+**프론트/브라우저에서 실제로 호출할 땐 8080/8000이 아니라 아래 HTTPS 주소를 쓸 것** — "HTTPS
+(Nginx + Let's Encrypt)" 절 참고.
+
+## HTTPS (Nginx + Let's Encrypt)
+
+프론트(Vercel, HTTPS)가 브라우저에서 백엔드를 직접 호출하려면 백엔드도 HTTPS여야 한다 — HTTPS
+페이지에서 HTTP로 나가는 요청은 브라우저가 Mixed Content로 차단한다(CORS와는 별개 문제). EC2가
+한 대뿐이라 로드밸런서(ALB) 대신, **EC2 안에 Nginx를 리버스 프록시로 세우고 Let's Encrypt 무료
+인증서로 HTTPS를 처리**한다.
+
+**접속 주소**
+
+| 환경 | URL | 내부적으로 전달되는 곳 |
+| --- | --- | --- |
+| prod | `https://54-116-34-131.sslip.io` (443, 기본 포트라 생략 가능) | `127.0.0.1:8000` |
+| dev | `https://54-116-34-131.sslip.io:8443` | `127.0.0.1:8080` |
+
+**왜 `sslip.io`를 쓰는지**: EC2의 AWS 기본 도메인(`*.compute.amazonaws.com`)은 Let's Encrypt가
+정책상 인증서 발급을 거부한다. `sslip.io`는 IP를 도메인처럼 쓰게 해주는 무료 서비스라(`54-116-34-131.sslip.io` →
+자동으로 `54.116.34.131`) 별도 도메인 구매 없이 인증서를 받을 수 있다.
+
+⚠️ **반드시 하이픈(`-`) 버전으로만 접속할 것.** 점(`.`) 버전(`54.116.34.131.sslip.io`)도 DNS는
+같은 IP로 풀리지만, 인증서는 하이픈 버전 이름으로만 발급받았기 때문에 점 버전으로 접속하면
+`SEC_E_WRONG_PRINCIPAL`(인증서 이름 불일치)로 접속이 거부된다 — 실제 테스트로 확인됨.
+
+**설정 요약** (EC2에서 1회 진행, 이미 완료됨)
+- `vita-ec2-sg`에 `80`(인증서 발급용), `443`(prod), `8443`(dev) 인바운드 추가, 전부 `0.0.0.0/0`
+- Nginx 설치, Certbot은 Amazon Linux 2023에 기본 패키지가 없어 Python venv(`/opt/certbot`)로 설치
+- `certbot certonly --nginx -d 54-116-34-131.sslip.io`로 인증서 발급
+- `/etc/nginx/conf.d/vita.conf`에 443→8000, 8443→8080 리버스 프록시 설정. `location /`에
+  `X-Forwarded-Proto`/`X-Forwarded-Host`/`X-Forwarded-Port`를 모두 넘겨야 한다(아래 참고).
+- systemd 타이머(`certbot-renew.timer`, 매일 03/15시 체크)로 자동 갱신 — 인증서는 90일마다 만료.
+  `sudo /opt/certbot/bin/certbot renew --dry-run`으로 정상 동작 확인됨
+
+**TODO**: `vita-ec2-sg`에서 `8080`, `8000` 인바운드 규칙 삭제 필요 — 지금은 예전 HTTP 직접 접근
+(`http://ec2-...:8080` 등)도 여전히 열려 있는 상태. Nginx는 로컬(127.0.0.1)로 컨테이너에 붙는
+구조라 이 두 포트를 막아도 서비스엔 영향 없음 — HTTPS 경로만 쓰도록 강제하려면 닫아야 한다.
+
+**Swagger "Try it out"이 Failed to fetch로 실패하는 문제 (2026-09-16 발견/수정)**: springdoc이
+OpenAPI 문서의 서버 주소를 자동 추론하는데, Nginx가 원 요청의 프로토콜/호스트/포트 정보를
+백엔드에 안 넘겨주면 Spring이 이를 잘못 판단해서(예: dev `:8443`으로 접속했는데 서버 주소를
+포트 없는 443짜리로 잘못 생성) Swagger의 요청이 엉뚱한 곳(주로 prod 443)으로 나가버린다.
+해결을 위해 두 가지가 다 필요하다:
+1. `application.yml`에 `server.forward-headers-strategy: framework` 추가 (Spring이 forwarded
+   헤더를 신뢰하게 함) — 완료됨.
+2. `/etc/nginx/conf.d/vita.conf`의 두 `server` 블록 `location /`에 아래 두 줄 추가 — 완료됨:
+   ```nginx
+   proxy_set_header X-Forwarded-Host $host;
+   proxy_set_header X-Forwarded-Port $server_port;
+   ```
+   (`$server_port`는 nginx가 그 블록에서 실제 `listen`한 포트를 자동으로 넣어주므로 443/8443
+   블록에 그대로 써도 됨)
+
+수정 후 컨테이너 재시작은 필요 없고 `sudo nginx -t && sudo systemctl reload nginx`만 하면 된다.
+
 ## RDS 직접 접근이 필요할 때 (SSH 터널링)
 
 RDS는 퍼블릭 액세스가 꺼져 있고 EC2에서만 접근 가능하다(보안그룹). 본인 노트북에서 직접
@@ -63,6 +118,104 @@ psql -h localhost -p 5433 -U vita -d vita_dev
 
 **주의**: `vita-key.pem`은 EC2 SSH 접속 키라 아무한테나 공유하면 안 된다 — 필요한 사람에게 직접
 전달하거나, 별도 팀원용 키를 EC2 `~/.ssh/authorized_keys`에 추가해서 개인별로 발급하는 걸 권장.
+
+## 로밍 FAQ 정책 JSONL 적재
+
+정책 원본은 `src/main/resources/data/faq/policy_cleaned.jsonl`, 생성 초안은
+`data/faq/raw/faq_roaming_test_raw.jsonl`, 최종 적재본은
+`data/faq/cleaned/faq_roaming_test.jsonl`에서 관리한다. 현재 최종 적재본에는 로밍 6개
+subcategory의 검수된 FAQ 23건이 들어 있다. 애플리케이션은 기본적으로 적재기를 실행하지 않으며,
+아래처럼 명시적으로 켠 경우에만 시작 시 최종 JSONL을 검증하고 `faq` 테이블에 적재한다.
+
+로컬 PostgreSQL:
+
+```powershell
+$env:SPRING_PROFILES_ACTIVE = "local"
+$env:DB_URL = "jdbc:postgresql://localhost:5432/vita_local"
+$env:DB_USERNAME = "vita"
+$env:DB_PASSWORD = "local1234"
+$env:FAQ_IMPORT_ENABLED = "true"
+.\gradlew.bat bootRun
+```
+
+AWS dev는 먼저 위의 SSH 터널을 연 뒤 별도 터미널에서 같은 코드를 `aws-dev` profile로 실행한다.
+비밀번호는 실제 RDS 암호를 환경변수로만 전달한다.
+
+```powershell
+$env:SPRING_PROFILES_ACTIVE = "aws-dev"
+$env:DB_USERNAME = "vita"
+$env:DB_PASSWORD = "<RDS 비밀번호>"
+$env:FAQ_IMPORT_ENABLED = "true"
+.\gradlew.bat bootRun
+```
+
+적재기는 category/subcategory/question으로 안정적인 내부 키를 만들어 재실행해도 같은 FAQ를
+중복 추가하지 않는다. 같은 질문의 답변이 바뀌면 기존 임베딩을 비워 재생성 대상으로 만들며,
+내용이 같으면 임베딩을 보존한다. 질문 문구 변경까지 같은 행으로 관리하려면 JSONL에 선택 필드인
+`faq_id`를 지정한다. 다른 파일을 사용할 때는
+`FAQ_IMPORT_RESOURCE=file:C:/path/to/faq_cleaned.jsonl`처럼 지정할 수 있다.
+
+## FAQ E5 임베딩 생성 및 저장
+
+로컬 모델 서버는 Hugging Face Text Embeddings Inference(TEI) CPU 이미지를 사용한다. 최초 실행은
+`intfloat/multilingual-e5-base` 모델을 내려받기 때문에 시간이 걸리며, 이후에는 Docker volume의
+캐시를 재사용한다.
+
+```powershell
+docker compose -f docker-compose.embedding.yml up -d
+```
+
+`http://localhost:8081/health`가 정상 응답하면 FAQ 임베딩 배치를 실행한다. 일반 애플리케이션 기동
+중에는 실행되지 않으며 `faq.embedding.enabled`를 명시적으로 켠 경우에만 `ACTIVE`이면서
+`embedding IS NULL`인 FAQ를 처리한다.
+
+```powershell
+$env:JAVA_HOME = "C:\Users\anthi\.jdks\ms-21.0.11"
+$env:DB_URL = "jdbc:postgresql://localhost:5432/vita_local"
+$env:DB_USERNAME = "vita"
+$env:DB_PASSWORD = "local1234"
+$env:EMBEDDING_BASE_URL = "http://localhost:8081"
+.\gradlew.bat bootRun --args="--faq.embedding.enabled=true --server.port=0"
+```
+
+`server.port=0`은 이미 실행 중인 로컬 백엔드와 포트가 겹치지 않도록 임시 포트를 사용한다. 로그에
+`FAQ 임베딩 저장 완료: count=23`이 보이면 종료해도 된다. 다시 실행하면 이미 벡터가 있는 FAQ는
+건너뛰어 `count=0`이 된다.
+
+E5 입력 규칙은 `E5EmbeddingProvider` 내부에서 적용한다.
+
+- query: `query: {사용자 질문}`
+- document: `passage: 질문: {question}\n답변: {answer}`
+- model: `intfloat/multilingual-e5-base`
+- dimension: 768, L2 normalized
+
+BE3는 모델명이나 prefix를 알 필요 없이 아래처럼 주입받아 사용한다.
+
+```java
+private final EmbeddingProvider embeddingProvider;
+
+float[] queryVector = embeddingProvider.embedQuery(userQuestion);
+```
+
+로컬 DB 확인:
+
+```sql
+SELECT
+    count(*) FILTER (WHERE embedding IS NULL) AS embedding_null_count,
+    count(*) FILTER (WHERE embedding IS NOT NULL) AS embedding_count
+FROM faq
+WHERE status = 'ACTIVE' AND category = '로밍';
+
+SELECT id,
+       embedding_model,
+       embedding_version,
+       embedded_at,
+       vector_dims(embedding) AS dimensions
+FROM faq
+WHERE status = 'ACTIVE' AND category = '로밍'
+ORDER BY id;
+```
+
 
 ## CI/CD (GitHub Actions)
 
