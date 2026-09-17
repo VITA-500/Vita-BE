@@ -8,6 +8,27 @@ chat_messages, chat_message_faq_refs, store_reservations)가 V1~V4에 걸쳐 정
 extends BaseTimeEntity, repository/service/controller/dto 계층, 도메인 예외는 폴더 루트에 위치)대로
 만들어 채워나가면 된다.
 
+## 팀 역할 경계 정리 (2026-09-17)
+
+멘토 피드백(업무 분장 불균형, 위치 기반 설계 보완 필요) 반영해서 아래 두 가지를 정리했다.
+기존 역할 자체를 바꾸는 게 아니라, 이미 있던 애매한 경계를 명확히 하는 수준.
+
+**RAG 검색(BE3) ↔ LLM/Chat(BE4) 경계**
+- BE3: `FaqVectorSearchRepository` — pgvector 유사도 검색 엔진 자체(쿼리 성능, threshold 튜닝,
+  Top-K 랭킹 신호). 지금까지 해온 것과 동일한 연장선.
+- BE4: `FaqRetrievalServiceImpl`의 실제 구현 — 검색 결과를 RAG Context로 조립해 프롬프트에
+  넣고, "관련 정보 없음" 폴백을 처리하는 지점까지. 검색 결과를 어떻게 답변으로 만들지는
+  프롬프트 설계와 떼어놓을 수 없어서 LLM 담당이 갖는 게 맞다고 판단.
+- 즉 "검색 엔진 자체"는 BE3, "검색 결과 → 최종 답변 통합"은 BE4. `FaqRetrievalService`
+  인터페이스(BE3가 만들어 BE4에게 제공한 계약, PR #13)는 그대로 유지되고 구현체 소유권만
+  명확해진 것 — BE3 역할이 없어지거나 다른 도메인으로 옮겨가는 게 아니다.
+
+**매장/위치 도메인(BE5) 확장**
+- 위치 권한 거부 시 폴백 처리
+- 영업시간/카테고리 필터
+- `store_reservations`(스키마엔 이미 있고 "선택, 추후 확장"으로 미뤄둔 기능) 정식화 검토
+- 반경 검색(`/stores/nearby`) 성능/인덱스 설계
+
 ## 로컬 DB 환경 구축 (스키마 변경 후 최초 1회 또는 pull마다)
 
 ```bash
