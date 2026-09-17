@@ -24,7 +24,7 @@ import org.hibernate.type.SqlTypes;
  * 주지 않을 수도 있고 사용자가 바꿀 수도 있어서 식별자로 쓸 수 없다.
  */
 @Entity
-@Table(name = "user_oauth")
+@Table(name = "user_oauths")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class UserOAuth {

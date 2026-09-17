@@ -2,11 +2,13 @@ package com.vita.store.controller;
 
 import com.vita.common.exception.BusinessException;
 import com.vita.common.exception.ErrorCode;
+import com.vita.store.dto.response.StoreDetailResponse;
 import com.vita.store.dto.response.StoreNearbyListResponse;
 import com.vita.store.dto.response.StoreNearestResponse;
 import com.vita.store.service.StoreService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -36,6 +38,11 @@ public class StoreController {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "반경(radius)은 필수입니다.");
         }
         return storeService.findNearby(lat, lng, radius);
+    }
+
+    @GetMapping("/stores/{storeId}")
+    public StoreDetailResponse detail(@PathVariable Long storeId){
+        return storeService.findById(storeId);
     }
 
     private void requireLocation(BigDecimal lat, BigDecimal lng){

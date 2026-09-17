@@ -50,6 +50,13 @@ embedding:
   # 로컬 Hugging Face Text Embeddings Inference 서버
   base-url: ${EMBEDDING_BASE_URL:http://localhost:8081}
 
+retrieval:
+  # "관련 FAQ 없음" 판단 기준(0~1). 로밍/요금·납부/유심-eSIM 3개 카테고리 데이터로
+  # 재측정해서 0.85 → 0.83으로 조정. 단순히 낮추면 다른 카테고리 FAQ가 잘못 매칭되는
+  # 위험이 있어서(예: "심카드" 질문이 "신용카드" 요금 FAQ와 헷갈림, 0.8179), 그 값(0.8179)과
+  # 로밍/요금 정답 파라프레이즈 점수(0.8423~0.8547) 사이인 0.83으로 잡음.
+  similarity-threshold: ${RETRIEVAL_SIMILARITY_THRESHOLD:0.83}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html

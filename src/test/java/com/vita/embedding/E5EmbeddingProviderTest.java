@@ -2,6 +2,7 @@ package com.vita.embedding;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
@@ -12,6 +13,7 @@ import java.util.stream.IntStream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -30,6 +32,8 @@ class E5EmbeddingProviderTest {
 	@Test
 	void appliesQueryPrefixAndReturns768Dimensions() {
 		server.expect(requestTo("http://localhost:8081/embed"))
+			.andExpect(header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE))
+			.andExpect(header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE))
 			.andExpect(content().json("""
 				{"inputs":["query: 일본에서 데이터 로밍을 어떻게 사용해?"],"normalize":true,"truncate":true}
 				"""))
@@ -44,6 +48,8 @@ class E5EmbeddingProviderTest {
 	@Test
 	void appliesPassagePrefixToDocument() {
 		server.expect(requestTo("http://localhost:8081/embed"))
+			.andExpect(header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE))
+			.andExpect(header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE))
 			.andExpect(content().json("""
 				{"inputs":["passage: 질문: 질문 내용\\n답변: 답변 내용"],"normalize":true,"truncate":true}
 				"""))
