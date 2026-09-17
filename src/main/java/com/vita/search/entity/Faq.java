@@ -17,7 +17,7 @@ import lombok.NoArgsConstructor;
  * 벡터 검색(Phase 2)은 네이티브 쿼리로 처리할 예정이라 이 엔티티에 필요 없음.
  */
 @Entity
-@Table(name = "faq")
+@Table(name = "faqs")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Faq extends BaseTimeEntity {

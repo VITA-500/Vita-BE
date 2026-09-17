@@ -2,11 +2,11 @@
 
 VITA 백엔드. 패키지 구조/코딩 컨벤션은 [../docs/08_개발표준.md] 기준.
 
-`src/main/resources/db/migration/V1__init_extension_and_core_tables.sql`에 실제 스키마(users,
-user_oauth, faq, store, chat_session, chat_message, chat_message_faq_ref, store_reservation)가
-확정되어 있다. 도메인 코드(auth/faq/search/chat/store)는 아직 없음 — 각자 담당 도메인 폴더를
-`common/`의 패턴(entity extends BaseTimeEntity, repository/service/controller/dto 계층, 도메인
-예외는 폴더 루트에 위치)대로 만들어 채워나가면 된다.
+`src/main/resources/db/migration/`에 실제 스키마(users, user_oauths, faqs, stores, chat_sessions,
+chat_messages, chat_message_faq_refs, store_reservations)가 V1~V4에 걸쳐 정의되어 있다(V4에서
+`users`를 제외한 전 테이블을 복수형으로 통일). 각자 담당 도메인 폴더를 `common/`의 패턴(entity
+extends BaseTimeEntity, repository/service/controller/dto 계층, 도메인 예외는 폴더 루트에 위치)대로
+만들어 채워나가면 된다.
 
 ## 로컬 DB 환경 구축 (스키마 변경 후 최초 1회 또는 pull마다)
 
@@ -24,8 +24,8 @@ docker compose -f docker-compose.local.yml up -d --build
 docker exec vita-postgres-local psql -U vita -d vita_local -c "\dt"
 ```
 
-`users`, `user_oauth`, `faq`, `store`, `chat_session`, `chat_message`, `chat_message_faq_ref`,
-`store_reservation`, `flyway_schema_history`가 보이면 정상이다.
+`users`, `user_oauths`, `faqs`, `stores`, `chat_sessions`, `chat_messages`, `chat_message_faq_refs`,
+`store_reservations`, `flyway_schema_history`가 보이면 정상이다.
 
 ## EC2 dev/prod 배포 (로컬에서 실행 금지 — EC2 전용)
 
@@ -125,7 +125,7 @@ psql -h localhost -p 5433 -U vita -d vita_dev
 `data/faq/raw/faq_roaming_test_raw.jsonl`, 최종 적재본은
 `data/faq/cleaned/faq_roaming_test.jsonl`에서 관리한다. 현재 최종 적재본에는 로밍 6개
 subcategory의 검수된 FAQ 23건이 들어 있다. 애플리케이션은 기본적으로 적재기를 실행하지 않으며,
-아래처럼 명시적으로 켠 경우에만 시작 시 최종 JSONL을 검증하고 `faq` 테이블에 적재한다.
+아래처럼 명시적으로 켠 경우에만 시작 시 최종 JSONL을 검증하고 `faqs` 테이블에 적재한다.
 
 로컬 PostgreSQL:
 
@@ -203,7 +203,7 @@ float[] queryVector = embeddingProvider.embedQuery(userQuestion);
 SELECT
     count(*) FILTER (WHERE embedding IS NULL) AS embedding_null_count,
     count(*) FILTER (WHERE embedding IS NOT NULL) AS embedding_count
-FROM faq
+FROM faqs
 WHERE status = 'ACTIVE' AND category = '로밍';
 
 SELECT id,
@@ -211,7 +211,7 @@ SELECT id,
        embedding_version,
        embedded_at,
        vector_dims(embedding) AS dimensions
-FROM faq
+FROM faqs
 WHERE status = 'ACTIVE' AND category = '로밍'
 ORDER BY id;
 ```

@@ -20,7 +20,7 @@ public interface StoreRepository extends JpaRepository<Store, Long>  {
                         + cos(radians(:lat)) * cos(radians(s.lat)) *
                         power(sin(radians(s.lng - :lng) / 2), 2)
                         )) AS distance_km
-            FROM store s
+            FROM stores s
             ORDER BY distance_km
             LIMIT 1
             """, nativeQuery = true)
@@ -34,7 +34,7 @@ public interface StoreRepository extends JpaRepository<Store, Long>  {
                         + cos(radians(:lat)) * cos(radians(s.lat)) *
                         power(sin(radians(s.lng - :lng) / 2), 2)
                         )) AS distance_km
-                FROM store s
+                FROM stores s
             ) ranked
             WHERE distance_km <= :radiusKm
             ORDER BY distance_km

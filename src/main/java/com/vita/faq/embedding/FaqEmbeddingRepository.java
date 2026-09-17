@@ -14,7 +14,7 @@ public class FaqEmbeddingRepository {
 
 	private static final String FIND_PENDING_SQL = """
 		SELECT id, question, answer
-		FROM faq
+		FROM faqs
 		WHERE status = 'ACTIVE'
 		  AND embedding IS NULL
 		ORDER BY id
@@ -22,7 +22,7 @@ public class FaqEmbeddingRepository {
 		""";
 
 	private static final String UPDATE_EMBEDDING_SQL = """
-		UPDATE faq
+		UPDATE faqs
 		SET embedding = ?,
 		    embedding_model = ?,
 		    embedding_version = ?,
