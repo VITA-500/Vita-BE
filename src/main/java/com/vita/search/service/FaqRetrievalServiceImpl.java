@@ -23,11 +23,14 @@ import org.springframework.stereotype.Service;
 public class FaqRetrievalServiceImpl implements FaqRetrievalService {
 
 	/**
-	 * "관련 FAQ 없음"으로 처리할 유사도 하한선. 0.85는 BE2와 협의 전 임시값이다 —
-	 * multilingual-e5-base로 무관한 질문을 넣어봐도 ~0.79까지 나오는 걸 확인해서,
-	 * 관련/무관 구간이 촘촘하다. BE2 피드백을 받으면 재조정해야 한다.
+	 * "관련 FAQ 없음"으로 처리할 유사도 하한선. BE2가 카테고리(로밍/요금·납부/유심-eSIM)를
+	 * 늘려준 데이터로 재측정해서 0.85 → 0.83으로 낮췄다. 단순히 낮추기만 하면 안 되는 이유가
+	 * 있었다 — "심카드를 새로 받아야 하는데..."(유심 질문, "유심" 단어 회피) 같은 케이스에서
+	 * top1이 엉뚱하게 요금/납부 카테고리 FAQ로 0.8179가 나왔다("카드"라는 글자가 "신용카드"와
+	 * 겹쳐서로 추정). 0.83은 로밍/요금 파라프레이즈 정답(0.8423/0.8547)은 통과시키면서, 이
+	 * 잘못된 카테고리 매칭(0.8179)과 완전 무관한 질문(~0.80)은 여전히 걸러내는 값이다.
 	 */
-	@Value("${retrieval.similarity-threshold:0.85}")
+	@Value("${retrieval.similarity-threshold:0.83}")
 	private double similarityThreshold;
 
 	/** 한글/영문/숫자가 2자 이상 연속된 덩어리만 키워드로 취급 (조사 등 형태소 분리는 안 함 — 근사치). */
