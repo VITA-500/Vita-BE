@@ -50,6 +50,11 @@ embedding:
   # 로컬 Hugging Face Text Embeddings Inference 서버
   base-url: ${EMBEDDING_BASE_URL:http://localhost:8081}
 
+retrieval:
+  # "관련 FAQ 없음" 판단 기준(0~1). BE2와 협의 전 임시값 — multilingual-e5-base로
+  # 무관한 질문도 유사도 ~0.79까지 나오는 걸 확인해서 보수적으로 0.85로 잡음.
+  similarity-threshold: ${RETRIEVAL_SIMILARITY_THRESHOLD:0.85}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
