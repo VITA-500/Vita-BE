@@ -31,7 +31,7 @@ public class FaqVectorSearchRepository {
 	private static final String SEARCH_SQL = """
 			SELECT id, category, subcategory, question, answer, updated_at,
 			       1 - (embedding <=> ?) AS similarity
-			FROM faq
+			FROM faqs
 			WHERE status = ?
 			  AND embedding IS NOT NULL
 			  AND 1 - (embedding <=> ?) >= ?

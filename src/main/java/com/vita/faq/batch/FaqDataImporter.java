@@ -13,7 +13,7 @@ import java.util.List;
 public class FaqDataImporter {
 
 	private static final String UPSERT_SQL = """
-		INSERT INTO faq (
+		INSERT INTO faqs (
 		    category, subcategory, question, answer, status,
 		    source_faq_id, source_policy_ids
 		) VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?)
@@ -25,24 +25,24 @@ public class FaqDataImporter {
 		    status = 'ACTIVE',
 		    source_policy_ids = EXCLUDED.source_policy_ids,
 		    embedding = CASE
-		        WHEN faq.question IS DISTINCT FROM EXCLUDED.question
-		          OR faq.answer IS DISTINCT FROM EXCLUDED.answer THEN NULL
-		        ELSE faq.embedding
+		        WHEN faqs.question IS DISTINCT FROM EXCLUDED.question
+		          OR faqs.answer IS DISTINCT FROM EXCLUDED.answer THEN NULL
+		        ELSE faqs.embedding
 		    END,
 		    embedding_model = CASE
-		        WHEN faq.question IS DISTINCT FROM EXCLUDED.question
-		          OR faq.answer IS DISTINCT FROM EXCLUDED.answer THEN NULL
-		        ELSE faq.embedding_model
+		        WHEN faqs.question IS DISTINCT FROM EXCLUDED.question
+		          OR faqs.answer IS DISTINCT FROM EXCLUDED.answer THEN NULL
+		        ELSE faqs.embedding_model
 		    END,
 		    embedding_version = CASE
-		        WHEN faq.question IS DISTINCT FROM EXCLUDED.question
-		          OR faq.answer IS DISTINCT FROM EXCLUDED.answer THEN NULL
-		        ELSE faq.embedding_version
+		        WHEN faqs.question IS DISTINCT FROM EXCLUDED.question
+		          OR faqs.answer IS DISTINCT FROM EXCLUDED.answer THEN NULL
+		        ELSE faqs.embedding_version
 		    END,
 		    embedded_at = CASE
-		        WHEN faq.question IS DISTINCT FROM EXCLUDED.question
-		          OR faq.answer IS DISTINCT FROM EXCLUDED.answer THEN NULL
-		        ELSE faq.embedded_at
+		        WHEN faqs.question IS DISTINCT FROM EXCLUDED.question
+		          OR faqs.answer IS DISTINCT FROM EXCLUDED.answer THEN NULL
+		        ELSE faqs.embedded_at
 		    END,
 		    updated_at = now()
 		""";
