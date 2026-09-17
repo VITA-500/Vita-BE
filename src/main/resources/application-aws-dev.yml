@@ -1,0 +1,7 @@
+spring:
+  datasource:
+    # 로컬 5433 -> EC2 -> RDS vita_dev SSH 터널 기준
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/vita_dev}
+    username: ${DB_USERNAME:vita}
+    # AWS dev 암호는 저장소에 넣지 않고 반드시 환경변수로 전달한다.
+    password: ${DB_PASSWORD}

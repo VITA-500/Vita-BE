@@ -36,6 +36,25 @@ jwt:
   secret: ${JWT_SECRET:local-dev-secret-key-change-me-in-production-32bytes}
   access-token-expire-millis: ${JWT_ACCESS_EXPIRE:3600000}   # 1시간
 
+# 필요할 때만 명시적으로 켜는 FAQ 정책 JSONL 적재기.
+# 같은 policy_id는 갱신되므로 로컬/AWS dev에서 여러 번 실행해도 중복 행이 생기지 않는다.
+faq:
+  import:
+    enabled: ${FAQ_IMPORT_ENABLED:false}
+    resource: ${FAQ_IMPORT_RESOURCE:classpath:data/faq/cleaned/faq_roaming_test.jsonl}
+  embedding:
+    enabled: ${FAQ_EMBEDDING_ENABLED:false}
+    batch-size: ${FAQ_EMBEDDING_BATCH_SIZE:100}
+
+embedding:
+  # 로컬 Hugging Face Text Embeddings Inference 서버
+  base-url: ${EMBEDDING_BASE_URL:http://localhost:8081}
+
+retrieval:
+  # "관련 FAQ 없음" 판단 기준(0~1). BE2와 협의 전 임시값 — multilingual-e5-base로
+  # 무관한 질문도 유사도 ~0.79까지 나오는 걸 확인해서 보수적으로 0.85로 잡음.
+  similarity-threshold: ${RETRIEVAL_SIMILARITY_THRESHOLD:0.85}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html

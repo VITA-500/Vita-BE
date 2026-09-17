@@ -5,6 +5,7 @@ import com.vita.search.dto.FaqSimilarityResult;
 import com.vita.search.entity.FaqStatus;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import javax.sql.DataSource;
@@ -16,9 +17,8 @@ import org.springframework.stereotype.Repository;
  * pgvector 유사도(cosine) 검색 — Phase 2 전용. Spring Data JPA의 @Query(JPQL)로는 pgvector
  * 전용 연산자(<=>)를 쓸 수 없어서, JdbcTemplate으로 순수 SQL을 직접 실행한다.
  *
- * BE2의 사용자 질문 → 벡터 변환 인터페이스가 아직 없어서, 이 클래스는 "벡터가 주어졌을 때
- * 유사도 검색 자체가 올바르게 동작하는가"만 검증하기 위한 것이다. Service/Controller는
- * BE2 인터페이스가 나온 뒤에 붙인다.
+ * {@link com.vita.search.service.FaqRetrievalServiceImpl}에서 사용자 질문을
+ * {@link com.vita.embedding.EmbeddingProvider}로 벡터화한 뒤 이 클래스를 호출한다.
  */
 @Repository
 public class FaqVectorSearchRepository {
@@ -29,7 +29,7 @@ public class FaqVectorSearchRepository {
 	 * 것이 먼저 나온다. WHERE 절의 유사도 조건도 같은 식으로 뒤집어서 threshold를 건다.
 	 */
 	private static final String SEARCH_SQL = """
-			SELECT id, category, subcategory, question, answer,
+			SELECT id, category, subcategory, question, answer, updated_at,
 			       1 - (embedding <=> ?) AS similarity
 			FROM faq
 			WHERE status = ?
@@ -45,6 +45,15 @@ public class FaqVectorSearchRepository {
 		this.jdbcTemplate = new JdbcTemplate(dataSource);
 	}
 
+	/**
+	 * 코사인 유사도 기준으로 가장 유사한 FAQ를 topK개 반환한다.
+	 *
+	 * @param queryVector        검색할 쿼리 벡터 (embedding 컬럼과 같은 차원이어야 함)
+	 * @param status             이 상태인 FAQ만 대상 (보통 ACTIVE)
+	 * @param similarityThreshold 이 값 미만인 결과는 제외 (0~1, 1에 가까울수록 유사)
+	 * @param topK               최대 반환 개수
+	 * @return 유사도 내림차순으로 정렬된 결과 목록
+	 */
 	public List<FaqSimilarityResult> searchBySimilarity(
 			float[] queryVector, FaqStatus status, double similarityThreshold, int topK) {
 
@@ -71,7 +80,8 @@ public class FaqVectorSearchRepository {
 								resultSet.getString("subcategory"),
 								resultSet.getString("question"),
 								resultSet.getString("answer"),
-								resultSet.getDouble("similarity")));
+								resultSet.getDouble("similarity"),
+								resultSet.getObject("updated_at", LocalDateTime.class)));
 					}
 				}
 				return results;

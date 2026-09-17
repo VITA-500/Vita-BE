@@ -8,9 +8,16 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+/** FAQ 키워드(LIKE) 검색용 리포지토리. */
 public interface FaqSearchRepository extends JpaRepository<Faq, Long> {
 
-	/** 임베딩 적재 전까지 쓰는 fallback 검색 — Phase 2에서 pgvector 유사도 검색으로 대체 예정. */
+	/**
+	 * 임베딩 적재 전까지 쓰는 fallback 검색 — Phase 2에서 pgvector 유사도 검색으로 대체 예정.
+	 *
+	 * @param keyword  question/answer에 대해 대소문자 무시하고 부분 일치(LIKE) 검색
+	 * @param status   이 상태인 FAQ만 검색 대상 (보통 ACTIVE)
+	 * @param pageable 페이지 번호/크기/정렬
+	 */
 	@Query("""
 			SELECT f FROM Faq f
 			WHERE f.status = :status
