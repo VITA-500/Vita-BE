@@ -28,6 +28,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 	private static final String PREFIX = "Bearer ";
 
 	private final JwtProvider jwtProvider;
+	private final CookieUtil cookieUtil;
 
 	@Override
 	protected void doFilterInternal(
@@ -45,14 +46,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 				var authentication = new UsernamePasswordAuthenticationToken(
 						principal, null, principal.getAuthorities());
-				SecurityContextHolder.getContext().setAuthentication(authentication);
+
+				// 새 컨텍스트를 만들어 담는다. 기존 컨텍스트를 그대로 쓰면 OAuth 때문에 켜둔 세션에
+				// 인증 정보가 저장되어, 토큰 쿠키를 지워도 세션만으로 인증이 유지된다(로그아웃 무력화).
+				var context = SecurityContextHolder.createEmptyContext();
+				context.setAuthentication(authentication);
+				SecurityContextHolder.setContext(context);
 			}
 		}
 
 		chain.doFilter(request, response);
 	}
 
+	/**
+	 * 쿠키를 우선 보고, 없으면 Authorization 헤더를 본다.
+	 *
+	 * <p>브라우저는 HttpOnly 쿠키로 인증하지만(FE1 협의 결과), Swagger의 Authorize 버튼과
+	 * curl 같은 도구는 헤더로 보낸다. 둘 다 받아야 개발·테스트가 막히지 않는다.
+	 */
 	private String resolveToken(HttpServletRequest request) {
+		return cookieUtil.read(request).orElseGet(() -> resolveFromHeader(request));
+	}
+
+	private String resolveFromHeader(HttpServletRequest request) {
 		String header = request.getHeader(HEADER);
 		if (header != null && header.startsWith(PREFIX)) {
 			String token = header.substring(PREFIX.length()).trim();

@@ -25,7 +25,13 @@ public enum ErrorCode {
 	 * 공격자가 어떤 이메일이 가입되어 있는지 알아낼 수 있다.
 	 */
 	INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다."),
-	USER_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다.");
+	USER_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."),
+
+	// 소셜 로그인 — FE가 각각 다른 화면/안내를 보여줘야 해서 별도 코드로 둔다.
+	/** 소셜 계정의 이메일이 이미 자체 가입된 계정과 겹칠 때. 자동 연결은 계정 탈취 경로가 되므로 거부한다. */
+	OAUTH_EMAIL_CONFLICT(HttpStatus.CONFLICT, "이미 가입된 이메일입니다. 일반 로그인을 이용해주세요."),
+	/** 사용자가 동의 화면에서 취소했거나 제공자 인증이 실패한 경우. */
+	OAUTH_AUTHENTICATION_FAILED(HttpStatus.UNAUTHORIZED, "소셜 로그인에 실패했습니다.");
 
 	private final HttpStatus httpStatus;
 	private final String message;
