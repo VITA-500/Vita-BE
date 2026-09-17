@@ -10,8 +10,8 @@ import lombok.Getter;
 @Getter
 @Builder
 public class ChatSessionCreateResponse {
-	Long sessionId;
-	LocalDateTime createdAt;
+	private Long sessionId;
+	private LocalDateTime createdAt;
 	
 	public static ChatSessionCreateResponse from(ChatSession session) {
 		return ChatSessionCreateResponse.builder()
