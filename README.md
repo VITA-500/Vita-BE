@@ -132,7 +132,8 @@
 
 ## 5. ERD (설계)
 
-<img width="800" alt="ERD" src="docs/diagrams/erd.svg" />
+<img width="1328" height="803" alt="image" src="https://github.com/user-attachments/assets/a0d7705c-194d-446b-801a-227043c1bfed" />
+
 
 | 테이블 | 설명 |
 |---|---|
