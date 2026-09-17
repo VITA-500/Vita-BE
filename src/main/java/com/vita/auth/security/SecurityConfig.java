@@ -46,8 +46,7 @@ public class SecurityConfig {
 	private static final String[] PUBLIC_PATHS = {
 			"/auth/**",
 			"/search/**",
-			"/stores/nearest",
-			"/stores/nearby",
+			"/stores/**",
 			"/swagger-ui/**",
 			"/v3/api-docs/**",
 			"/swagger-ui.html"

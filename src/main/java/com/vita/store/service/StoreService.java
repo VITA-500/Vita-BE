@@ -6,13 +6,7 @@ import com.vita.common.page.PageRequest;
 import com.vita.common.page.PageResponse;
 import com.vita.store.dto.request.StoreCreateRequest;
 import com.vita.store.dto.request.StoreUpdateRequest;
-import com.vita.store.dto.response.StoreCreateResponse;
-import com.vita.store.dto.response.StoreDeleteResponse;
-import com.vita.store.dto.response.StoreListItemResponse;
-import com.vita.store.dto.response.StoreNearbyItemResponse;
-import com.vita.store.dto.response.StoreNearbyListResponse;
-import com.vita.store.dto.response.StoreNearestResponse;
-import com.vita.store.dto.response.StoreUpdateResponse;
+import com.vita.store.dto.response.*;
 import com.vita.store.entity.Store;
 import com.vita.store.exception.StoreNotFoundException;
 import com.vita.store.repository.StoreDistanceProjection;
@@ -58,6 +52,12 @@ public class StoreService {
                 pageRequest.keyword() != null ? pageRequest.keyword() : "",
                 pageRequest.toSpringPageRequest(ADMIN_LIST_SORT_FIELDS, ADMIN_LIST_DEFAULT_SORT));
         return PageResponse.from(page, store -> new StoreListItemResponse(store.getId(), store.getName(), store.getAddress()));
+    }
+
+    public StoreDetailResponse findById(Long storeId){
+        Store store = findStoreOrThrow(storeId);
+        return new StoreDetailResponse(store.getId(), store.getName(), store.getAddress(),
+                store.getLat(), store.getLng(), store.getBusinessHours(), store.getPhone());
     }
 
     @Transactional
