@@ -1,286 +1,264 @@
-# Vita-BE
+# 🤖 VITA
+> 가상 통신사 FAQ 기반 AI 상담 + 위치 기반 매장 안내 서비스
 
-VITA 백엔드. 패키지 구조/코딩 컨벤션은 [../docs/08_개발표준.md] 기준.
+[![Java](https://img.shields.io/badge/Java-21-orange)](https://openjdk.org/)
+[![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.3.5-brightgreen)](https://spring.io/projects/spring-boot)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue)](https://www.postgresql.org/)
+[![pgvector](https://img.shields.io/badge/pgvector-vector_search-4169E1)](https://github.com/pgvector/pgvector)
+[![Redis](https://img.shields.io/badge/Redis-7.x-red)](https://redis.io/)
+[![AWS Bedrock](https://img.shields.io/badge/LLM-AWS_Bedrock-orange)](https://aws.amazon.com/bedrock/)
+[![Docker](https://img.shields.io/badge/Docker-latest-blue)](https://www.docker.com/)
 
-`src/main/resources/db/migration/`에 실제 스키마(users, user_oauths, faqs, stores, chat_sessions,
-chat_messages, chat_message_faq_refs, store_reservations)가 V1~V4에 걸쳐 정의되어 있다(V4에서
-`users`를 제외한 전 테이블을 복수형으로 통일). 각자 담당 도메인 폴더를 `common/`의 패턴(entity
-extends BaseTimeEntity, repository/service/controller/dto 계층, 도메인 예외는 폴더 루트에 위치)대로
-만들어 채워나가면 된다.
+---
 
-## 팀 역할 경계 정리 (2026-09-17)
+## 목차
 
-멘토 피드백(업무 분장 불균형, 위치 기반 설계 보완 필요) 반영해서 아래 두 가지를 정리했다.
-기존 역할 자체를 바꾸는 게 아니라, 이미 있던 애매한 경계를 명확히 하는 수준.
+1. 프로젝트 소개
+2. 팀 구성 및 일정
+3. 기술 스택
+4. 시스템 아키텍처 (설계)
+5. ERD (설계)
+6. 기능 및 API 설계
+7. 핵심 설계 포인트
+8. 현재 구현 상태
+9. 남은 로드맵
 
-**RAG 검색(BE3) ↔ LLM/Chat(BE4) 경계**
-- BE3: `FaqVectorSearchRepository` — pgvector 유사도 검색 엔진 자체(쿼리 성능, threshold 튜닝,
-  Top-K 랭킹 신호). 지금까지 해온 것과 동일한 연장선.
-- BE4: `FaqRetrievalServiceImpl`의 실제 구현 — 검색 결과를 RAG Context로 조립해 프롬프트에
-  넣고, "관련 정보 없음" 폴백을 처리하는 지점까지. 검색 결과를 어떻게 답변으로 만들지는
-  프롬프트 설계와 떼어놓을 수 없어서 LLM 담당이 갖는 게 맞다고 판단.
-- 즉 "검색 엔진 자체"는 BE3, "검색 결과 → 최종 답변 통합"은 BE4. `FaqRetrievalService`
-  인터페이스(BE3가 만들어 BE4에게 제공한 계약, PR #13)는 그대로 유지되고 구현체 소유권만
-  명확해진 것 — BE3 역할이 없어지거나 다른 도메인으로 옮겨가는 게 아니다.
+---
 
-**매장/위치 도메인(BE5) 확장**
-- 위치 권한 거부 시 폴백 처리
-- 영업시간/카테고리 필터
-- `store_reservations`(스키마엔 이미 있고 "선택, 추후 확장"으로 미뤄둔 기능) 정식화 검토
-- 반경 검색(`/stores/nearby`) 성능/인덱스 설계
+## 1. 프로젝트 소개
 
-## 로컬 DB 환경 구축 (스키마 변경 후 최초 1회 또는 pull마다)
+**"AI 상담 서비스 구현 프로젝트"** 과제를 바탕으로, 가상 통신 서비스의 FAQ 데이터와 매장 정보를 이용해 사용자 질문에 RAG(검색 증강 생성)로 자연어 답변을 하고, 위치 기반으로 가까운 매장을 안내하는 AI 상담·지도 서비스입니다.
 
-```bash
-git pull origin main
-cp .env.local.example .env.local   # 이미 있으면 생략
-docker compose -f docker-compose.local.yml down -v   # 기존 로컬 볼륨 완전 초기화 (스키마 바뀌었으므로 필수)
-docker compose -f docker-compose.local.yml up -d --build
-```
+**핵심 경험 포인트**: Vector DB 기반 검색, LLM 응답 생성, 지도 API 활용, 위치 기반 서비스 설계, FE/BE 협업 API 설계
 
-`down -v`로 볼륨(`vita-be_postgres-data`)까지 지워야 Flyway가 새 `V1`을 처음부터 다시 적용한다 —
-기존 볼륨이 남아있으면 이미 적용된 걸로 기록된 과거 스키마 위에서 엇갈릴 수 있다. 기동 후 확인:
+**전제 조건** (과제 원문 기준)
+- 통신 서비스 FAQ 1,000개 이상을 생성형 AI로 생성
+- 생성한 FAQ는 Vector DB에 저장해 검색 가능하도록 구성
+- 지도 API로 위치 기반 화면 구현
+- LLM은 팀 협의로 AWS Bedrock 채택 (2026-09-16 확정)
 
-```bash
-docker exec vita-postgres-local psql -U vita -d vita_local -c "\dt"
-```
+---
 
-`users`, `user_oauths`, `faqs`, `stores`, `chat_sessions`, `chat_messages`, `chat_message_faq_refs`,
-`store_reservations`, `flyway_schema_history`가 보이면 정상이다.
+## 2. 팀 구성 및 일정
 
-## EC2 dev/prod 배포 (로컬에서 실행 금지 — EC2 전용)
+**팀명**: 1조 : 500 (백엔드 6 · 프론트 2, 총 8인)
 
-postgres는 컨테이너가 아니라 RDS(`vita-db`, DB는 `vita_dev`/`vita_prod`로 분리)를 쓴다. 최초 1회, EC2 안에서:
+| 역할 | 담당 | 핵심 업무 |
+|---|---|---|
+| BE1 | 김재우 | 아키텍처/공통/인증 (회원가입, 로그인, JWT, 마이페이지) |
+| BE2 | 김현정 | FAQ 데이터 생성/CRUD, 임베딩 변환 및 pgvector 저장 |
+| BE3 | 이진희 | RAG 검색 (pgvector 유사도 검색, threshold, Context 구성) |
+| BE4 | 정민주 | LLM/Chat API (Bedrock 연동, Prompt, 응답 상태관리) |
+| BE5 | 안제홍 | 매장/위치 서비스 (매장 CRUD, 거리 계산, 지도 데이터) |
+| BE6 (조장) | 김어진 | 공통 기반(Docker, 페이징 유틸), 통합테스트, dev/prod 환경, DevOps |
+| FE1 | 박해준 | 인증/AI Chat (로그인, 채팅, Streaming, 대화 기록) |
+| FE2 | 정승민 | 지도/관리자/랜딩 UI |
 
-```bash
-cp .env.dev.example .env.dev    # 또는 .env.prod.example → .env.prod
-# DB_PASSWORD, JWT_SECRET을 CHANGE_ME에서 실제 값으로 채우기
-docker compose -f docker-compose.dev.yml up -d --build    # dev는 8080, prod는 docker-compose.prod.yml로 8000
-```
+**일정** (2026-09-09 ~ 2026-10-28, 약 7주)
 
-RDS 보안그룹(`vita-rds-sg`)이 EC2 보안그룹(`vita-ec2-sg`)의 5432 포트를 허용해야 연결된다. 스키마는
-로컬과 마찬가지로 Flyway가 최초 기동 시 자동 적용한다(수동 SQL 불필요).
+| 기간 | 내용 |
+|---|---|
+| 9/9 ~ 9/15 | 주제 선정, 기획안 작성, 역할 분담, 공통 작업(패키지 구조, API 규격, DB 스키마 설계) |
+| **9/16 ~ 9/29** | **Phase 1 (MVP)** — 인증, FAQ 생성/적재, RAG 검색, Chat API, 매장 CRUD, Docker 환경 구성 |
+| 9/30 ~ 10/13 | Phase 2 (Core) — 통합 테스트, 임베딩 동기화, 관리자 API, CI/CD 파이프라인 구성 |
+| 10/14 ~ 10/24 | Phase 3 (Hardening) — 예외 처리, 성능 점검, 배포 안정화 |
+| 10/25 ~ 10/28 | 발표 준비 및 최종 점검 |
 
-**프론트/브라우저에서 실제로 호출할 땐 8080/8000이 아니라 아래 HTTPS 주소를 쓸 것** — "HTTPS
-(Nginx + Let's Encrypt)" 절 참고.
+> 현재 시점은 Phase 1 초반이며, 이번 멘토링은 설계·기획 내용 위주로 진행합니다.
 
-## HTTPS (Nginx + Let's Encrypt)
+---
 
-프론트(Vercel, HTTPS)가 브라우저에서 백엔드를 직접 호출하려면 백엔드도 HTTPS여야 한다 — HTTPS
-페이지에서 HTTP로 나가는 요청은 브라우저가 Mixed Content로 차단한다(CORS와는 별개 문제). EC2가
-한 대뿐이라 로드밸런서(ALB) 대신, **EC2 안에 Nginx를 리버스 프록시로 세우고 Let's Encrypt 무료
-인증서로 HTTPS를 처리**한다.
+## 3. 기술 스택 (계획)
 
-**접속 주소**
+### Backend
 
-| 환경 | URL | 내부적으로 전달되는 곳 |
-| --- | --- | --- |
-| prod | `https://54-116-34-131.sslip.io` (443, 기본 포트라 생략 가능) | `127.0.0.1:8000` |
-| dev | `https://54-116-34-131.sslip.io:8443` | `127.0.0.1:8080` |
+| 분류 | 기술 |
+|---|---|
+| 언어 / 프레임워크 | ![Java](https://img.shields.io/badge/Java-21-007396?style=for-the-badge&logo=openjdk&logoColor=white) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?style=for-the-badge&logo=springboot&logoColor=white) ![Gradle](https://img.shields.io/badge/Gradle-02303A?style=for-the-badge&logo=gradle&logoColor=white) |
+| 인증 | ![Spring Security](https://img.shields.io/badge/Spring%20Security-6DB33F?style=for-the-badge&logo=springsecurity&logoColor=white) ![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white) |
+| LLM | ![AWS Bedrock](https://img.shields.io/badge/AWS%20Bedrock-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white) |
+| API 문서 | ![Swagger](https://img.shields.io/badge/Swagger-85EA2D?style=for-the-badge&logo=swagger&logoColor=black) |
+| 테스트 | ![JUnit5](https://img.shields.io/badge/JUnit5-25A162?style=for-the-badge&logo=junit5&logoColor=white) |
 
-**왜 `sslip.io`를 쓰는지**: EC2의 AWS 기본 도메인(`*.compute.amazonaws.com`)은 Let's Encrypt가
-정책상 인증서 발급을 거부한다. `sslip.io`는 IP를 도메인처럼 쓰게 해주는 무료 서비스라(`54-116-34-131.sslip.io` →
-자동으로 `54.116.34.131`) 별도 도메인 구매 없이 인증서를 받을 수 있다.
+### Database
 
-⚠️ **반드시 하이픈(`-`) 버전으로만 접속할 것.** 점(`.`) 버전(`54.116.34.131.sslip.io`)도 DNS는
-같은 IP로 풀리지만, 인증서는 하이픈 버전 이름으로만 발급받았기 때문에 점 버전으로 접속하면
-`SEC_E_WRONG_PRINCIPAL`(인증서 이름 불일치)로 접속이 거부된다 — 실제 테스트로 확인됨.
+| 분류 | 기술 |
+|---|---|
+| RDBMS + Vector DB | ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white) ![pgvector](https://img.shields.io/badge/pgvector-4169E1?style=for-the-badge&logoColor=white) |
+| 캐시 | ![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=for-the-badge&logo=redis&logoColor=white) |
 
-**설정 요약** (EC2에서 1회 진행, 이미 완료됨)
-- `vita-ec2-sg`에 `80`(인증서 발급용), `443`(prod), `8443`(dev) 인바운드 추가, 전부 `0.0.0.0/0`
-- Nginx 설치, Certbot은 Amazon Linux 2023에 기본 패키지가 없어 Python venv(`/opt/certbot`)로 설치
-- `certbot certonly --nginx -d 54-116-34-131.sslip.io`로 인증서 발급
-- `/etc/nginx/conf.d/vita.conf`에 443→8000, 8443→8080 리버스 프록시 설정. `location /`에
-  `X-Forwarded-Proto`/`X-Forwarded-Host`/`X-Forwarded-Port`를 모두 넘겨야 한다(아래 참고).
-- systemd 타이머(`certbot-renew.timer`, 매일 03/15시 체크)로 자동 갱신 — 인증서는 90일마다 만료.
-  `sudo /opt/certbot/bin/certbot renew --dry-run`으로 정상 동작 확인됨
+### Infra
 
-**TODO**: `vita-ec2-sg`에서 `8080`, `8000` 인바운드 규칙 삭제 필요 — 지금은 예전 HTTP 직접 접근
-(`http://ec2-...:8080` 등)도 여전히 열려 있는 상태. Nginx는 로컬(127.0.0.1)로 컨테이너에 붙는
-구조라 이 두 포트를 막아도 서비스엔 영향 없음 — HTTPS 경로만 쓰도록 강제하려면 닫아야 한다.
+| 분류 | 기술 |
+|---|---|
+| 컨테이너 | ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white) |
+| 배포 | ![AWS EC2](https://img.shields.io/badge/AWS%20EC2-FF9900?style=for-the-badge&logo=amazonec2&logoColor=white) ![AWS RDS](https://img.shields.io/badge/AWS%20RDS-527FFF?style=for-the-badge&logo=amazonrds&logoColor=white) |
+| HTTPS | ![Nginx](https://img.shields.io/badge/Nginx-009639?style=for-the-badge&logo=nginx&logoColor=white) ![Let's Encrypt](https://img.shields.io/badge/Let's%20Encrypt-003A70?style=for-the-badge&logo=letsencrypt&logoColor=white) |
+| CI/CD | ![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white) |
+| 모니터링(선택) | ![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=for-the-badge&logo=prometheus&logoColor=white) ![Grafana](https://img.shields.io/badge/Grafana-F46800?style=for-the-badge&logo=grafana&logoColor=white) |
 
-**Swagger "Try it out"이 Failed to fetch로 실패하는 문제 (2026-09-16 발견/수정)**: springdoc이
-OpenAPI 문서의 서버 주소를 자동 추론하는데, Nginx가 원 요청의 프로토콜/호스트/포트 정보를
-백엔드에 안 넘겨주면 Spring이 이를 잘못 판단해서(예: dev `:8443`으로 접속했는데 서버 주소를
-포트 없는 443짜리로 잘못 생성) Swagger의 요청이 엉뚱한 곳(주로 prod 443)으로 나가버린다.
-해결을 위해 두 가지가 다 필요하다:
-1. `application.yml`에 `server.forward-headers-strategy: framework` 추가 (Spring이 forwarded
-   헤더를 신뢰하게 함) — 완료됨.
-2. `/etc/nginx/conf.d/vita.conf`의 두 `server` 블록 `location /`에 아래 두 줄 추가 — 완료됨:
-   ```nginx
-   proxy_set_header X-Forwarded-Host $host;
-   proxy_set_header X-Forwarded-Port $server_port;
-   ```
-   (`$server_port`는 nginx가 그 블록에서 실제 `listen`한 포트를 자동으로 넣어주므로 443/8443
-   블록에 그대로 써도 됨)
+### Frontend
 
-수정 후 컨테이너 재시작은 필요 없고 `sudo nginx -t && sudo systemctl reload nginx`만 하면 된다.
+| 분류 | 기술 |
+|---|---|
+| 프레임워크 | ![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=for-the-badge&logo=next.js&logoColor=white) ![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black) ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white) |
+| 스타일 | ![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white) |
+| 상태관리 / 데이터 페칭 | ![Zustand](https://img.shields.io/badge/Zustand-433E38?style=for-the-badge) ![TanStack Query](https://img.shields.io/badge/TanStack%20Query-FF4154?style=for-the-badge&logo=reactquery&logoColor=white) |
+| 폼 / 검증 | ![React Hook Form](https://img.shields.io/badge/React%20Hook%20Form-EC5990?style=for-the-badge&logo=reacthookform&logoColor=white) ![Zod](https://img.shields.io/badge/Zod-3E67B1?style=for-the-badge&logo=zod&logoColor=white) |
+| 지도 | ![Kakao Maps](https://img.shields.io/badge/Kakao%20Maps%20SDK-FFCD00?style=for-the-badge&logo=kakao&logoColor=black) |
+| API 목업 / 테스트 | ![MSW](https://img.shields.io/badge/MSW-FF6A33?style=for-the-badge) ![Playwright](https://img.shields.io/badge/Playwright-2EAD33?style=for-the-badge&logo=playwright&logoColor=white) |
+| 배포 | ![Vercel](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white) |
 
-## RDS 직접 접근이 필요할 때 (SSH 터널링)
+**왜 pgvector인가**: 별도 Vector DB(Chroma 등)를 구축하지 않고 PostgreSQL의 pgvector 확장으로 RDB와 Vector DB를 하나로 통합 — 인프라를 단순화하고 팀 규모/예산(7주, 약 48만원)에 맞춘 선택
 
-RDS는 퍼블릭 액세스가 꺼져 있고 EC2에서만 접근 가능하다(보안그룹). 본인 노트북에서 직접
-`psql -h vita-db...`를 치면 연결 자체가 안 된다 — DB 계정/비밀번호를 알아도 네트워크 단에서
-막혀있기 때문. FAQ 시드 스크립트처럼 로컬에서 AWS(dev) RDS에 직접 데이터를 넣어야 하는
-경우(BE2 등)엔 EC2를 경유하는 SSH 터널을 열어야 한다.
+---
 
-**1. 터널 열기** (별도 터미널 창에 하나 띄워두고, 작업 끝날 때까지 그 창은 그대로 둔다 — `Ctrl+C`로 종료)
-```bash
-ssh -i "vita-key.pem" -L 5433:vita-db.cbouowac2f97.ap-northeast-2.rds.amazonaws.com:5432 ec2-user@ec2-54-116-34-131.ap-northeast-2.compute.amazonaws.com -N
-```
-로컬 `5433` 포트로 들어오는 트래픽을 EC2를 거쳐 RDS의 `5432`로 그대로 전달해준다 (로컬
-5432는 이미 `docker-compose.local.yml`의 로컬 postgres가 쓰고 있어서 5433으로 뺐다).
+## 4. 시스템 아키텍처 (설계)
 
-**2. 다른 터미널에서 localhost:5433으로 접속** (실제로는 RDS에 붙는 것과 동일)
-```bash
-psql -h localhost -p 5433 -U vita -d vita_dev
-```
-스크립트에서 접속하는 경우엔 `DB_URL=jdbc:postgresql://localhost:5433/vita_dev`처럼 호스트만
-`localhost:5433`으로 바꿔서 쓰면 된다. 계정/비밀번호는 `.env.dev`와 동일(`vita` / 실제 RDS 비밀번호).
-
-**주의**: `vita-key.pem`은 EC2 SSH 접속 키라 아무한테나 공유하면 안 된다 — 필요한 사람에게 직접
-전달하거나, 별도 팀원용 키를 EC2 `~/.ssh/authorized_keys`에 추가해서 개인별로 발급하는 걸 권장.
-
-## 로밍 FAQ 정책 JSONL 적재
-
-정책 원본은 `src/main/resources/data/faq/policy_cleaned.jsonl`, 생성 초안은
-`data/faq/raw/faq_roaming_test_raw.jsonl`, 최종 적재본은
-`data/faq/cleaned/faq_roaming_test.jsonl`에서 관리한다. 현재 최종 적재본에는 로밍 6개
-subcategory의 검수된 FAQ 23건이 들어 있다. 애플리케이션은 기본적으로 적재기를 실행하지 않으며,
-아래처럼 명시적으로 켠 경우에만 시작 시 최종 JSONL을 검증하고 `faqs` 테이블에 적재한다.
-
-로컬 PostgreSQL:
-
-```powershell
-$env:SPRING_PROFILES_ACTIVE = "local"
-$env:DB_URL = "jdbc:postgresql://localhost:5432/vita_local"
-$env:DB_USERNAME = "vita"
-$env:DB_PASSWORD = "local1234"
-$env:FAQ_IMPORT_ENABLED = "true"
-.\gradlew.bat bootRun
-```
-
-AWS dev는 먼저 위의 SSH 터널을 연 뒤 별도 터미널에서 같은 코드를 `aws-dev` profile로 실행한다.
-비밀번호는 실제 RDS 암호를 환경변수로만 전달한다.
-
-```powershell
-$env:SPRING_PROFILES_ACTIVE = "aws-dev"
-$env:DB_USERNAME = "vita"
-$env:DB_PASSWORD = "<RDS 비밀번호>"
-$env:FAQ_IMPORT_ENABLED = "true"
-.\gradlew.bat bootRun
-```
-
-적재기는 category/subcategory/question으로 안정적인 내부 키를 만들어 재실행해도 같은 FAQ를
-중복 추가하지 않는다. 같은 질문의 답변이 바뀌면 기존 임베딩을 비워 재생성 대상으로 만들며,
-내용이 같으면 임베딩을 보존한다. 질문 문구 변경까지 같은 행으로 관리하려면 JSONL에 선택 필드인
-`faq_id`를 지정한다. 다른 파일을 사용할 때는
-`FAQ_IMPORT_RESOURCE=file:C:/path/to/faq_cleaned.jsonl`처럼 지정할 수 있다.
-
-## FAQ E5 임베딩 생성 및 저장
-
-로컬 모델 서버는 Hugging Face Text Embeddings Inference(TEI) CPU 이미지를 사용한다. 최초 실행은
-`intfloat/multilingual-e5-base` 모델을 내려받기 때문에 시간이 걸리며, 이후에는 Docker volume의
-캐시를 재사용한다.
-
-```powershell
-docker compose -f docker-compose.embedding.yml up -d
-```
-
-`http://localhost:8081/health`가 정상 응답하면 FAQ 임베딩 배치를 실행한다. 일반 애플리케이션 기동
-중에는 실행되지 않으며 `faq.embedding.enabled`를 명시적으로 켠 경우에만 `ACTIVE`이면서
-`embedding IS NULL`인 FAQ를 처리한다.
-
-```powershell
-$env:JAVA_HOME = "C:\Users\anthi\.jdks\ms-21.0.11"
-$env:DB_URL = "jdbc:postgresql://localhost:5432/vita_local"
-$env:DB_USERNAME = "vita"
-$env:DB_PASSWORD = "local1234"
-$env:EMBEDDING_BASE_URL = "http://localhost:8081"
-.\gradlew.bat bootRun --args="--faq.embedding.enabled=true --server.port=0"
-```
-
-`server.port=0`은 이미 실행 중인 로컬 백엔드와 포트가 겹치지 않도록 임시 포트를 사용한다. 로그에
-`FAQ 임베딩 저장 완료: count=23`이 보이면 종료해도 된다. 다시 실행하면 이미 벡터가 있는 FAQ는
-건너뛰어 `count=0`이 된다.
-
-E5 입력 규칙은 `E5EmbeddingProvider` 내부에서 적용한다.
-
-- query: `query: {사용자 질문}`
-- document: `passage: 질문: {question}\n답변: {answer}`
-- model: `intfloat/multilingual-e5-base`
-- dimension: 768, L2 normalized
-
-BE3는 모델명이나 prefix를 알 필요 없이 아래처럼 주입받아 사용한다.
-
-```java
-private final EmbeddingProvider embeddingProvider;
-
-float[] queryVector = embeddingProvider.embedQuery(userQuestion);
-```
-
-로컬 DB 확인:
-
-```sql
-SELECT
-    count(*) FILTER (WHERE embedding IS NULL) AS embedding_null_count,
-    count(*) FILTER (WHERE embedding IS NOT NULL) AS embedding_count
-FROM faqs
-WHERE status = 'ACTIVE' AND category = '로밍';
-
-SELECT id,
-       embedding_model,
-       embedding_version,
-       embedded_at,
-       vector_dims(embedding) AS dimensions
-FROM faqs
-WHERE status = 'ACTIVE' AND category = '로밍'
-ORDER BY id;
-```
-
-
-## CI/CD (GitHub Actions)
-
-`develop` push → dev 자동 배포(`.github/workflows/deploy-dev.yml`), `main` push → prod 자동 배포
-(`.github/workflows/deploy-prod.yml`). GitHub Actions가 SSH로 EC2에 접속해 `git pull` +
-`docker compose up -d --build`를 그대로 실행하는 구조 — 별도 이미지 레지스트리 없음.
-
-**최초 1회 설정 필요**
-- GitHub 레포 Settings → Secrets and variables → Actions에 등록:
-  - `EC2_HOST`: EC2 퍼블릭 DNS/IP
-  - `EC2_SSH_KEY`: `vita-key.pem` 파일 내용 전체(그대로 복붙)
-- EC2 보안그룹(`vita-ec2-sg`)의 SSH(22) 인바운드 소스를 **본인 IP → `0.0.0.0/0`으로 넓혀야 함** —
-  GitHub Actions 러너는 고정 IP가 아니라 매번 다른 IP에서 접속하기 때문. 비밀번호 인증이 아니라
-  키 기반 인증이라 무차별 대입 공격 위험은 낮지만, 주기적으로 EC2 로그인 시도 로그(`/var/log/secure`)
-  정도는 확인 권장.
-- EC2에 `~/Vita-BE`로 레포가 이미 clone되어 있어야 함(이번 세션에서 완료됨)
-
-## 시작하기 (일반)
-
-```bash
-./gradlew compileJava   # 컴파일 확인
-./gradlew test          # 테스트
-./gradlew bootRun        # 로컬 Postgres가 떠 있어야 함
-```
-
-## 패키지 구조
+<img width="800" alt="시스템 아키텍처" src="docs/diagrams/architecture.svg" />
 
 ```
-com.vita/
-├── VitaApplication.java
-└── common/            공통 응답 포맷(ErrorResponse — 성공 응답은 wrapper 없이 DTO 그대로 반환),
-                        전역 예외 처리(BusinessException + GlobalExceptionHandler), 공통 엔티티
-                        (BaseTimeEntity), 공통 페이징(PageRequest/PageResponse, sortBy 화이트리스트)
+[Next.js/Vercel] --HTTPS--> [Nginx(EC2)] --> [Spring Boot] --+--> [RDS: PostgreSQL+pgvector]
+                                                              +--> [Redis: 캐싱/토큰 블랙리스트]
+                                                              +--> [AWS Bedrock: LLM 응답 생성]
+                                                              +--> [Kakao Maps API 연동은 FE에서 직접 호출]
 ```
 
-각 담당자는 `auth`, `faq`, `search`, `chat`, `store` 패키지를 아래 형태로 만들면 된다
-(08_개발표준.md 1절 기준):
+- 사용자 질문 → 백엔드가 pgvector로 유사 FAQ 검색(RAG) → 검색 결과를 근거로 Bedrock 호출 → 자연어 답변 생성 → 채팅 세션에 저장
+- 위치 질의 시 매장 좌표 기반 거리 계산 → 채팅 응답과 함께 지도 표시용 데이터 반환
+- 인프라는 AWS EC2 단일 인스턴스(dev/prod 포트 분리) + RDS + Nginx/Let's Encrypt HTTPS, GitHub Actions로 배포 자동화
 
-```
-{도메인}/
-├── {Domain}NotFoundException.java   도메인 예외는 서브패키지 없이 도메인 루트에 위치
-├── entity/{Domain}.java             BaseTimeEntity 상속
-├── repository/{Domain}Repository.java
-├── service/{Domain}Service.java
-├── controller/{Domain}Controller.java
-└── dto/{Domain}Response.java, {Domain}CreateRequest.java 등
-```
+---
+
+## 5. ERD (설계)
+
+<img width="800" alt="ERD" src="docs/diagrams/erd.svg" />
+
+| 테이블 | 설명 |
+|---|---|
+| `users` | 회원 정보. `email`/`password_hash`는 nullable(소셜 전용 계정 대응), PII(email/name/phone)는 마스킹 대상 |
+| `user_oauths` | 소셜 로그인 연동(LOCAL/GOOGLE/KAKAO/NAVER), 한 사용자가 여러 소셜 계정 연결 가능 |
+| `faqs` | FAQ 본문 + `embedding vector(768)`(intfloat/multilingual-e5-base 기준). 삭제는 `status`를 `INACTIVE`로 바꾸는 소프트 삭제이며, RAG 검색은 `status='ACTIVE'`만 대상 |
+| `stores` | 매장 정보(좌표, 영업시간, 연락처) |
+| `chat_sessions` / `chat_messages` | 대화 세션과 메시지. `chat_messages.status`로 생성중/완료/실패/재시도 상태 관리, `latency_ms`로 응답 시간 기록 |
+| `chat_message_faq_refs` | assistant 메시지가 답변 근거로 사용한 FAQ 매핑(N:M, JSON 배열 대신 정규화) |
+| `store_reservations` | (선택, 추후 확장) 매장 방문 예약 |
+
+**설계 원칙**
+- Vector DB를 따로 두지 않고 `faqs.embedding` 컬럼(pgvector)으로 RDB와 통합
+- FAQ ~1,000건 규모에서는 pgvector 인덱스(IVFFlat/HNSW) 없이 Exact Search로 충분하다고 판단, 필요 시 추후 추가
+- PII 컬럼(email/name/phone)은 로그·API 응답 양쪽에서 마스킹 처리 원칙
+- 테이블명은 전부 복수형(`users`만 PostgreSQL 예약어 회피 목적으로 원래도 복수형)
+
+---
+
+## 6. 기능 및 API 설계
+
+### 전체 기능 목록
+
+| 구분 | 기능 | 우선순위 |
+|---|---|---|
+| 인증 | 회원가입 / 로그인 / 마이페이지 조회·수정 | 필수 |
+| 채팅 | AI 질문-답변(RAG) / 응답 상태 처리 / 세션·히스토리 저장 | 필수 |
+| 채팅 | 답변 피드백(👍/👎) | 선택 |
+| 매장 | 가까운 매장 안내 / 주변 매장 목록 조회 | 필수 |
+| 매장 | 매장 예약 | 선택(추후) |
+| 관리자 | FAQ 관리 CRUD / 매장 관리 CRUD | 필수 |
+| 관리자 | 질문 로그·통계 대시보드 | 선택 |
+
+### API 엔드포인트 설계
+
+공통: 응답은 wrapper 없이 DTO를 최상위로 반환(성공은 body 그대로, 실패는 `{code, message}`), 생성은 `201` 나머지는 `200`+body(`204` 미사용), 페이징은 `page/size/keyword/sortBy` 공통 파라미터.
+
+**Auth**
+
+| Method | Path | 설명 |
+|---|---|---|
+| POST | `/auth/signup` | 회원가입 |
+| POST | `/auth/login` | 로그인 (Access/Refresh 토큰 발급) |
+| POST | `/auth/refresh` | 토큰 재발급 (Refresh Token rotation) |
+| POST | `/auth/logout` | 로그아웃 |
+
+**User**
+
+| Method | Path | 설명 |
+|---|---|---|
+| GET | `/users/me` | 내 정보 조회 |
+| PATCH | `/users/me` | 내 정보 수정 |
+
+**Chat**
+
+| Method | Path | 설명 |
+|---|---|---|
+| GET | `/chat/sessions` | 세션 목록 조회 |
+| POST | `/chat/sessions` | 새 세션 생성 |
+| GET | `/chat/sessions/{id}/messages` | 세션 내 메시지 조회 |
+| POST | `/chat/sessions/{id}/messages` | 질문 전송 → RAG 검색 → LLM 응답 생성 |
+| POST | `/chat/messages/{id}/feedback` | 답변 피드백(선택) |
+
+**Store**
+
+| Method | Path | 설명 |
+|---|---|---|
+| GET | `/stores/nearest` | 가장 가까운 매장 조회 |
+| GET | `/stores/nearby` | 반경 내 매장 목록 조회 |
+| POST | `/stores/{id}/reservations` | 매장 예약(선택, 추후 설계) |
+
+**Admin**
+
+| Method | Path | 설명 |
+|---|---|---|
+| GET/POST/PATCH/DELETE | `/admin/faqs` | FAQ 관리 (대량 등록은 API가 아닌 별도 시드 스크립트로) |
+| GET/POST/PATCH/DELETE | `/admin/stores` | 매장 관리 |
+| GET | `/admin/stats/chat` | 질문/피드백 통계(선택) |
+
+> 전체 요청/응답 스키마는 [`docs/04_API명세서.md`](../docs/04_API명세서.md) 참고.
+
+---
+
+## 7. 핵심 설계 포인트
+
+**RAG 응답 생성 흐름**
+1. 사용자 질문을 임베딩으로 변환
+2. pgvector로 유사 FAQ Top-K 검색
+3. 유사도가 임계값 미만이면 "관련 정보 없음"으로 폴백(고객센터 안내)
+4. 검색된 FAQ + 최근 대화 N턴을 프롬프트로 구성해 Bedrock 호출
+5. 생성된 응답을 세션에 저장, 근거 FAQ는 `chat_message_faq_refs`로 매핑
+
+**LLM 추상화**: 향후 다른 LLM 제공자로 교체 가능하도록 Provider 인터페이스로 감싸는 구조 원칙 유지(NFR-EXT01)
+
+**인증**: JWT 기반, Access Token(짧은 만료) + Refresh Token(Redis 저장·rotation), 토큰 저장 방식(HttpOnly Cookie vs body)은 BE1-FE1 협의 예정
+
+**FAQ 소프트 삭제**: 하드 삭제 대신 `status=INACTIVE` 전환, 임베딩은 보존하되 RAG 검색 대상에서 제외
+
+**응답 상태 관리**: LLM 호출은 `PENDING → COMPLETED / FAILED / RETRYING` 상태로 관리해 프론트가 로딩/실패/재시도 UI를 그릴 수 있게 설계
+
+**보안 원칙**: PII 마스킹(응답/로그), 관리자 API는 역할(role=ADMIN) 미들웨어 검증, DB 자격증명은 환경변수로만 주입, 네이티브 쿼리는 파라미터 바인딩
+
+---
+
+## 8. 현재 구현 상태
+
+Phase 1 초반 기준, 나머지는 위 설계대로 진행 예정입니다.
+
+| 영역 | 상태 |
+|---|---|
+| 공통 기반(Docker/DB/AWS/CI-CD/HTTPS) | 완료 |
+| 회원가입/로그인/JWT 인증 | 완료 |
+| 매장 CRUD·위치 기반 검색 | 완료 |
+| FAQ 데이터 적재·임베딩 파이프라인 | 초기 구현(테스트 데이터 일부) |
+| RAG 검색(pgvector 유사도) | 키워드 폴백 검색 + 유사도 쿼리 구현, 실 데이터 대기 |
+| LLM 연동·Chat API | 설계 단계 |
+| 프론트 전반 | 진행중 |
+
+---
+
+## 9. 남은 로드맵
+
+- Phase 1: FAQ 1,000개 데이터 생성·적재, Chat API 구현, 매장 예약(선택) 검토
+- Phase 2: 전체 도메인 통합 테스트, 관리자 통계 API(선택), Redis 캐싱·토큰 블랙리스트 적용, CI/CD 고도화
+- Phase 3: 예외 처리 강화, 성능 점검, 배포 안정화, (선택) Prometheus/Grafana 모니터링
+
+---
+
+> **1조 : 500 Team**

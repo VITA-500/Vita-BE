@@ -1,0 +1,177 @@
+<svg viewBox="0 0 1500 960" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2563EB"/>
+    </marker>
+    <marker id="arrow-orange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#EA580C"/>
+    </marker>
+    <marker id="arrow-gray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748B"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1500" height="960" fill="#FFFFFF"/>
+
+  <!-- Title -->
+  <text x="40" y="35" font-size="22" font-weight="700" fill="#0F172A">VITA — 시스템 아키텍처 (현재 개발 구조)</text>
+
+  <!-- User Browser -->
+  <rect x="620" y="60" width="260" height="50" rx="8" fill="#F1F5F9" stroke="#64748B" stroke-width="2"/>
+  <text x="750" y="90" font-size="15" text-anchor="middle" fill="#0F172A">사용자 브라우저</text>
+
+  <!-- Vercel FE -->
+  <rect x="580" y="150" width="340" height="80" rx="8" fill="#F8FAFC" stroke="#0F172A" stroke-width="2"/>
+  <text x="750" y="180" font-size="16" font-weight="700" text-anchor="middle" fill="#0F172A">Vercel — Next.js Frontend</text>
+  <text x="750" y="202" font-size="12" text-anchor="middle" fill="#475569">React 19 / TanStack Query / Zustand</text>
+
+  <!-- Kakao Maps -->
+  <rect x="980" y="160" width="230" height="60" rx="8" fill="#FFFDE7" stroke="#94A3B8" stroke-width="2" stroke-dasharray="5,4"/>
+  <text x="1095" y="185" font-size="13" font-weight="700" text-anchor="middle" fill="#334155">Kakao Maps API</text>
+  <text x="1095" y="203" font-size="11" text-anchor="middle" fill="#64748B">FE에서 직접 호출</text>
+
+  <!-- Developer Local -->
+  <rect x="40" y="150" width="300" height="220" rx="8" fill="#F8FAFC" stroke="#334155" stroke-width="2"/>
+  <text x="190" y="178" font-size="15" font-weight="700" text-anchor="middle" fill="#0F172A">개발자 로컬 PC</text>
+  <text x="190" y="196" font-size="11" text-anchor="middle" fill="#64748B">docker-compose.local.yml</text>
+  <rect x="60" y="210" width="260" height="36" rx="6" fill="#EFF6FF" stroke="#93C5FD"/>
+  <text x="190" y="233" font-size="12" text-anchor="middle" fill="#1E3A8A">backend (Spring Boot) :8080</text>
+  <rect x="60" y="254" width="260" height="36" rx="6" fill="#EFF6FF" stroke="#93C5FD"/>
+  <text x="190" y="277" font-size="12" text-anchor="middle" fill="#1E3A8A">postgres + pgvector :5432</text>
+  <rect x="60" y="298" width="260" height="36" rx="6" fill="#EFF6FF" stroke="#93C5FD"/>
+  <text x="190" y="321" font-size="12" text-anchor="middle" fill="#1E3A8A">redis :6379</text>
+
+  <!-- GitHub -->
+  <rect x="40" y="410" width="300" height="200" rx="8" fill="#F6F8FA" stroke="#24292F" stroke-width="2"/>
+  <text x="190" y="438" font-size="15" font-weight="700" text-anchor="middle" fill="#0F172A">GitHub — Vita-BE</text>
+  <rect x="60" y="454" width="260" height="34" rx="6" fill="#EFF6FF" stroke="#93C5FD"/>
+  <text x="190" y="476" font-size="12" text-anchor="middle" fill="#1E3A8A">develop 브랜치 → dev 배포</text>
+  <rect x="60" y="496" width="260" height="34" rx="6" fill="#FFF7ED" stroke="#FDBA74"/>
+  <text x="190" y="518" font-size="12" text-anchor="middle" fill="#9A3412">main 브랜치 → prod 배포</text>
+  <text x="190" y="552" font-size="11" text-anchor="middle" fill="#64748B">GitHub Actions</text>
+  <text x="190" y="570" font-size="11" text-anchor="middle" fill="#64748B">test.yml (PR 시 자동 테스트)</text>
+  <text x="190" y="588" font-size="11" text-anchor="middle" fill="#64748B">deploy-dev.yml / deploy-prod.yml</text>
+
+  <!-- AWS boundary -->
+  <rect x="380" y="260" width="1080" height="680" rx="14" fill="#FFFBF5" stroke="#FF9900" stroke-width="2.5" stroke-dasharray="8,5"/>
+  <text x="400" y="290" font-size="16" font-weight="700" fill="#B45309">AWS</text>
+
+  <!-- EC2 box -->
+  <rect x="410" y="310" width="560" height="470" rx="10" fill="#FFFFFF" stroke="#334155" stroke-width="2"/>
+  <text x="690" y="336" font-size="15" font-weight="700" text-anchor="middle" fill="#0F172A">EC2 — vita-ec2 (단일 인스턴스)</text>
+
+  <!-- Nginx -->
+  <rect x="440" y="352" width="500" height="80" rx="8" fill="#ECFDF5" stroke="#10B981" stroke-width="2"/>
+  <text x="690" y="378" font-size="14" font-weight="700" text-anchor="middle" fill="#065F46">Nginx — Let's Encrypt HTTPS</text>
+  <text x="690" y="398" font-size="12" text-anchor="middle" fill="#065F46">443 (prod)  /  8443 (dev)  — X-Forwarded-Proto/Host/Port 전달</text>
+  <text x="690" y="418" font-size="11" text-anchor="middle" fill="#047857">52-78-84-73.sslip.io</text>
+
+  <!-- backend-dev / backend-prod -->
+  <rect x="440" y="452" width="230" height="90" rx="8" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+  <text x="555" y="480" font-size="14" font-weight="700" text-anchor="middle" fill="#1E3A8A">backend-dev</text>
+  <text x="555" y="500" font-size="12" text-anchor="middle" fill="#1E3A8A">Spring Boot :8080</text>
+  <text x="555" y="518" font-size="10" text-anchor="middle" fill="#3B82F6">profile: dev</text>
+
+  <rect x="710" y="452" width="230" height="90" rx="8" fill="#FFF7ED" stroke="#EA580C" stroke-width="2"/>
+  <text x="825" y="480" font-size="14" font-weight="700" text-anchor="middle" fill="#9A3412">backend-prod</text>
+  <text x="825" y="500" font-size="12" text-anchor="middle" fill="#9A3412">Spring Boot :8000</text>
+  <text x="825" y="518" font-size="10" text-anchor="middle" fill="#C2410C">profile: prod</text>
+
+  <!-- redis dev/prod -->
+  <rect x="440" y="562" width="230" height="70" rx="8" fill="#EFF6FF" stroke="#2563EB" stroke-width="2" stroke-dasharray="6,4"/>
+  <text x="555" y="586" font-size="13" font-weight="700" text-anchor="middle" fill="#1E3A8A">redis (dev) :6379</text>
+  <text x="555" y="604" font-size="10" text-anchor="middle" fill="#3B82F6">Phase 2 연동 예정</text>
+
+  <rect x="710" y="562" width="230" height="70" rx="8" fill="#FFF7ED" stroke="#EA580C" stroke-width="2" stroke-dasharray="6,4"/>
+  <text x="825" y="586" font-size="13" font-weight="700" text-anchor="middle" fill="#9A3412">redis (prod) :6380</text>
+  <text x="825" y="604" font-size="10" text-anchor="middle" fill="#C2410C">Phase 2 연동 예정</text>
+
+  <!-- security group note -->
+  <rect x="440" y="650" width="500" height="60" rx="8" fill="#FEF2F2" stroke="#FCA5A5" stroke-width="1.5"/>
+  <text x="690" y="674" font-size="11" text-anchor="middle" fill="#7F1D1D">보안그룹(vita-ec2-sg): 22(SSH)/80/443/8443만 외부 개방</text>
+  <text x="690" y="692" font-size="11" text-anchor="middle" fill="#7F1D1D">8080/8000은 외부 차단(Nginx가 127.0.0.1로만 접근)</text>
+
+  <!-- RDS box -->
+  <rect x="1000" y="310" width="420" height="280" rx="10" fill="#FFFFFF" stroke="#334155" stroke-width="2"/>
+  <text x="1210" y="336" font-size="15" font-weight="700" text-anchor="middle" fill="#0F172A">RDS — vita-db</text>
+  <text x="1210" y="354" font-size="11" text-anchor="middle" fill="#64748B">PostgreSQL 16 + pgvector (인스턴스 1개)</text>
+
+  <rect x="1020" y="372" width="180" height="120" rx="8" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+  <text x="1110" y="400" font-size="13" font-weight="700" text-anchor="middle" fill="#1E3A8A">vita_dev</text>
+  <text x="1110" y="420" font-size="10" text-anchor="middle" fill="#3B82F6">users / faq / store</text>
+  <text x="1110" y="436" font-size="10" text-anchor="middle" fill="#3B82F6">chat_session / chat_message</text>
+  <text x="1110" y="452" font-size="10" text-anchor="middle" fill="#3B82F6">(embedding vector(768))</text>
+
+  <rect x="1220" y="372" width="180" height="120" rx="8" fill="#FFF7ED" stroke="#EA580C" stroke-width="2"/>
+  <text x="1310" y="400" font-size="13" font-weight="700" text-anchor="middle" fill="#9A3412">vita_prod</text>
+  <text x="1310" y="420" font-size="10" text-anchor="middle" fill="#C2410C">users / faq / store</text>
+  <text x="1310" y="436" font-size="10" text-anchor="middle" fill="#C2410C">chat_session / chat_message</text>
+  <text x="1310" y="452" font-size="10" text-anchor="middle" fill="#C2410C">(embedding vector(768))</text>
+
+  <text x="1210" y="530" font-size="11" text-anchor="middle" fill="#64748B">보안그룹(vita-rds-sg): vita-ec2-sg의</text>
+  <text x="1210" y="548" font-size="11" text-anchor="middle" fill="#64748B">5432 포트만 허용 (팀원 로컬 직접 접근 불가)</text>
+  <text x="1210" y="570" font-size="10" text-anchor="middle" fill="#94A3B8">필요 시 EC2 경유 SSH 터널링으로 접근</text>
+
+  <!-- Bedrock -->
+  <rect x="1000" y="620" width="420" height="100" rx="10" fill="#F8FAFC" stroke="#94A3B8" stroke-width="2" stroke-dasharray="7,5"/>
+  <text x="1210" y="650" font-size="14" font-weight="700" text-anchor="middle" fill="#334155">AWS Bedrock (LLM)</text>
+  <text x="1210" y="670" font-size="11" text-anchor="middle" fill="#64748B">RAG 검색 결과 기반 응답 생성</text>
+  <text x="1210" y="688" font-size="11" text-anchor="middle" fill="#94A3B8">Phase 2 예정 — 아직 미연동, IAM 역할 구성만 준비</text>
+
+  <!-- Legend -->
+  <rect x="410" y="810" width="1010" height="110" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5"/>
+  <text x="430" y="835" font-size="13" font-weight="700" fill="#0F172A">범례</text>
+
+  <rect x="430" y="848" width="22" height="14" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+  <text x="460" y="860" font-size="12" fill="#1E3A8A">dev 환경 / 경로</text>
+
+  <rect x="620" y="848" width="22" height="14" fill="#FFF7ED" stroke="#EA580C" stroke-width="2"/>
+  <text x="650" y="860" font-size="12" fill="#9A3412">prod 환경 / 경로</text>
+
+  <rect x="810" y="848" width="22" height="14" fill="#F8FAFC" stroke="#94A3B8" stroke-width="2" stroke-dasharray="4,3"/>
+  <text x="840" y="860" font-size="12" fill="#334155">점선 = 아직 미연동 / Phase 2 예정</text>
+
+  <line x1="430" y1="885" x2="470" y2="885" stroke="#0F172A" stroke-width="2" marker-end="url(#arrow-gray)"/>
+  <text x="480" y="890" font-size="12" fill="#334155">실선 화살표 = 실제 요청/데이터 흐름</text>
+
+  <!-- ===== Arrows ===== -->
+
+  <!-- User -> Vercel -->
+  <line x1="750" y1="110" x2="750" y2="148" stroke="#0F172A" stroke-width="2" marker-end="url(#arrow-gray)"/>
+
+  <!-- Vercel -> Kakao -->
+  <line x1="920" y1="185" x2="978" y2="188" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow-gray)"/>
+
+  <!-- Vercel -> Nginx (dev, blue) -->
+  <line x1="660" y1="230" x2="580" y2="350" stroke="#2563EB" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+  <text x="545" y="300" font-size="11" fill="#1E3A8A" transform="rotate(-58 545 300)">HTTPS :8443</text>
+
+  <!-- Vercel -> Nginx (prod, orange) -->
+  <line x1="840" y1="230" x2="850" y2="350" stroke="#EA580C" stroke-width="2.5" marker-end="url(#arrow-orange)"/>
+  <text x="865" y="300" font-size="11" fill="#9A3412" transform="rotate(58 865 300)">HTTPS :443</text>
+
+  <!-- Developer -> GitHub -->
+  <line x1="190" y1="370" x2="190" y2="408" stroke="#334155" stroke-width="2" marker-end="url(#arrow-gray)"/>
+  <text x="200" y="393" font-size="11" fill="#475569">git push</text>
+
+  <!-- GitHub -> EC2 backend-dev (blue) -->
+  <path d="M 340 470 C 390 470, 400 495, 438 495" fill="none" stroke="#2563EB" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+  <!-- GitHub -> EC2 backend-prod (orange) -->
+  <path d="M 340 505 C 420 560, 600 610, 708 500" fill="none" stroke="#EA580C" stroke-width="2.5" marker-end="url(#arrow-orange)"/>
+  <text x="345" y="440" font-size="10" fill="#475569">SSH: git pull + docker compose up -d --build</text>
+
+  <!-- backend-dev -> redis-dev -->
+  <line x1="555" y1="542" x2="555" y2="560" stroke="#2563EB" stroke-width="2" marker-end="url(#arrow-blue)"/>
+  <!-- backend-prod -> redis-prod -->
+  <line x1="825" y1="542" x2="825" y2="560" stroke="#EA580C" stroke-width="2" marker-end="url(#arrow-orange)"/>
+
+  <!-- backend-dev -> vita_dev -->
+  <line x1="670" y1="480" x2="1018" y2="420" stroke="#2563EB" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+  <!-- backend-prod -> vita_prod -->
+  <line x1="940" y1="480" x2="1218" y2="420" stroke="#EA580C" stroke-width="2.5" marker-end="url(#arrow-orange)"/>
+
+  <!-- backend-dev/prod -> Bedrock (dashed gray) -->
+  <path d="M 670 520 C 850 600, 950 610, 998 650" fill="none" stroke="#94A3B8" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arrow-gray)"/>
+  <path d="M 940 520 C 970 570, 985 600, 998 650" fill="none" stroke="#94A3B8" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arrow-gray)"/>
+
+</svg>
