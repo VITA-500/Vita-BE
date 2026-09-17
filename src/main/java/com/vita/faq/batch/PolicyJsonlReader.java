@@ -17,11 +17,6 @@ import java.util.Set;
 @Component
 public class PolicyJsonlReader {
 
-	private static final String CATEGORY = "로밍";
-	private static final Set<String> ALLOWED_SUBCATEGORIES = Set.of(
-		"로밍 신청", "로밍 요금", "데이터 로밍", "통화·문자 로밍", "로밍 해지", "국가별 이용"
-	);
-
 	private final ObjectMapper objectMapper;
 
 	public PolicyJsonlReader(ObjectMapper objectMapper) {
@@ -63,14 +58,13 @@ public class PolicyJsonlReader {
 
 	private void validate(PolicyRecord policy, int lineNumber) {
 		requireText(policy.policyId(), "policy_id", lineNumber);
+		requireText(policy.category(), "category", lineNumber);
+		requireText(policy.subcategory(), "subcategory", lineNumber);
 		requireText(policy.topic(), "topic", lineNumber);
 		requireText(policy.sourceTitle(), "source_title", lineNumber);
 		requireText(policy.sourceUrl(), "source_url", lineNumber);
-		if (!CATEGORY.equals(policy.category())) {
-			throw invalid(lineNumber, "category는 '로밍'이어야 합니다.");
-		}
-		if (!ALLOWED_SUBCATEGORIES.contains(policy.subcategory())) {
-			throw invalid(lineNumber, "지원하지 않는 subcategory입니다: " + policy.subcategory());
+		if (!FaqTaxonomy.supports(policy.category())) {
+			throw invalid(lineNumber, "지원하지 않는 category입니다: " + policy.category());
 		}
 		if (policy.facts() == null || policy.facts().isEmpty()
 			|| policy.facts().stream().anyMatch(fact -> fact == null || fact.isBlank())) {

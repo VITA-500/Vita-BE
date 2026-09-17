@@ -17,11 +17,6 @@ import java.util.Set;
 @Component
 public class FaqJsonlReader {
 
-	private static final String CATEGORY = "로밍";
-	private static final Set<String> ALLOWED_SUBCATEGORIES = Set.of(
-		"로밍 신청", "로밍 요금", "데이터 로밍", "통화·문자 로밍", "로밍 해지", "국가별 이용"
-	);
-
 	private final ObjectMapper objectMapper;
 
 	public FaqJsonlReader(ObjectMapper objectMapper) {
@@ -65,13 +60,12 @@ public class FaqJsonlReader {
 	}
 
 	private void validate(FaqJsonlRecord faq, int lineNumber) {
+		requireText(faq.category(), "category", lineNumber);
+		requireText(faq.subcategory(), "subcategory", lineNumber);
 		requireText(faq.question(), "question", lineNumber);
 		requireText(faq.answer(), "answer", lineNumber);
-		if (!CATEGORY.equals(faq.category())) {
-			throw invalid(lineNumber, "category는 '로밍'이어야 합니다.");
-		}
-		if (!ALLOWED_SUBCATEGORIES.contains(faq.subcategory())) {
-			throw invalid(lineNumber, "지원하지 않는 subcategory입니다: " + faq.subcategory());
+		if (!FaqTaxonomy.supports(faq.category())) {
+			throw invalid(lineNumber, "지원하지 않는 category입니다: " + faq.category());
 		}
 		if (faq.sourcePolicyIds() == null || faq.sourcePolicyIds().isEmpty()
 			|| faq.sourcePolicyIds().stream().anyMatch(id -> id == null || id.isBlank())) {

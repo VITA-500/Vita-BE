@@ -37,15 +37,24 @@ class PolicyJsonlReaderTest {
 	}
 
 	@Test
-	void rejectsUnknownSubcategoryWithLineNumber() {
+	void acceptsNewSubcategoryForSupportedCategory() {
 		String jsonl = """
 			{"policy_id":"POL-ROAM-001","category":"로밍","subcategory":"기타","topic":"가입 확인","facts":["사실"],"source_title":"질문","source_url":"https://example.com","checked_at":"2026-09-16"}
+			""";
+
+		assertThat(reader.read(resource(jsonl))).hasSize(1);
+	}
+
+	@Test
+	void rejectsUnsupportedCategoryWithLineNumber() {
+		String jsonl = """
+			{"policy_id":"POL-UNKNOWN-001","category":"기타","subcategory":"기타","topic":"가입 확인","facts":["사실"],"source_title":"질문","source_url":"https://example.com","checked_at":"2026-09-16"}
 			""";
 
 		assertThatThrownBy(() -> reader.read(resource(jsonl)))
 			.isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("1번째 줄")
-			.hasMessageContaining("subcategory");
+			.hasMessageContaining("category");
 	}
 
 	@Test
@@ -73,6 +82,28 @@ class PolicyJsonlReaderTest {
 			entry("로밍 해지", 2L),
 			entry("국가별 이용", 2L)
 		);
+	}
+
+	@Test
+	void readsBundledBillingPolicies() {
+		List<PolicyRecord> policies = reader.read(
+			new ClassPathResource("data/faq/policy/policy_billing_test.jsonl")
+		);
+
+		assertThat(policies).hasSize(10);
+		assertThat(policies).extracting(PolicyRecord::policyId).doesNotHaveDuplicates();
+		assertThat(policies).extracting(PolicyRecord::category).containsOnly("요금/납부");
+	}
+
+	@Test
+	void readsBundledUsimEsimPolicies() {
+		List<PolicyRecord> policies = reader.read(
+			new ClassPathResource("data/faq/policy/policy_usim_esim_test.jsonl")
+		);
+
+		assertThat(policies).hasSize(10);
+		assertThat(policies).extracting(PolicyRecord::policyId).doesNotHaveDuplicates();
+		assertThat(policies).extracting(PolicyRecord::category).containsOnly("유심/eSIM");
 	}
 
 	private ByteArrayResource resource(String content) {

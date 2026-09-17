@@ -1,6 +1,7 @@
 package com.vita.embedding;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -36,6 +37,8 @@ public class E5EmbeddingProvider implements EmbeddingProvider {
 		try {
 			float[][] response = restClient.post()
 				.uri("/embed")
+				.contentType(MediaType.APPLICATION_JSON)
+				.accept(MediaType.APPLICATION_JSON)
 				.body(new EmbedRequest(List.of(prefixedText), true, true))
 				.retrieve()
 				.body(float[][].class);
