@@ -115,7 +115,8 @@
 
 ## 4. 시스템 아키텍처 (설계)
 
-<img width="800" alt="시스템 아키텍처" src="docs/diagrams/architecture.svg" />
+<img width="1920" height="1080" alt="시스템 아키텍처" src="https://github.com/user-attachments/assets/c11fd856-bff0-4246-ae69-0ee1deb29312" />
+
 
 ```
 [Next.js/Vercel] --HTTPS--> [Nginx(EC2)] --> [Spring Boot] --+--> [RDS: PostgreSQL+pgvector]
