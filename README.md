@@ -50,7 +50,7 @@
 | BE3 | 이진희 | RAG 검색 (pgvector 유사도 검색, threshold, Context 구성) |
 | BE4 | 정민주 | LLM/Chat API (Bedrock 연동, Prompt, 응답 상태관리) |
 | BE5 | 안제홍 | 매장/위치 서비스 (매장 CRUD, 거리 계산, 지도 데이터) |
-| BE6 (조장) | 김어진 | 공통 기반(Docker, 페이징 유틸), 통합테스트, dev/prod 환경, DevOps |
+| BE6 (조장) | 김어진 | 통합테스트, DevOps |
 | FE1 | 박해준 | 인증/AI Chat (로그인, 채팅, Streaming, 대화 기록) |
 | FE2 | 정승민 | 지도/관리자/랜딩 UI |
 
