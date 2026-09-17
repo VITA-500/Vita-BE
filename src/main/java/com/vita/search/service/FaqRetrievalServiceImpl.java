@@ -7,6 +7,9 @@ import com.vita.search.dto.FaqSimilarityResult;
 import com.vita.search.entity.FaqStatus;
 import com.vita.search.repository.FaqVectorSearchRepository;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -27,6 +30,9 @@ public class FaqRetrievalServiceImpl implements FaqRetrievalService {
 	@Value("${retrieval.similarity-threshold:0.85}")
 	private double similarityThreshold;
 
+	/** 한글/영문/숫자가 2자 이상 연속된 덩어리만 키워드로 취급 (조사 등 형태소 분리는 안 함 — 근사치). */
+	private static final Pattern KEYWORD_PATTERN = Pattern.compile("[가-힣a-zA-Z0-9]{2,}");
+
 	private final EmbeddingProvider embeddingProvider;
 	private final FaqVectorSearchRepository faqVectorSearchRepository;
 
@@ -44,9 +50,48 @@ public class FaqRetrievalServiceImpl implements FaqRetrievalService {
 
 		if (results.isEmpty()) {
 			log.info("관련 FAQ 없음 (threshold={} 미달 또는 결과 없음). query={}", similarityThreshold, query);
+		} else {
+			logRankingSignals(query, results);
 		}
 
 		return new FaqRetrievalContext(results.stream().map(this::toReference).toList());
+	}
+
+	/**
+	 * threshold 하나만으로 충분한지 판단하기 위한 관찰용 로그. 아직 실제 필터링에는 쓰지 않는다 —
+	 * top1-top2 유사도 격차를 실제로 측정해보니, 정답 FAQ가 2개 이상 겹치는 질문에서는
+	 * 격차가 무관한 질문만큼 작게 나오는 경우가 있어서(예: "로밍 요금제 시작 시간" 질문에서
+	 * 0.9209/0.9168), 격차만으로 걸러내면 진짜 정답을 오답 처리할 위험이 있었다. 키워드 겹침도
+	 * 같은 이유로 데이터가 더 쌓일 때까지는 로그만 남기고 필터링에는 반영하지 않는다.
+	 */
+	private void logRankingSignals(String query, List<FaqSimilarityResult> results) {
+		Set<String> queryKeywords = extractKeywords(query);
+
+		FaqSimilarityResult top1 = results.get(0);
+		String gap = results.size() >= 2
+				? String.format("%.4f", top1.similarity() - results.get(1).similarity())
+				: "N/A(top1뿐)";
+
+		log.info("검색 순위 신호(관찰용, 미필터링): query=\"{}\" top1-top2 격차={}", query, gap);
+		for (int i = 0; i < results.size(); i++) {
+			FaqSimilarityResult r = results.get(i);
+			int overlap = countKeywordOverlap(queryKeywords, r);
+			log.info("  #{} similarity={} keywordOverlap={} question={}",
+					i + 1, String.format("%.4f", r.similarity()), overlap, r.question());
+		}
+	}
+
+	private Set<String> extractKeywords(String text) {
+		return KEYWORD_PATTERN.matcher(text).results()
+				.map(m -> m.group())
+				.collect(Collectors.toSet());
+	}
+
+	/** 질문 키워드가 후보 FAQ의 category/subcategory/question/answer에 몇 개나 등장하는지(부분 문자열 기준). */
+	private int countKeywordOverlap(Set<String> queryKeywords, FaqSimilarityResult candidate) {
+		String haystack = candidate.category() + " " + candidate.subcategory() + " "
+				+ candidate.question() + " " + candidate.answer();
+		return (int) queryKeywords.stream().filter(haystack::contains).count();
 	}
 
 	/** FaqSimilarityResult(내부 검색 결과) → FaqReference(BE4/FE1 대외 계약) 변환. */
