@@ -64,3 +64,6 @@ springdoc:
     operations-sorter: alpha
     tags-sorter: alpha
   default-produces-media-type: application/json
+
+kakao:
+  rest-api-key: ${KAKAO_REST_API_KEY:}
