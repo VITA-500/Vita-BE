@@ -1,6 +1,6 @@
 package com.vita.auth.dto;
 
-import com.vita.auth.entity.AuthProvider;
+import com.vita.auth.AuthProvider;
 import com.vita.auth.entity.User;
 import com.vita.common.util.MaskingUtil;
 import io.swagger.v3.oas.annotations.media.Schema;

@@ -1,6 +1,6 @@
 package com.vita.auth.security;
 
-import com.vita.auth.entity.Role;
+import com.vita.auth.Role;
 import java.util.Collection;
 import java.util.List;
 import lombok.Getter;
