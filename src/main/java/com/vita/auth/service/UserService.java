@@ -1,7 +1,7 @@
 package com.vita.auth.service;
 
 import com.vita.auth.dto.MyPageResponse;
-import com.vita.auth.entity.AuthProvider;
+import com.vita.auth.AuthProvider;
 import com.vita.auth.entity.User;
 import com.vita.auth.entity.UserOAuth;
 import com.vita.auth.repository.UserOAuthRepository;
