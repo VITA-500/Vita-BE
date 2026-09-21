@@ -22,6 +22,18 @@ spring:
     default-property-inclusion: non_null
     time-zone: Asia/Seoul
 
+  ai:
+    bedrock:
+      aws:
+        region: ${AWS_REGION:ap-northeast-1}
+      converse:
+        chat:
+          options:
+            model: ${BEDROCK_MODEL_ID:openai.gpt-oss-120b-1:0}
+            temperature: 0.3
+            max-tokens: 1024
+
+
 server:
   port: 8080
   # Nginx 뒤에 있을 때 원 요청 프로토콜(X-Forwarded-Proto)을 인식시킨다.
