@@ -64,13 +64,18 @@ public class FaqJsonlReader {
 		requireText(faq.subcategory(), "subcategory", lineNumber);
 		requireText(faq.question(), "question", lineNumber);
 		requireText(faq.answer(), "answer", lineNumber);
-		if (!FaqTaxonomy.supports(faq.category())) {
+		if (!isPrevalidatedSyntheticFaq(faq) && !FaqTaxonomy.supports(faq.category())) {
 			throw invalid(lineNumber, "지원하지 않는 category입니다: " + faq.category());
 		}
 		if (faq.sourcePolicyIds() == null || faq.sourcePolicyIds().isEmpty()
 			|| faq.sourcePolicyIds().stream().anyMatch(id -> id == null || id.isBlank())) {
 			throw invalid(lineNumber, "source_policy_ids에는 정책 ID가 하나 이상 필요합니다.");
 		}
+	}
+
+	private boolean isPrevalidatedSyntheticFaq(FaqJsonlRecord faq) {
+		return faq.sourcePolicyIds() != null
+			&& faq.sourcePolicyIds().contains("SYNTHETIC-GENERATED");
 	}
 
 	private void requireText(String value, String field, int lineNumber) {

@@ -1,6 +1,6 @@
 package com.vita.auth.security;
 
-import com.vita.auth.entity.Role;
+import com.vita.auth.Role;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;

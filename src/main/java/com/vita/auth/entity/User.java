@@ -1,5 +1,6 @@
 package com.vita.auth.entity;
 
+import com.vita.auth.Role;
 import com.vita.common.entity.BaseTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -66,6 +67,19 @@ public class User extends BaseTimeEntity {
 		return User.builder()
 				.email(email)
 				.passwordHash(passwordHash)
+				.name(name)
+				.role(Role.USER)
+				.build();
+	}
+
+	/**
+	 * 소셜 가입. 비밀번호가 없고, 이메일도 제공자가 주지 않으면 null이다
+	 * (로그인 식별은 user_oauth의 (provider, provider_id)가 담당한다).
+	 */
+	public static User ofSocial(String email, String name) {
+		return User.builder()
+				.email(email)
+				.passwordHash(null)
 				.name(name)
 				.role(Role.USER)
 				.build();

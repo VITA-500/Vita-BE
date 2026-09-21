@@ -1,7 +1,7 @@
 package com.vita.auth.service;
 
 import com.vita.auth.dto.LoginRequest;
-import com.vita.auth.dto.LoginResponse;
+import com.vita.auth.dto.LoginResult;
 import com.vita.auth.dto.SignupRequest;
 import com.vita.auth.dto.SignupResponse;
 import com.vita.auth.entity.User;
@@ -34,7 +34,7 @@ public class AuthService {
 	}
 
 	@Transactional(readOnly = true)
-	public LoginResponse login(LoginRequest request) {
+	public LoginResult login(LoginRequest request) {
 		User user = userRepository.findByEmail(request.email())
 				.orElseThrow(() -> new BusinessException(ErrorCode.INVALID_CREDENTIALS));
 
@@ -48,6 +48,6 @@ public class AuthService {
 		}
 
 		String token = jwtProvider.createAccessToken(user.getId(), user.getRole());
-		return LoginResponse.of(token, user);
+		return LoginResult.of(token, user);
 	}
 }

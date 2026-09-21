@@ -1,5 +1,6 @@
 package com.vita.auth.entity;
 
+import com.vita.auth.AuthProvider;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -52,6 +53,7 @@ public class UserOAuth {
 		this.providerId = providerId;
 	}
 
+	/** 이미 저장된 User에 소셜 연결을 새로 만든다. */
 	public static UserOAuth of(User user, AuthProvider provider, String providerId) {
 		return new UserOAuth(user, provider, providerId);
 	}

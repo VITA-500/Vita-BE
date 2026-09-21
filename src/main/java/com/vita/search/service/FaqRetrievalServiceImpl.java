@@ -48,16 +48,24 @@ public class FaqRetrievalServiceImpl implements FaqRetrievalService {
 	public FaqRetrievalContext search(String query, int topK) {
 		float[] queryVector = embeddingProvider.embedQuery(query);
 
-		List<FaqSimilarityResult> results = faqVectorSearchRepository.searchBySimilarity(
-				queryVector, FaqStatus.ACTIVE, similarityThreshold, topK);
+		// threshold 미달 후보의 최고 점수도 topSimilarity로 알려야 해서, DB에서는 threshold 없이
+		// 가까운 순 topK를 가져오고 threshold는 아래에서 적용한다(정렬이 유사도 순이라 결과 집합은 동일).
+		List<FaqSimilarityResult> candidates = faqVectorSearchRepository.searchBySimilarity(
+				queryVector, FaqStatus.ACTIVE, 0.0, topK);
+		double topSimilarity = candidates.isEmpty() ? 0.0 : candidates.get(0).similarity();
+
+		List<FaqSimilarityResult> results = candidates.stream()
+				.filter(candidate -> candidate.similarity() >= similarityThreshold)
+				.toList();
 
 		if (results.isEmpty()) {
-			log.info("관련 FAQ 없음 (threshold={} 미달 또는 결과 없음). query={}", similarityThreshold, query);
+			log.info("관련 FAQ 없음 (threshold={}, 최고 유사도={}). query={}",
+					similarityThreshold, String.format("%.4f", topSimilarity), query);
 		} else {
 			logRankingSignals(query, results);
 		}
 
-		return new FaqRetrievalContext(results.stream().map(this::toReference).toList());
+		return new FaqRetrievalContext(results.stream().map(this::toReference).toList(), topSimilarity);
 	}
 
 	/**
