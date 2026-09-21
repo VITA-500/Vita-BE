@@ -10,6 +10,10 @@ import com.vita.chat.ChatMessageStatus;
 import com.vita.chat.client.BedrockChatClient;
 import com.vita.chat.dto.ChatMessageResponse;
 import com.vita.chat.dto.ChatMessageSendRequest;
+import com.vita.chat.dto.ChatSessionListResponse;
+import com.vita.chat.dto.ChatSessionSummaryResponse;
+import com.vita.chat.dto.MessageResponse;
+import com.vita.chat.dto.SessionMessagesResponse;
 import com.vita.chat.entity.ChatMessage;
 import com.vita.chat.entity.ChatSession;
 import com.vita.chat.repository.ChatMessageRepository;
@@ -36,6 +40,7 @@ public class ChatMessageService {
 				.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "세션을 찾을 수 없습니다."));
 		
 		// 1) 사용자 질문 저장
+		log.info("user content: " + request.content() );
 		ChatMessage userMessage = ChatMessage.builder()
 				.session(session)
 				.role(ChatMessageRole.USER)
@@ -62,6 +67,8 @@ public class ChatMessageService {
 		
 		try {
 			String answer = bedrockChatClient.ask(request.content(), context, conversationHistory);
+			
+			
 			assistantMessage.markCompleted(answer);
 		} catch(Exception e) {
 			log.error("AI 응답 생성 실패 - sessionId: {}", sessionId, e);  // 마지막 인자로 e를 넘기면 SLF4J가 스택 트레이스 전체를 출력해줌
@@ -89,5 +96,22 @@ public class ChatMessageService {
 				.map(m -> "%s: %s".formatted(m.getRole(), m.getContent()))
 				.collect(Collectors.joining("\n"));
 		
+	}
+	
+	public SessionMessagesResponse getMessages(Long sessionId, Long userId) {
+		
+		ChatSession session = chatSessionRepository.findById(sessionId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "존재하지 않는 세션입니다."));
+		
+		if(!session.getUserId().equals(userId)) {
+			throw new BusinessException(ErrorCode.FORBIDDEN, "타인의 세션에는 접근할 수 없습니다.");
+		}
+		List<MessageResponse> messages = chatMessageRepository
+				.findAllBySession_IdOrderByCreatedAtAsc(sessionId)
+				.stream()
+				.map(MessageResponse::from)
+				.toList();
+		
+		return new SessionMessagesResponse(sessionId, messages);
 	}
 }
