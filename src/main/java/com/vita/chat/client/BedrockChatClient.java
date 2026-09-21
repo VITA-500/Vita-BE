@@ -1,8 +1,15 @@
 package com.vita.chat.client;
 
+import java.util.Objects;
+
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.stereotype.Component;
+
+import com.vita.chat.service.ChatMessageService;
+
+import lombok.extern.slf4j.Slf4j;
 
 @Component
 public class BedrockChatClient {
@@ -16,11 +23,19 @@ public class BedrockChatClient {
     public String ask(String question, String context, String conversationHistory) {
     	String userPrompt = USER_TURN_TEMPLATE.formatted(context, conversationHistory, question);
     	
-        return chatClient.prompt()
-            .system(SYSTEM_PROMPT)
-            .user(userPrompt)
-            .call()
-            .content();
+    	ChatResponse response = chatClient.prompt()
+    	        .system(SYSTEM_PROMPT)
+    	        .user(userPrompt)
+    	        .call()
+    	        .chatResponse();
+        
+        return  response.getResults().stream()
+                .map(generation -> generation.getOutput().getText())
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElseThrow(() ->
+                    new IllegalStateException("LLM 응답 내용이 없습니다.")
+                );
     }
 
     private static final String SYSTEM_PROMPT = """
