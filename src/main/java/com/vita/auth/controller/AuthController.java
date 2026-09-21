@@ -15,6 +15,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import java.time.Duration;
@@ -73,13 +75,32 @@ public class AuthController {
 				.body(result.response());
 	}
 
+	/**
+	 * 로그아웃.
+	 *
+	 * <p>인증 쿠키를 만료시키는 것 외에, 남아 있는 HTTP 세션도 함께 무효화한다. 우리 인증은
+	 * 세션을 쓰지 않지만 OAuth2의 state 검증이 세션을 쓰기 때문에, 소셜 로그인을 한 번 거치면
+	 * JSESSIONID가 남는다. 이걸 그대로 두면 다음 소셜 로그인 때 이전 흐름의 잔여
+	 * authorization request가 남은 세션에 얹혀 state 검증이 어긋난다 — 실제로 "첫 로그인은
+	 * 되는데 로그아웃 후 두 번째 로그인이 실패"하는 증상이 있었다.
+	 *
+	 * <p>세션 쿠키도 함께 만료시킨다. invalidate()만 하면 서버 쪽 세션은 없어지지만 브라우저는
+	 * 죽은 JSESSIONID를 계속 보내서, 서버가 그 값으로 빈 세션을 다시 만들게 된다.
+	 */
 	@Operation(summary = "로그아웃",
-			description = "인증 쿠키를 만료시킨다. 서버에 저장된 상태가 없으므로 쿠키 삭제가 곧 로그아웃이다.")
+			description = "인증 쿠키를 만료시키고 세션을 무효화한다. 세션은 소셜 로그인의 state 검증에만 쓰이며, "
+					+ "남아 있으면 다음 소셜 로그인의 state 검증이 어긋난다.")
 	@ApiResponse(responseCode = "200", description = "로그아웃 성공")
 	@PostMapping("/logout")
-	public ResponseEntity<Void> logout() {
+	public ResponseEntity<Void> logout(HttpServletRequest request) {
+		HttpSession session = request.getSession(false);
+		if (session != null) {
+			session.invalidate();
+		}
+
 		return ResponseEntity.ok()
 				.header(HttpHeaders.SET_COOKIE, cookieUtil.expire().toString())
+				.header(HttpHeaders.SET_COOKIE, cookieUtil.expireSession().toString())
 				.build();
 	}
 }

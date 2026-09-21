@@ -24,6 +24,9 @@ public class CookieUtil {
 
 	public static final String ACCESS_TOKEN = "accessToken";
 
+	/** 톰캣이 발급하는 세션 쿠키 이름. 우리 인증은 세션을 쓰지 않지만 OAuth2의 state 검증이 쓴다. */
+	private static final String SESSION_COOKIE = "JSESSIONID";
+
 	private final boolean secure;
 	private final String sameSite;
 
@@ -47,6 +50,21 @@ public class CookieUtil {
 	/** 로그아웃용 — 같은 속성으로 만료시켜야 브라우저가 실제로 지운다. */
 	public ResponseCookie expire() {
 		return ResponseCookie.from(ACCESS_TOKEN, "")
+				.httpOnly(true)
+				.secure(secure)
+				.sameSite(sameSite)
+				.path("/")
+				.maxAge(0)
+				.build();
+	}
+
+	/**
+	 * 로그아웃용 세션 쿠키 만료. 서버에서 session.invalidate()를 해도 브라우저는 죽은
+	 * JSESSIONID를 계속 보내고, 서버는 그 값으로 빈 세션을 다시 만든다. 쿠키까지 지워야
+	 * 다음 소셜 로그인이 깨끗한 세션에서 시작한다.
+	 */
+	public ResponseCookie expireSession() {
+		return ResponseCookie.from(SESSION_COOKIE, "")
 				.httpOnly(true)
 				.secure(secure)
 				.sameSite(sameSite)
