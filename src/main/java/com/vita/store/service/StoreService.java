@@ -57,7 +57,7 @@ public class StoreService {
     public StoreDetailResponse findById(Long storeId){
         Store store = findStoreOrThrow(storeId);
         return new StoreDetailResponse(store.getId(), store.getName(), store.getAddress(),
-                store.getLat(), store.getLng(), store.getBusinessHours(), store.getPhone());
+                store.getLat(), store.getLng(), store.getBusinessHours(), store.getPhone(), store.getConsultServices(), store.getProvidedServices());
     }
 
     @Transactional
@@ -69,6 +69,8 @@ public class StoreService {
                 .lng(request.lng())
                 .businessHours(request.businessHours())
                 .phone(request.phone())
+                .consultServices(request.consultServices())
+                .providedServices(request.providedServices())
                 .build();
         storeRepository.save(store);
         return new StoreCreateResponse(store.getId(), store.getName(), store.getCreatedAt());
@@ -78,7 +80,7 @@ public class StoreService {
     public StoreUpdateResponse update(Long storeId, StoreUpdateRequest request){
         Store store = findStoreOrThrow(storeId);
         store.update(request.name(), request.address(), request.lat(), request.lng(),
-                request.businessHours(), request.phone());
+                request.businessHours(), request.phone(), request.consultServices(), request.providedServices());
         storeRepository.flush();
         return new StoreUpdateResponse(store.getId(), store.getUpdatedAt());
     }
