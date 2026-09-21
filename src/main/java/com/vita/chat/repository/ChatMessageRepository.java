@@ -10,4 +10,6 @@ import com.vita.chat.entity.ChatSession;
 public interface ChatMessageRepository  extends JpaRepository<ChatMessage, Long> {
 
 	List<ChatMessage> findBySessionIdOrderByCreatedAtAsc(Long sessionId);
+	
+	List<ChatMessage> findAllBySession_IdOrderByCreatedAtAsc(Long sessionId);
 }
