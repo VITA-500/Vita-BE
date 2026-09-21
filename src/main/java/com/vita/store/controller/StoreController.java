@@ -2,9 +2,8 @@ package com.vita.store.controller;
 
 import com.vita.common.exception.BusinessException;
 import com.vita.common.exception.ErrorCode;
-import com.vita.store.dto.response.StoreDetailResponse;
-import com.vita.store.dto.response.StoreNearbyListResponse;
-import com.vita.store.dto.response.StoreNearestResponse;
+import com.vita.store.dto.response.*;
+import com.vita.store.service.DirectionService;
 import com.vita.store.service.StoreService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,6 +18,7 @@ import java.math.BigDecimal;
 public class StoreController {
 
     private final StoreService storeService;
+    private final DirectionService directionService;
 
     @GetMapping("/stores/nearest")
     public StoreNearestResponse nearest(
@@ -43,6 +43,16 @@ public class StoreController {
     @GetMapping("/stores/{storeId}")
     public StoreDetailResponse detail(@PathVariable Long storeId){
         return storeService.findById(storeId);
+    }
+
+    @GetMapping("/stores/{storeId}/directions")
+    public RouteResponse directions(
+            @PathVariable Long storeId,
+            @RequestParam BigDecimal fromLat,
+            @RequestParam BigDecimal fromLng,
+            @RequestParam String mode){
+        StoreDetailResponse store = storeService.findById(storeId);
+        return directionService.findRoute(mode, fromLat, fromLng, store.lat(), store.lng());
     }
 
     private void requireLocation(BigDecimal lat, BigDecimal lng){
