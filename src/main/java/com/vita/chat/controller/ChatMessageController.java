@@ -17,7 +17,7 @@ import com.vita.chat.service.ChatMessageService;
 import com.vita.common.exception.BusinessException;
 import com.vita.common.exception.ErrorCode;
 
-import io.swagger.v3.oas.annotations.parameters.RequestBody;
+import org.springframework.web.bind.annotation.RequestBody;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
