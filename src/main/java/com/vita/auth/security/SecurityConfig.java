@@ -74,7 +74,6 @@ public class SecurityConfig {
 			// 소셜 로그인 진입·콜백. Spring Security가 처리하는 경로라 컨트롤러가 없다.
 			"/oauth2/**",
 			"/login/oauth2/**",
-			"/search/**",
 			"/stores/**",
 			"/swagger-ui/**",
 			"/v3/api-docs/**",
