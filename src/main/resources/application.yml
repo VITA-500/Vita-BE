@@ -76,6 +76,11 @@ springdoc:
     tags-sorter: alpha
   default-produces-media-type: application/json
 
+# 카카오 길찾기(모빌리티 Directions / 카카오맵 경로) REST API 키. 소셜 로그인용 KAKAO_CLIENT_ID와는 별개.
+# 기본값을 비워둬서 키가 없어도 앱은 기동되고, 길찾기 호출만 실패한다.
+kakao:
+  rest-api-key: ${KAKAO_REST_API_KEY:}
+
 ---
 # 소셜 로그인 설정. `oauth` 프로파일이 켜져 있을 때만 로드된다.
 #
@@ -130,7 +135,3 @@ spring:
             # 네이버는 실제 값이 response 안에 한 겹 들어 있다.
             user-name-attribute: response
 
-# 카카오 길찾기(모빌리티 Directions / 카카오맵 경로) REST API 키. 소셜 로그인용 KAKAO_CLIENT_ID와는 별개.
-# 기본값을 비워둬서 키가 없어도 앱은 기동되고, 길찾기 호출만 실패한다.
-kakao:
-  rest-api-key: ${KAKAO_REST_API_KEY:}
