@@ -40,4 +40,8 @@ public class ChatSession {
         this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
         this.updatedAt = this.createdAt;
     }
+    
+    public void update() {
+    	this.updatedAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+    }
 }
