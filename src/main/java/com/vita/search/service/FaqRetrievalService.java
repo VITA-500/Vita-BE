@@ -11,7 +11,8 @@ public interface FaqRetrievalService {
 	/**
 	 * @param query 사용자 질문 원문 (임베딩 변환은 구현체 내부 책임)
 	 * @param topK  최대 반환 개수 (권장값 3~5, BE4 프롬프트 예산에 맞춰 조정 가능)
-	 * @return 참고 FAQ 목록을 담은 컨텍스트. 관련 FAQ가 없으면 references가 빈 컨텍스트.
+	 * @return 참고 FAQ 목록과 최고 유사도(topSimilarity)를 담은 컨텍스트. 관련 FAQ가 없으면
+	 *         references는 비지만 topSimilarity에는 threshold 미달 후보의 최고 점수가 담긴다.
 	 */
 	FaqRetrievalContext search(String query, int topK);
 }
