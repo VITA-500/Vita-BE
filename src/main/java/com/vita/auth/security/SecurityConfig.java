@@ -61,6 +61,9 @@ public class SecurityConfig {
 	/**
 	 * CSRF 검사를 면제할 경로. 아직 인증 쿠키가 없어 위조할 대상 자체가 없는 요청들이다.
 	 * Swagger UI에서 로그인을 시험할 수 있게 하려는 목적도 있다.
+	 *
+	 * <p>토큰을 발급받는 창구는 GET /auth/csrf다(AuthController). 프론트는 앱이 시작될 때
+	 * 한 번 호출해 body의 token을 보관했다가, 이후 쓰기 요청마다 X-XSRF-TOKEN 헤더에 싣는다.
 	 */
 	private static final String[] CSRF_EXEMPT_PATHS = {
 			"/auth/**",
@@ -74,7 +77,6 @@ public class SecurityConfig {
 			// 소셜 로그인 진입·콜백. Spring Security가 처리하는 경로라 컨트롤러가 없다.
 			"/oauth2/**",
 			"/login/oauth2/**",
-			"/search/**",
 			"/stores/**",
 			"/swagger-ui/**",
 			"/v3/api-docs/**",

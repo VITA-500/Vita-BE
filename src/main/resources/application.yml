@@ -22,6 +22,18 @@ spring:
     default-property-inclusion: non_null
     time-zone: Asia/Seoul
 
+  ai:
+    bedrock:
+      aws:
+        region: ${AWS_REGION:ap-northeast-1}
+      converse:
+        chat:
+          options:
+            model: ${BEDROCK_MODEL_ID:openai.gpt-oss-120b-1:0}
+            temperature: 0.3
+            max-tokens: 1024
+
+
 server:
   port: 8080
   # Nginx 뒤에 있을 때 원 요청 프로토콜(X-Forwarded-Proto)을 인식시킨다.
@@ -75,6 +87,11 @@ springdoc:
     operations-sorter: alpha
     tags-sorter: alpha
   default-produces-media-type: application/json
+
+# 카카오 길찾기(모빌리티 Directions / 카카오맵 경로) REST API 키. 소셜 로그인용 KAKAO_CLIENT_ID와는 별개.
+# 기본값을 비워둬서 키가 없어도 앱은 기동되고, 길찾기 호출만 실패한다.
+kakao:
+  rest-api-key: ${KAKAO_REST_API_KEY:}
 
 ---
 # 소셜 로그인 설정. `oauth` 프로파일이 켜져 있을 때만 로드된다.
@@ -130,7 +147,3 @@ spring:
             # 네이버는 실제 값이 response 안에 한 겹 들어 있다.
             user-name-attribute: response
 
-# 카카오 길찾기(모빌리티 Directions / 카카오맵 경로) REST API 키. 소셜 로그인용 KAKAO_CLIENT_ID와는 별개.
-# 기본값을 비워둬서 키가 없어도 앱은 기동되고, 길찾기 호출만 실패한다.
-kakao:
-  rest-api-key: ${KAKAO_REST_API_KEY:}

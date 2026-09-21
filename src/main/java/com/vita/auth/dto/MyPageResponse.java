@@ -14,6 +14,9 @@ import java.util.List;
  *
  * <p>hasPassword / linkedProviders는 명세에 없지만 FE가 화면을 분기하는 데 필요해 추가했다
  * (소셜 전용 계정은 비밀번호 변경 UI를 숨겨야 한다). 명세서에 반영 필요.
+ *
+ * <p>phone은 명세(2.1)에 있었지만 뺐다 — 회원가입·수정·소셜 어디에도 입력 경로가 없어 항상
+ * null로 나갔다. 전화번호를 쓰는 화면이 생기면 입력 경로와 함께 되살린다(users.phone 컬럼은 남아 있다).
  */
 @Schema(description = "내 정보")
 public record MyPageResponse(
@@ -26,9 +29,6 @@ public record MyPageResponse(
 
 		@Schema(description = "이름", example = "김어진")
 		String name,
-
-		@Schema(description = "마스킹된 전화번호. 미입력이면 필드가 빠진다", example = "010-****-5678")
-		String phone,
 
 		@Schema(description = "권한", example = "USER")
 		String role,
@@ -45,7 +45,6 @@ public record MyPageResponse(
 				user.getId(),
 				MaskingUtil.email(user.getEmail()),
 				user.getName(),
-				MaskingUtil.phone(user.getPhone()),
 				user.getRole().name(),
 				user.hasPassword(),
 				providers.stream().map(AuthProvider::name).toList()

@@ -48,9 +48,13 @@ public class StoreController {
     @GetMapping("/stores/{storeId}/directions")
     public RouteResponse directions(
             @PathVariable Long storeId,
-            @RequestParam BigDecimal fromLat,
-            @RequestParam BigDecimal fromLng,
-            @RequestParam String mode){
+            @RequestParam(required = false) BigDecimal fromLat,
+            @RequestParam(required = false) BigDecimal fromLng,
+            @RequestParam(required = false) String mode){
+        requireLocation(fromLat, fromLng);
+        if(mode == null){
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "이동수단(mode)은 필수입니다.");
+        }
         StoreDetailResponse store = storeService.findById(storeId);
         return directionService.findRoute(mode, fromLat, fromLng, store.lat(), store.lng());
     }
