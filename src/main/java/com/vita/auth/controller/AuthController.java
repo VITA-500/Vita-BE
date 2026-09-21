@@ -1,5 +1,6 @@
 package com.vita.auth.controller;
 
+import com.vita.auth.dto.CsrfTokenResponse;
 import com.vita.auth.dto.LoginRequest;
 import com.vita.auth.dto.LoginResponse;
 import com.vita.auth.dto.LoginResult;
@@ -22,6 +23,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -81,5 +84,27 @@ public class AuthController {
 		return ResponseEntity.ok()
 				.header(HttpHeaders.SET_COOKIE, cookieUtil.expire().toString())
 				.build();
+	}
+
+	/**
+	 * CSRF 토큰 발급.
+	 *
+	 * <p>인증을 HttpOnly 쿠키로 하면서 CSRF 검사가 필요해졌는데(SecurityConfig 참고), 프론트가
+	 * 그 토큰을 얻을 창구가 없었다. 쿠키로만 내려주면 도메인이 다른 프론트(Vercel)는 자바스크립트로
+	 * 읽을 수 없어서, body로도 함께 내려준다.
+	 *
+	 * <p>파라미터의 CsrfToken은 Spring Security가 요청 속성에 넣어둔 값이다. 이 메서드가 값을
+	 * 꺼내는 순간 CookieCsrfTokenRepository가 XSRF-TOKEN 쿠키를 함께 내려보낸다 — 토큰은
+	 * 실제로 조회될 때만 발급되는 지연 방식이라, 이 엔드포인트가 없으면 쿠키도 생기지 않는다.
+	 */
+	@Operation(summary = "CSRF 토큰 발급",
+			description = "로그인 이후의 쓰기 요청(POST/PATCH/DELETE)에 필요한 CSRF 토큰을 발급한다. "
+					+ "응답 body의 token을 headerName 헤더에 실어 보내면 된다. "
+					+ "XSRF-TOKEN 쿠키도 함께 내려가지만, 프론트와 백엔드의 도메인이 다르면 "
+					+ "자바스크립트가 쿠키를 읽을 수 없으므로 body 값을 쓴다.")
+	@ApiResponse(responseCode = "200", description = "발급 성공")
+	@GetMapping("/csrf")
+	public CsrfTokenResponse csrf(CsrfToken csrfToken) {
+		return CsrfTokenResponse.of(csrfToken.getToken(), csrfToken.getHeaderName());
 	}
 }
