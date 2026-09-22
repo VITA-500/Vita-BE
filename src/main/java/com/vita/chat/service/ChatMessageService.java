@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.vita.chat.ChatMessageRole;
 import com.vita.chat.ChatMessageStatus;
@@ -24,9 +25,11 @@ import com.vita.search.dto.FaqReference;
 import com.vita.search.dto.FaqRetrievalContext;
 import com.vita.search.service.FaqRetrievalService;
 
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import software.amazon.awssdk.core.exception.ApiCallAttemptTimeoutException;
+import software.amazon.awssdk.core.exception.ApiCallTimeoutException;
+import software.amazon.awssdk.core.exception.SdkException;
 
 @Service
 @RequiredArgsConstructor
@@ -35,25 +38,16 @@ public class ChatMessageService {
 
 	private static final int TOP_K = 3; // 검색해올 FAQ 후보 개수 — threshold 필터는 BE3 쪽에서 처리됨
 	
-	private final ChatMessageRepository chatMessageRepository;
-	private final ChatSessionRepository chatSessionRepository;      
 	private final BedrockChatClient bedrockChatClient;
 	private final FaqRetrievalService faqRetrievalService;
+	private final ChatMessagePersistence persistence;
+	private final ChatMessageRepository chatMessageRepository;
+	private final ChatSessionRepository chatSessionRepository;
 	
 	@Transactional
 	public ChatMessageResponse sendMessage(Long sessionId, ChatMessageSendRequest request) {
-		ChatSession session = chatSessionRepository.findById(sessionId)
-				.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "세션을 찾을 수 없습니다."));
 		
-		// 1) 사용자 질문 저장
-		ChatMessage userMessage = ChatMessage.builder()
-				.session(session)
-				.role(ChatMessageRole.USER)
-				.content(request.content())
-				.status(ChatMessageStatus.COMPLETED)
-				.build();
-		chatMessageRepository.save(userMessage);
-		
+		ChatMessage assistantMessage = persistence.saveUserAndPendingAssistant(sessionId, request);
 		
 		// 2) 조립 재료 준비
 		String context = buildContext(request.content()); // 파라미터 수정 필요
@@ -61,29 +55,23 @@ public class ChatMessageService {
 		
 		log.info("service context: " + context);
 		
-		// 3) 어시스턴트 메시지(PENDING)로 먼저 저장
-		ChatMessage assistantMessage = ChatMessage.builder()
-				.session(session)
-				.role(ChatMessageRole.ASSISTANT)
-				.content(context)
-				.status(ChatMessageStatus.PENDING)
-				.build();
-		chatMessageRepository.save(assistantMessage);
-		
 		long startTime = System.currentTimeMillis();
 		
 		try {
 			String answer = bedrockChatClient.ask(request.content(), context, conversationHistory);
+			persistence.markCompleted(assistantMessage.getId(), answer);
 			
-			
-			assistantMessage.markCompleted(answer);
+		} catch (ApiCallTimeoutException | ApiCallAttemptTimeoutException e) {
+		    log.error("Bedrock 응답 타임아웃 - sessionId: {}", sessionId, e);
+		    persistence.markFailed(assistantMessage.getId(), e.getMessage());
+		} catch (SdkException e) {
+		    log.error("Bedrock 호출 실패 - sessionId: {}", sessionId, e);
+		    persistence.markFailed(assistantMessage.getId(), e.getMessage());
 		} catch(Exception e) {
 			log.error("AI 응답 생성 실패 - sessionId: {}", sessionId, e);  // 마지막 인자로 e를 넘기면 SLF4J가 스택 트레이스 전체를 출력해줌
-			assistantMessage.markFailed();
+			persistence.markFailed(assistantMessage.getId(), e.getMessage());
 		}
 		long latencyMs = System.currentTimeMillis() - startTime;
-
-        session.update();
         
 		return ChatMessageResponse.of(assistantMessage, latencyMs);
 		
@@ -120,6 +108,7 @@ public class ChatMessageService {
 		
 	}
 	
+	@Transactional(readOnly = true)
 	public SessionMessagesResponse getMessages(Long sessionId, Long userId) {
 		
 		ChatSession session = chatSessionRepository.findById(sessionId)

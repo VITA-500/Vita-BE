@@ -66,6 +66,9 @@ public class ChatMessage {
 	@OneToMany(mappedBy = "chatMessage", cascade = CascadeType.ALL, orphanRemoval = true)
 	private List<ChatMessageFaqRef> faqRefs = new ArrayList<>();
 	
+	@Column(name = "error_message")
+	private String errorMessage;
+	
 	@Builder
 	public ChatMessage(ChatSession session, ChatMessageRole role, String content, ChatMessageStatus status) {
 		this.session = session;
@@ -94,8 +97,9 @@ public class ChatMessage {
 	/**
 	 * 실패 시
 	 */
-	public void markFailed() {
+	public void markFailed(String errorMessage) {
 		this.status = ChatMessageStatus.FAILED;
+		this.errorMessage = errorMessage;
 	}
 	
 	/**
