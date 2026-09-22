@@ -97,7 +97,9 @@ plan:
     batch-size: ${PLAN_EMBEDDING_BATCH_SIZE:100}
 
 embedding:
-  base-url: http://host.docker.internal:8081
+  # 하드코딩돼 있던 로컬 전용 주소(host.docker.internal)를 환경변수로 뺐다 — EC2 dev/prod는
+  # host.docker.internal을 못 쓰고(리눅스 Docker Engine), 컨테이너 이름으로 접근해야 한다.
+  base-url: ${EMBEDDING_BASE_URL:http://host.docker.internal:8081}
 
 retrieval:
   # "관련 FAQ 없음" 판단 기준(0~1). 로밍/요금·납부/유심-eSIM 3개 카테고리 데이터로
