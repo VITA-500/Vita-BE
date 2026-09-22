@@ -4,8 +4,11 @@ import com.vita.embedding.EmbeddingProvider;
 import com.vita.search.dto.FaqReference;
 import com.vita.search.dto.FaqRetrievalContext;
 import com.vita.search.dto.FaqSimilarityResult;
+import com.vita.search.dto.PlanReference;
+import com.vita.search.dto.PlanSimilarityResult;
 import com.vita.search.entity.FaqStatus;
 import com.vita.search.repository.FaqVectorSearchRepository;
+import com.vita.search.repository.PlanVectorSearchRepository;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -33,39 +36,75 @@ public class FaqRetrievalServiceImpl implements FaqRetrievalService {
 	@Value("${retrieval.similarity-threshold:0.83}")
 	private double similarityThreshold;
 
+	/**
+	 * "관련 요금제 없음"으로 처리할 유사도 하한선. 요금제는 질문/답변이 아니라 설명 문장(description)
+	 * 형태라 FAQ와 유사도 분포가 달라 별도 값으로 둔다. 요금제 15종 실측 기준 — 타겟 그룹이 맞는
+	 * 질문(청년/시니어/키즈/워치 등)의 top1은 0.8208~0.8767, FAQ성·무관 질문의 top1은 0.7414~0.8008
+	 * 이었다. 그 사이인 0.81로 잡았다.
+	 */
+	@Value("${plan.retrieval.similarity-threshold:0.81}")
+	private double planSimilarityThreshold;
+
 	/** 한글/영문/숫자가 2자 이상 연속된 덩어리만 키워드로 취급 (조사 등 형태소 분리는 안 함 — 근사치). */
 	private static final Pattern KEYWORD_PATTERN = Pattern.compile("[가-힣a-zA-Z0-9]{2,}");
 
 	private final EmbeddingProvider embeddingProvider;
 	private final FaqVectorSearchRepository faqVectorSearchRepository;
+	private final PlanVectorSearchRepository planVectorSearchRepository;
 
-	public FaqRetrievalServiceImpl(EmbeddingProvider embeddingProvider, FaqVectorSearchRepository faqVectorSearchRepository) {
+	public FaqRetrievalServiceImpl(
+			EmbeddingProvider embeddingProvider,
+			FaqVectorSearchRepository faqVectorSearchRepository,
+			PlanVectorSearchRepository planVectorSearchRepository) {
 		this.embeddingProvider = embeddingProvider;
 		this.faqVectorSearchRepository = faqVectorSearchRepository;
+		this.planVectorSearchRepository = planVectorSearchRepository;
 	}
 
 	@Override
 	public FaqRetrievalContext search(String query, int topK) {
+		// FAQ와 요금제는 같은 임베딩 모델·차원이라 벡터 변환은 한 번만 하고 두 테이블에 그대로 쓴다.
 		float[] queryVector = embeddingProvider.embedQuery(query);
 
 		// threshold 미달 후보의 최고 점수도 topSimilarity로 알려야 해서, DB에서는 threshold 없이
 		// 가까운 순 topK를 가져오고 threshold는 아래에서 적용한다(정렬이 유사도 순이라 결과 집합은 동일).
-		List<FaqSimilarityResult> candidates = faqVectorSearchRepository.searchBySimilarity(
+		List<FaqSimilarityResult> faqCandidates = faqVectorSearchRepository.searchBySimilarity(
 				queryVector, FaqStatus.ACTIVE, 0.0, topK);
-		double topSimilarity = candidates.isEmpty() ? 0.0 : candidates.get(0).similarity();
+		double faqTopSimilarity = faqCandidates.isEmpty() ? 0.0 : faqCandidates.get(0).similarity();
 
-		List<FaqSimilarityResult> results = candidates.stream()
+		List<FaqSimilarityResult> faqResults = faqCandidates.stream()
 				.filter(candidate -> candidate.similarity() >= similarityThreshold)
 				.toList();
 
-		if (results.isEmpty()) {
+		if (faqResults.isEmpty()) {
 			log.info("관련 FAQ 없음 (threshold={}, 최고 유사도={}). query={}",
-					similarityThreshold, String.format("%.4f", topSimilarity), query);
+					similarityThreshold, String.format("%.4f", faqTopSimilarity), query);
 		} else {
-			logRankingSignals(query, results);
+			logRankingSignals(query, faqResults);
 		}
 
-		return new FaqRetrievalContext(results.stream().map(this::toReference).toList(), topSimilarity);
+		// FAQ와 각각(별도 쿼리) 조회 후 병합한다 — UNION 한 쿼리 대신 이 방식을 택한 이유는
+		// 두 테이블의 유사도 분포가 달라(threshold도 다름) 한 번에 정렬·컷오프하면 한쪽이
+		// 불리해질 수 있어서다. 요금제 15종 규모라 쿼리 하나 더 도는 비용은 무시할 만하다.
+		List<PlanSimilarityResult> planCandidates = planVectorSearchRepository.searchBySimilarity(
+				queryVector, 0.0, topK);
+		double planTopSimilarity = planCandidates.isEmpty() ? 0.0 : planCandidates.get(0).similarity();
+
+		List<PlanSimilarityResult> planResults = planCandidates.stream()
+				.filter(candidate -> candidate.similarity() >= planSimilarityThreshold)
+				.toList();
+
+		if (planResults.isEmpty()) {
+			log.info("관련 요금제 없음 (threshold={}, 최고 유사도={}). query={}",
+					planSimilarityThreshold, String.format("%.4f", planTopSimilarity), query);
+		}
+
+		double topSimilarity = Math.max(faqTopSimilarity, planTopSimilarity);
+
+		return new FaqRetrievalContext(
+				faqResults.stream().map(this::toReference).toList(),
+				planResults.stream().map(this::toPlanReference).toList(),
+				topSimilarity);
 	}
 
 	/**
@@ -113,6 +152,19 @@ public class FaqRetrievalServiceImpl implements FaqRetrievalService {
 				result.subcategory(),
 				result.question(),
 				result.answer(),
+				result.similarity(),
+				result.updatedAt());
+	}
+
+	/** PlanSimilarityResult(내부 검색 결과) → PlanReference(BE4/FE1 대외 계약) 변환. */
+	private PlanReference toPlanReference(PlanSimilarityResult result) {
+		return new PlanReference(
+				result.id(),
+				result.planCode(),
+				result.name(),
+				result.summary(),
+				result.monthlyFee(),
+				result.description(),
 				result.similarity(),
 				result.updatedAt());
 	}
