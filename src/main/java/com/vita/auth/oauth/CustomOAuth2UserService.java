@@ -64,6 +64,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 				.findByProviderAndProviderId(userInfo.getProvider(), userInfo.getProviderId());
 
 		if (linked.isPresent()) {
+			// findByProviderAndProviderId가 user를 fetch join으로 함께 가져온다 —
+			// 여기서 나가는 User는 트랜잭션 밖(SuccessHandler)에서도 안전하게 읽을 수 있다.
 			return linked.get().getUser();
 		}
 

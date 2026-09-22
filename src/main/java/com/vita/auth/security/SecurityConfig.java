@@ -80,7 +80,13 @@ public class SecurityConfig {
 			"/stores/**",
 			"/swagger-ui/**",
 			"/v3/api-docs/**",
-			"/swagger-ui.html"
+			"/swagger-ui.html",
+			// 스프링이 처리되지 않은 예외를 내부적으로 포워딩하는 경로. 막아두면 진짜 에러가
+			// 401 UNAUTHORIZED로 덮여 원인을 알 수 없게 된다 — 소셜 로그인 콜백이 실패했을 때
+			// FailureHandler를 거치지 않는 예외가 전부 "로그인이 필요합니다"로 나갔다.
+			"/error",
+			// 브라우저가 자동으로 요청한다. 막아두면 401이 섞여 디버깅을 방해한다.
+			"/favicon.ico"
 	};
 
 	@Bean
