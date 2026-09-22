@@ -1,0 +1,63 @@
+{
+  "listPageInfo": {
+    "pageSize": "10",
+    "rowSize": "10",
+    "pageNo": "1",
+    "totalPage": "76",
+    "start": "0",
+    "last": "10",
+    "totalCount": "755"
+  },
+  "lstErmsFaqDtlList": [
+    {
+      "rnum": "1",
+      "kbId": "KNOW0000012210",
+      "title": "[휴대폰결제] 휴대폰결제 이용이 안돼요",
+      "nodeId": "NODE0000001614",
+      "nodeName": "휴대폰결제",
+      "parentId": "NODE0000002568",
+      "updatedDate": "2025-08-22 16:21:15",
+      "contents": null,
+      "nodeIdPath": "NODE0000000284 > NODE0000000298 > NODE0000000307 > NODE0000002568 > NODE0000001614",
+      "nodePath": "개인 > 모바일 > 모바일서비스 > 가족보호/안심 > 휴대폰결제"
+    },
+    {
+      "rnum": "2",
+      "kbId": "KNOW0000021493",
+      "title": "[데이터] 기본 제공 데이터를 모두 다 쓰면 어떻게 되나요?",
+      "nodeId": "NODE0000000578",
+      "nodeName": "데이터",
+      "parentId": "NODE0000000307",
+      "updatedDate": "2025-10-16 15:39:25",
+      "contents": null,
+      "nodeIdPath": "NODE0000000284 > NODE0000000298 > NODE0000000307 > NODE0000000578",
+      "nodePath": "개인 > 모바일 > 모바일서비스 > 데이터"
+    }
+  ],
+  "lstErmsCatgTab": [
+    [
+      {"id": "TOP10", "name": "TOP10"},
+      {"id": "NODE0000000298", "name": "모바일"},
+      {"id": "NODE0000000326", "name": "인터넷/IPTV"}
+    ],
+    [
+      {"id": "ALL", "name": "전체"},
+      {"id": "NODE0000000299", "name": "요금제"},
+      {"id": "NODE0000001183", "name": "단말기(휴대폰)"},
+      {"id": "NODE0000000307", "name": "모바일서비스"}
+    ],
+    [],
+    [],
+    []
+  ],
+  "dmErmsSsrPageInfo": {
+    "faqGubun": "NODE0000000284",
+    "kbId": "",
+    "catg1": "ALL",
+    "catg2": "ALL",
+    "catg3": "ALL",
+    "catg4": "ALL",
+    "selectedCatg": "",
+    "srchValue": "요금"
+  }
+}

@@ -60,8 +60,19 @@ jwt:
   access-token-expire-millis: ${JWT_ACCESS_EXPIRE:3600000}   # 1시간
 
 # 필요할 때만 명시적으로 켜는 합성 FAQ JSONL 적재기.
-# 같은 faq_id(source_faq_id)는 갱신되므로 로컬/AWS dev에서 여러 번 실행해도 중복 행이 생기지 않는다.
+# 같은 faq_id(source_faq_id)는 갱신되므로 재실행해도 중복 행이 생기지 않는다.
 faq:
+  collection:
+    enabled: ${FAQ_COLLECTION_ENABLED:false}
+    base-url: ${FAQ_COLLECTION_BASE_URL:https://www.lguplus.com/uhdc/fo/cusp/onqa/v1}
+    main-category: ${FAQ_COLLECTION_MAIN_CATEGORY:}
+    page-size: ${FAQ_COLLECTION_PAGE_SIZE:10}
+    max-main-categories: ${FAQ_COLLECTION_MAX_MAIN_CATEGORIES:1}
+    max-subcategories-per-main: ${FAQ_COLLECTION_MAX_SUBCATEGORIES_PER_MAIN:1}
+    max-pages-per-subcategory: ${FAQ_COLLECTION_MAX_PAGES_PER_SUBCATEGORY:1}
+    max-details: ${FAQ_COLLECTION_MAX_DETAILS:10}
+    request-delay-ms: ${FAQ_COLLECTION_REQUEST_DELAY_MS:500}
+    output: ${FAQ_COLLECTION_OUTPUT:build/faq/faq_all_cleaned.jsonl}
   import:
     enabled: ${FAQ_IMPORT_ENABLED:false}
     resource: ${FAQ_IMPORT_RESOURCE:classpath:data/faq/cleaned/faq_all_cleaned.jsonl}
@@ -69,15 +80,19 @@ faq:
     enabled: ${FAQ_EMBEDDING_ENABLED:false}
     batch-size: ${FAQ_EMBEDDING_BATCH_SIZE:100}
 
+# Flyway 요금제 시드 적재 후 명시적으로 켤 때만 임베딩한다.
+plan:
+  embedding:
+    enabled: ${PLAN_EMBEDDING_ENABLED:false}
+    batch-size: ${PLAN_EMBEDDING_BATCH_SIZE:100}
+
 embedding:
   # 로컬 Hugging Face Text Embeddings Inference 서버
   base-url: ${EMBEDDING_BASE_URL:http://localhost:8081}
 
 retrieval:
-  # "관련 FAQ 없음" 판단 기준(0~1). 로밍/요금·납부/유심-eSIM 3개 카테고리 데이터로
-  # 재측정해서 0.85 → 0.83으로 조정. 단순히 낮추면 다른 카테고리 FAQ가 잘못 매칭되는
-  # 위험이 있어서(예: "심카드" 질문이 "신용카드" 요금 FAQ와 헷갈림, 0.8179), 그 값(0.8179)과
-  # 로밍/요금 정답 파라프레이즈 점수(0.8423~0.8547) 사이인 0.83으로 잡음.
+  # "관련 FAQ 없음" 판단 기준(0~1). 기존 소량 데이터에서 사용하던 값을 유지한다.
+  # 합성 FAQ 1,000건 적재·임베딩 후 정답/오답 질의로 재평가하기 전까지는 잠정값이다.
   similarity-threshold: ${RETRIEVAL_SIMILARITY_THRESHOLD:0.83}
 
 springdoc:
