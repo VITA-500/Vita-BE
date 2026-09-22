@@ -40,6 +40,20 @@ server:
   # 없으면 Swagger가 서버 주소를 http://로 만들어, HTTPS 페이지에서 mixed content로 차단된다.
   forward-headers-strategy: framework
 
+  servlet:
+    session:
+      cookie:
+        # 세션 쿠키(JSESSIONID)를 accessToken과 같은 속성으로 발급한다.
+        #
+        # 기본값으로 두면 Secure/SameSite가 붙지 않아 두 가지 문제가 생긴다.
+        # 1) 소셜 로그인은 제공자를 거쳐 돌아오는 크로스사이트 흐름이라, SameSite가 Lax(기본)면
+        #    브라우저가 세션 쿠키를 보내지 않는다. 서버는 state 검증용 세션을 찾지 못한다.
+        # 2) 로그아웃이 내려보내는 만료 쿠키와 속성이 달라, 브라우저가 다른 쿠키로 보고 지우지 않는다.
+        #    남은 세션이 다음 소셜 로그인의 state 검증을 어긋나게 한다.
+        secure: ${COOKIE_SECURE:false}
+        same-site: ${COOKIE_SAME_SITE:Lax}
+        http-only: true
+
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
 
