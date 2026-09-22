@@ -14,7 +14,10 @@ import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
 @Configuration
 public class BedrockConfig {
 	
-	@Value("${bedrock.region}")
+	// ai.bedrock.aws.region(AWS_REGION 환경변수로 제어, application.yml)과 같은 값을 재사용한다.
+	// 여기서 별도 프로퍼티(bedrock.region)를 새로 만들면 두 설정이 어긋날 위험이 있고,
+	// 기본값도 없어 값이 안 채워지면 기동 자체가 실패한다.
+	@Value("${ai.bedrock.aws.region}")
     private String bedrockRegion;
 
     @Bean
