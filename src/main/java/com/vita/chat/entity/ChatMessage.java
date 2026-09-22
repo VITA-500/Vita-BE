@@ -5,6 +5,8 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.hibernate.annotations.ColumnTransformer;
+
 import com.vita.chat.ChatMessageFeedback;
 import com.vita.chat.ChatMessageRole;
 import com.vita.chat.ChatMessageStatus;
@@ -43,6 +45,7 @@ public class ChatMessage {
 	private ChatSession session;
 	
 	@Enumerated(EnumType.STRING)
+	@ColumnTransformer(write = "?::chat_message_role")
 	@Column(nullable = false)
 	private ChatMessageRole role;
 	
@@ -50,9 +53,11 @@ public class ChatMessage {
 	private String content;
 	
 	@Enumerated(EnumType.STRING)
+	@ColumnTransformer(write = "?::chat_message_status")
 	private ChatMessageStatus status;
 	
 	@Enumerated(EnumType.STRING)
+	@ColumnTransformer(write = "?::feedback_type")
 	private ChatMessageFeedback feedback;
 	
 	@Column(name = "created_at", nullable = false, updatable = false)
