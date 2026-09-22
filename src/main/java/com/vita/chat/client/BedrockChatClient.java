@@ -7,9 +7,6 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.stereotype.Component;
 
-import com.vita.chat.service.ChatMessageService;
-
-import lombok.extern.slf4j.Slf4j;
 
 @Component
 public class BedrockChatClient {
