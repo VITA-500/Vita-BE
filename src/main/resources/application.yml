@@ -19,7 +19,7 @@ spring:
 
   jackson:
     # ErrorResponse.fieldErrors처럼 값이 없을 때(null) 응답 body에서 아예 빼기 위함 (04_API명세서 0절)
-    default-property-inclusion: non_null
+#    default-property-inclusion: non_null
     time-zone: Asia/Seoul
 
   ai:
@@ -69,9 +69,12 @@ faq:
     enabled: ${FAQ_EMBEDDING_ENABLED:false}
     batch-size: ${FAQ_EMBEDDING_BATCH_SIZE:100}
 
+#embedding:
+#  # 로컬 Hugging Face Text Embeddings Inference 서버
+#  base-url: ${EMBEDDING_BASE_URL:http://localhost:8081}
+
 embedding:
-  # 로컬 Hugging Face Text Embeddings Inference 서버
-  base-url: ${EMBEDDING_BASE_URL:http://localhost:8081}
+  base-url: http://host.docker.internal:8081
 
 retrieval:
   # "관련 FAQ 없음" 판단 기준(0~1). 로밍/요금·납부/유심-eSIM 3개 카테고리 데이터로
