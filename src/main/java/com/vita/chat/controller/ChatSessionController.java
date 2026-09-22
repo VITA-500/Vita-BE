@@ -35,8 +35,8 @@ public class ChatSessionController {
 			@AuthenticationPrincipal UserPrincipal user
 			){
 		
-		Long userId = user.getUserId();
-		Long guestId = user.getGuestId();
+		Long userId = PrincipalUtils.userIdOf(user);
+		UUID guestId = PrincipalUtils.guestIdOf(user);
 		
 		if (userId == null && guestId == null) {
 			throw new BusinessException(ErrorCode.UNAUTHORIZED); // 로그인도 게스트도 아님

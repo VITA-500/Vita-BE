@@ -1,6 +1,7 @@
 package com.vita.chat.service;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -45,7 +46,7 @@ public class ChatMessageService {
 	private final ChatSessionRepository chatSessionRepository;
 	
 	@Transactional
-	public ChatMessageResponse sendMessage(Long sessionId, ChatMessageSendRequest request) {
+	public ChatMessageResponse sendMessage(Long sessionId, Long userId, UUID guestId, ChatMessageSendRequest request) {
 		
 		ChatMessage assistantMessage = persistence.saveUserAndPendingAssistant(sessionId, request);
 		
@@ -109,7 +110,7 @@ public class ChatMessageService {
 	}
 	
 	@Transactional(readOnly = true)
-	public SessionMessagesResponse getMessages(Long sessionId, Long userId) {
+	public SessionMessagesResponse getMessages(Long sessionId, Long userId, UUID guestId) {
 		
 		ChatSession session = chatSessionRepository.findById(sessionId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "존재하지 않는 세션입니다."));

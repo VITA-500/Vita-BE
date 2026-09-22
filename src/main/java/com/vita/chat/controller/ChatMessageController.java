@@ -1,5 +1,7 @@
 package com.vita.chat.controller;
 
+import java.util.UUID;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +18,7 @@ import com.vita.chat.dto.SessionMessagesResponse;
 import com.vita.chat.service.ChatMessageService;
 import com.vita.common.exception.BusinessException;
 import com.vita.common.exception.ErrorCode;
+import com.vita.common.util.PrincipalUtils;
 
 import org.springframework.web.bind.annotation.RequestBody;
 import jakarta.validation.Valid;
@@ -35,7 +38,8 @@ public class ChatMessageController {
 			@Valid @RequestBody ChatMessageSendRequest request
 			)
 	{
-		ChatMessageResponse response = chatMessageService.sendMessage(sessionId,  user.getUserId(), user.getGuestId(), request);
+	    
+		ChatMessageResponse response = chatMessageService.sendMessage(sessionId,  PrincipalUtils.userIdOf(user), PrincipalUtils.guestIdOf(user), request);
 		return ResponseEntity.ok(response);
 	}
 	
@@ -45,9 +49,9 @@ public class ChatMessageController {
 			@AuthenticationPrincipal UserPrincipal user
 			){
 		
-		Long userId = user.getUserId();
-		Long guestId = user.getGuestId();
-		
+		Long userId = PrincipalUtils.userIdOf(user);
+		UUID guestId = PrincipalUtils.guestIdOf(user);
+
 		if (userId == null && guestId == null) {
 			throw new BusinessException(ErrorCode.UNAUTHORIZED);
 		}

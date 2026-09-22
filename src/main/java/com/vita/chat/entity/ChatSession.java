@@ -57,14 +57,8 @@ public class ChatSession {
     	this.updatedAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
     }
     
- /**
-  * 세션 소유권 판별 헬퍼
-  * @param userId
-  * @param guestId
-  * @return
-  */
-    public boolean isOwnedBy(Long userId, UUID guestId) {
-        if (this.userId != null) return this.userId.equals(userId);
-        return this.guestId != null && this.guestId.equals(guestId);
+    public void claimBy(Long userId) {
+    	this.userId = userId;
+    	this.guestId = null;
     }
 }
