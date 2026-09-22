@@ -71,6 +71,17 @@ public class SecurityConfig {
 			"/login/oauth2/**"
 	};
 
+	/**
+	 * 로그인한 회원만 쓸 수 있는 경로. 게스트(ROLE_GUEST)는 막힌다.
+	 *
+	 * <p>채팅(/chat/**)은 여기 넣지 않는다 — 비회원도 상담을 쓸 수 있어야 하기 때문이다.
+	 * 게스트는 X-Guest-Id 헤더로 식별되고, 헤더가 없으면 anyRequest()의 authenticated()에서
+	 * 401이 난다.
+	 */
+	private static final String[] MEMBER_PATHS = {
+			"/users/**"
+	};
+
 	/** 인증 없이 열어둘 경로. 구체적인 경로를 먼저 나열하고 anyRequest()는 마지막에 둔다. */
 	private static final String[] PUBLIC_PATHS = {
 			"/auth/**",
@@ -130,6 +141,9 @@ public class SecurityConfig {
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(ADMIN_PATHS).hasRole("ADMIN")
 						.requestMatchers(PUBLIC_PATHS).permitAll()
+						// 회원 전용. 게스트는 ROLE_GUEST라 여기서 막힌다 — anyRequest()의
+						// authenticated()만으로는 게스트도 통과해 마이페이지가 열린다.
+						.requestMatchers(MEMBER_PATHS).hasAnyRole("USER", "ADMIN")
 						.anyRequest().authenticated())
 
 				.exceptionHandling(ex -> ex
