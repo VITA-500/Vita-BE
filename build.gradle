@@ -26,7 +26,6 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
-	implementation 'org.jsoup:jsoup:1.18.3'
 
 	// Persistence — PostgreSQL + Flyway (06_ERD.dbml / 08_개발표준 4절)
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'

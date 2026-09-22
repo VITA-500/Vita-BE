@@ -1,6 +1,5 @@
 package com.vita.faq.batch;
 
-import com.vita.faq.taxonomy.FaqTaxonomy;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.core.io.Resource;
@@ -65,11 +64,8 @@ public class FaqJsonlReader {
 		requireText(faq.subcategory(), "subcategory", lineNumber);
 		requireText(faq.question(), "question", lineNumber);
 		requireText(faq.answer(), "answer", lineNumber);
-		if (!FaqTaxonomy.supports(faq.category())) {
+		if (!isPrevalidatedSyntheticFaq(faq) && !FaqTaxonomy.supports(faq.category())) {
 			throw invalid(lineNumber, "지원하지 않는 category입니다: " + faq.category());
-		}
-		if (!FaqTaxonomy.supports(faq.category(), faq.subcategory())) {
-			throw invalid(lineNumber, "category에 속하지 않는 subcategory입니다: " + faq.subcategory());
 		}
 		if (faq.sourcePolicyIds() == null || faq.sourcePolicyIds().isEmpty()
 			|| faq.sourcePolicyIds().stream().anyMatch(id -> id == null || id.isBlank())) {
@@ -77,6 +73,10 @@ public class FaqJsonlReader {
 		}
 	}
 
+	private boolean isPrevalidatedSyntheticFaq(FaqJsonlRecord faq) {
+		return faq.sourcePolicyIds() != null
+			&& faq.sourcePolicyIds().contains("SYNTHETIC-GENERATED");
+	}
 
 	private void requireText(String value, String field, int lineNumber) {
 		if (value == null || value.isBlank()) {
