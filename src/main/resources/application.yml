@@ -90,6 +90,12 @@ faq:
     enabled: ${FAQ_EMBEDDING_ENABLED:false}
     batch-size: ${FAQ_EMBEDDING_BATCH_SIZE:100}
 
+# Flyway 요금제 시드 적재 후 명시적으로 켤 때만 임베딩한다.
+plan:
+  embedding:
+    enabled: ${PLAN_EMBEDDING_ENABLED:false}
+    batch-size: ${PLAN_EMBEDDING_BATCH_SIZE:100}
+
 embedding:
   # 로컬 Hugging Face Text Embeddings Inference 서버
   base-url: ${EMBEDDING_BASE_URL:http://localhost:8081}
