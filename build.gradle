@@ -48,6 +48,7 @@ dependencies {
 	
 	// AWS Bedrock — LLM 연동
 	implementation 'org.springframework.ai:spring-ai-starter-model-bedrock-converse'
+	implementation 'software.amazon.awssdk:apache-client'
 
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
@@ -59,6 +60,7 @@ dependencies {
 dependencyManagement {
 	imports {
 		mavenBom "org.springframework.ai:spring-ai-bom:1.0.2"
+		mavenBom "software.amazon.awssdk:bom:2.29.52"
 	}
 }
 
