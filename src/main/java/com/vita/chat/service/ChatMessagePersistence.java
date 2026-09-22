@@ -58,10 +58,10 @@ class ChatMessagePersistence {
     }
 
     @Transactional
-    public void markFailed(Long messageId) {
+    public void markFailed(Long messageId, String errorMessage) {
         ChatMessage message = chatMessageRepository.findById(messageId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "메시지를 찾을 수 없습니다."));
-        message.markFailed();
+        message.markFailed(errorMessage);
     }
 
 }

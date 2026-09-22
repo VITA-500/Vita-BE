@@ -63,13 +63,13 @@ public class ChatMessageService {
 			
 		} catch (ApiCallTimeoutException | ApiCallAttemptTimeoutException e) {
 		    log.error("Bedrock 응답 타임아웃 - sessionId: {}", sessionId, e);
-		    persistence.markFailed(assistantMessage.getId());
+		    persistence.markFailed(assistantMessage.getId(), e.getMessage());
 		} catch (SdkException e) {
 		    log.error("Bedrock 호출 실패 - sessionId: {}", sessionId, e);
-		    persistence.markFailed(assistantMessage.getId());
+		    persistence.markFailed(assistantMessage.getId(), e.getMessage());
 		} catch(Exception e) {
 			log.error("AI 응답 생성 실패 - sessionId: {}", sessionId, e);  // 마지막 인자로 e를 넘기면 SLF4J가 스택 트레이스 전체를 출력해줌
-			persistence.markFailed(assistantMessage.getId());
+			persistence.markFailed(assistantMessage.getId(), e.getMessage());
 		}
 		long latencyMs = System.currentTimeMillis() - startTime;
         
