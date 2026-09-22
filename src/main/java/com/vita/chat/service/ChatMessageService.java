@@ -20,6 +20,9 @@ import com.vita.chat.repository.ChatMessageRepository;
 import com.vita.chat.repository.ChatSessionRepository;
 import com.vita.common.exception.BusinessException;
 import com.vita.common.exception.ErrorCode;
+import com.vita.search.dto.FaqReference;
+import com.vita.search.dto.FaqRetrievalContext;
+import com.vita.search.service.FaqRetrievalService;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -30,9 +33,12 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ChatMessageService {
 
+	private static final int TOP_K = 3; // 검색해올 FAQ 후보 개수 — threshold 필터는 BE3 쪽에서 처리됨
+	
 	private final ChatMessageRepository chatMessageRepository;
 	private final ChatSessionRepository chatSessionRepository;      
 	private final BedrockChatClient bedrockChatClient;
+	private final FaqRetrievalService faqRetrievalService;
 	
 	@Transactional
 	public ChatMessageResponse sendMessage(Long sessionId, ChatMessageSendRequest request) {
@@ -40,7 +46,6 @@ public class ChatMessageService {
 				.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "세션을 찾을 수 없습니다."));
 		
 		// 1) 사용자 질문 저장
-		log.info("user content: " + request.content() );
 		ChatMessage userMessage = ChatMessage.builder()
 				.session(session)
 				.role(ChatMessageRole.USER)
@@ -51,14 +56,16 @@ public class ChatMessageService {
 		
 		
 		// 2) 조립 재료 준비
-		String context = buildContext(); // 파라미터 수정 필요
+		String context = buildContext(request.content()); // 파라미터 수정 필요
 		String conversationHistory = buildConversationHistory(sessionId);
+		
+		log.info("service context: " + context);
 		
 		// 3) 어시스턴트 메시지(PENDING)로 먼저 저장
 		ChatMessage assistantMessage = ChatMessage.builder()
 				.session(session)
 				.role(ChatMessageRole.ASSISTANT)
-				.content(null)
+				.content(context)
 				.status(ChatMessageStatus.PENDING)
 				.build();
 		chatMessageRepository.save(assistantMessage);
@@ -82,8 +89,23 @@ public class ChatMessageService {
 		
 	}
 	
-	private String buildContext() {
-		return "";
+	private String buildContext(String query) {
+		FaqRetrievalContext retrievalContext = faqRetrievalService.search(query, TOP_K);
+		
+		if (!retrievalContext.hasRelevantFaq()) {
+			log.info("관련 FAQ 없음 (topSimilarity={}). query={}", retrievalContext.topSimilarity(), query);
+			return "";
+		}
+ 
+		return retrievalContext.references().stream()
+				.map(faq -> """
+						<document>
+						<category>%s / %s</category>
+						<question>%s</question>
+						<answer>%s</answer>
+						</document>
+						""".formatted(faq.category(), faq.subcategory(), faq.question(), faq.answer()))
+				.collect(Collectors.joining("\n"));
 	}
 	
 	private String buildConversationHistory (Long sessionId) {
