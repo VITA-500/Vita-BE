@@ -2,7 +2,9 @@ package com.vita.chat.service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
+import org.apache.coyote.BadRequestException;
 import org.springframework.stereotype.Service;
 
 import com.vita.chat.dto.ChatSessionCreateResponse;
@@ -10,6 +12,8 @@ import com.vita.chat.dto.ChatSessionListResponse;
 import com.vita.chat.dto.ChatSessionSummaryResponse;
 import com.vita.chat.entity.ChatSession;
 import com.vita.chat.repository.ChatSessionRepository;
+import com.vita.common.exception.BusinessException;
+import com.vita.common.exception.ErrorCode;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -26,9 +30,15 @@ public class ChatSessionService {
 	 * @return
 	 */
 	@Transactional
-	public ChatSessionCreateResponse createSession(Long userId) {
+	public ChatSessionCreateResponse createSession(Long userId, UUID guestId) {
+		
+		if (userId == null && guestId == null) {
+			throw new 	BusinessException(ErrorCode.USER_NOT_FOUND, "사용자를 찾을 수 없습니다.");
+		}
+		
 		ChatSession session = ChatSession.builder()
 				.userId(userId)
+				.guestId(guestId)
 				.title(null)
 				.build();
 		

@@ -1,10 +1,13 @@
 package com.vita.chat.controller;
 
+import java.util.UUID;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -26,13 +29,17 @@ public class ChatSessionController {
 	
 	@PostMapping
 	public ResponseEntity<ChatSessionCreateResponse> createSession(
-			@AuthenticationPrincipal UserPrincipal user){
+			@AuthenticationPrincipal UserPrincipal user
+			){
 		
-		if (user == null) {
-	        throw new BusinessException(ErrorCode.UNAUTHORIZED);
-	    }
+		Long userId = user.getUserId();
+		Long guestId = user.getGeustId();
 		
-		ChatSessionCreateResponse response = chatSessionService.createSession(user.getUserId());
+		if (userId == null && guestId == null) {
+			throw new BusinessException(ErrorCode.UNAUTHORIZED); // 로그인도 게스트도 아님
+		}
+		
+		ChatSessionCreateResponse response = chatSessionService.createSession(userId, guestId);
 		
 		return ResponseEntity.status(HttpStatus.CREATED).body(response);
 	}

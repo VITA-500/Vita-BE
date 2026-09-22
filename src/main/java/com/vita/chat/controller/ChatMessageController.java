@@ -31,10 +31,11 @@ public class ChatMessageController {
 	@PostMapping
 	public ResponseEntity<ChatMessageResponse> sendMessage( 
 			@PathVariable Long sessionId,
+			@AuthenticationPrincipal UserPrincipal user,
 			@Valid @RequestBody ChatMessageSendRequest request
 			)
 	{
-		ChatMessageResponse response = chatMessageService.sendMessage(sessionId, request);
+		ChatMessageResponse response = chatMessageService.sendMessage(sessionId,  user.getUserId(), user.getGuestId(), request);
 		return ResponseEntity.ok(response);
 	}
 	
@@ -43,11 +44,15 @@ public class ChatMessageController {
 			@PathVariable Long sessionId,
 			@AuthenticationPrincipal UserPrincipal user
 			){
-		if(user == null) {
+		
+		Long userId = user.getUserId();
+		Long guestId = user.getGeustId();
+		
+		if (userId == null && guestId == null) {
 			throw new BusinessException(ErrorCode.UNAUTHORIZED);
 		}
 		
-		SessionMessagesResponse  response = chatMessageService.getMessages(sessionId, user.getUserId());
+		SessionMessagesResponse  response = chatMessageService.getMessages(sessionId, userId, guestId);
 		
 		return response;
 	}
