@@ -89,4 +89,17 @@ public class User extends BaseTimeEntity {
 	public boolean hasPassword() {
 		return passwordHash != null;
 	}
+
+	/** 마이페이지 이름 변경. 호출 전에 검증을 마친 값만 넘어온다고 본다. */
+	public void changeName(String name) {
+		this.name = name;
+	}
+
+	/**
+	 * 마이페이지 비밀번호 변경. 평문이 아니라 이미 해싱된 값을 받는다 — 엔티티가
+	 * PasswordEncoder를 알 필요가 없고, 평문이 엔티티까지 흘러들지도 않는다.
+	 */
+	public void changePassword(String passwordHash) {
+		this.passwordHash = passwordHash;
+	}
 }

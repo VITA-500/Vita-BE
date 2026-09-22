@@ -61,6 +61,9 @@ public class SecurityConfig {
 	/**
 	 * CSRF 검사를 면제할 경로. 아직 인증 쿠키가 없어 위조할 대상 자체가 없는 요청들이다.
 	 * Swagger UI에서 로그인을 시험할 수 있게 하려는 목적도 있다.
+	 *
+	 * <p>토큰을 발급받는 창구는 GET /auth/csrf다(AuthController). 프론트는 앱이 시작될 때
+	 * 한 번 호출해 body의 token을 보관했다가, 이후 쓰기 요청마다 X-XSRF-TOKEN 헤더에 싣는다.
 	 */
 	private static final String[] CSRF_EXEMPT_PATHS = {
 			"/auth/**",
@@ -77,7 +80,13 @@ public class SecurityConfig {
 			"/stores/**",
 			"/swagger-ui/**",
 			"/v3/api-docs/**",
-			"/swagger-ui.html"
+			"/swagger-ui.html",
+			// 스프링이 처리되지 않은 예외를 내부적으로 포워딩하는 경로. 막아두면 진짜 에러가
+			// 401 UNAUTHORIZED로 덮여 원인을 알 수 없게 된다 — 소셜 로그인 콜백이 실패했을 때
+			// FailureHandler를 거치지 않는 예외가 전부 "로그인이 필요합니다"로 나갔다.
+			"/error",
+			// 브라우저가 자동으로 요청한다. 막아두면 401이 섞여 디버깅을 방해한다.
+			"/favicon.ico"
 	};
 
 	@Bean

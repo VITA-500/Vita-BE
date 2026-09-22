@@ -26,6 +26,11 @@ public enum ErrorCode {
 	 */
 	INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다."),
 	USER_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."),
+	/**
+	 * 소셜 전용 계정이 비밀번호 변경을 시도한 경우. 비밀번호가 애초에 없는 계정이라 "변경"이
+	 * 성립하지 않는다. FE는 hasPassword=false면 변경 UI를 숨기지만, API를 직접 부를 수 있어 막는다.
+	 */
+	PASSWORD_NOT_SUPPORTED(HttpStatus.BAD_REQUEST, "비밀번호를 설정할 수 없는 계정입니다."),
 
 	// 소셜 로그인 — FE가 각각 다른 화면/안내를 보여줘야 해서 별도 코드로 둔다.
 	/** 소셜 계정의 이메일이 이미 자체 가입된 계정과 겹칠 때. 자동 연결은 계정 탈취 경로가 되므로 거부한다. */
