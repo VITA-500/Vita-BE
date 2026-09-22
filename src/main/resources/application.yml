@@ -40,6 +40,13 @@ server:
   # 없으면 Swagger가 서버 주소를 http://로 만들어, HTTPS 페이지에서 mixed content로 차단된다.
   forward-headers-strategy: framework
 
+  error:
+    # /error를 인증 없이 열어두므로(SecurityConfig PUBLIC_PATHS) 노출 범위를 명시해 둔다.
+    # 기본값도 never지만, 나중에 누가 바꿔도 의도가 드러나도록 남긴다 (08_개발표준 3절).
+    include-stacktrace: never
+    include-message: never
+    include-exception: false
+
   servlet:
     session:
       cookie:
