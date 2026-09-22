@@ -33,7 +33,7 @@ public class ChatSessionController {
 			){
 		
 		Long userId = user.getUserId();
-		Long guestId = user.getGeustId();
+		Long guestId = user.getGuestId();
 		
 		if (userId == null && guestId == null) {
 			throw new BusinessException(ErrorCode.UNAUTHORIZED); // 로그인도 게스트도 아님

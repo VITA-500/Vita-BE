@@ -46,7 +46,7 @@ public class ChatMessageController {
 			){
 		
 		Long userId = user.getUserId();
-		Long guestId = user.getGeustId();
+		Long guestId = user.getGuestId();
 		
 		if (userId == null && guestId == null) {
 			throw new BusinessException(ErrorCode.UNAUTHORIZED);
