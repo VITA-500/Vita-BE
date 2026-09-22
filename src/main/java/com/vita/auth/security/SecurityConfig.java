@@ -96,7 +96,10 @@ public class SecurityConfig {
 				.csrf(csrf -> csrf
 						.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
 						.csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
-						.ignoringRequestMatchers(CSRF_EXEMPT_PATHS))
+						.ignoringRequestMatchers(CSRF_EXEMPT_PATHS)
+						.ignoringRequestMatchers(request -> request.getHeader("Authorization") != null)
+						)
+				
 				.cors(cors -> {
 				})
 				.formLogin(form -> form.disable())
