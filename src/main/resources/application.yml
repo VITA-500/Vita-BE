@@ -95,6 +95,12 @@ plan:
   embedding:
     enabled: ${PLAN_EMBEDDING_ENABLED:false}
     batch-size: ${PLAN_EMBEDDING_BATCH_SIZE:100}
+  retrieval:
+    # 요금제는 질문/답변이 아니라 설명 문장(description) 형태라 FAQ와 유사도 분포가 달라
+    # threshold를 따로 둔다. 요금제 15종 실측 기준 — 타겟 그룹이 맞는 질문(청년/시니어/키즈/
+    # 워치 등)의 top1은 0.8208~0.8767, FAQ성·무관 질문의 top1은 0.7414~0.8008이라
+    # 그 사이인 0.81로 잡음.
+    similarity-threshold: ${PLAN_RETRIEVAL_SIMILARITY_THRESHOLD:0.81}
 
 embedding:
   base-url: http://host.docker.internal:8081
