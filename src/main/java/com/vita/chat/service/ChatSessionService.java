@@ -18,9 +18,11 @@ import com.vita.common.exception.ErrorCode;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ChatSessionService {
 
 	private final ChatSessionRepository chatSessionRepository;
@@ -60,7 +62,7 @@ public class ChatSessionService {
 	
 	@Transactional
 	public ChatSessionClaimResponse claimSession(Long sessionId, Long userId, UUID guestId) {
-		
+		log.info("claimSession 진입: sessionId={}, userId={}, guestId={}", sessionId, userId, guestId);
 		if(guestId == null) {
 			throw new BusinessException(ErrorCode.VALIDATION_ERROR, "X-Guest-Id 헤더가 필요합니다");
 		}

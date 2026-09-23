@@ -22,10 +22,12 @@ import com.vita.common.exception.ErrorCode;
 import com.vita.common.util.PrincipalUtils;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequestMapping("/chat/sessions")
 @RequiredArgsConstructor
+@Slf4j
 public class ChatSessionController {
 
 	private final ChatSessionService chatSessionService;
@@ -63,14 +65,16 @@ public class ChatSessionController {
 	@PostMapping("/{sessionId}/claim")
 	public ResponseEntity<ChatSessionClaimResponse> claimSession(
 			@PathVariable Long sessionId,
-			@AuthenticationPrincipal UserPrincipal user) {
+			@AuthenticationPrincipal UserPrincipal user,
+			@RequestHeader(value = "X-Guest-Id", required = false) UUID guestId) {
 
+		log.info("컨트롤러 진입: sessionId={}, user={}, guestId={}", sessionId, user, guestId);
+		
 		Long userId = PrincipalUtils.userIdOf(user);
 		if (userId == null) {
 			throw new BusinessException(ErrorCode.UNAUTHORIZED); // 비회원은 claim 불가
 		}
 
-		UUID guestId = PrincipalUtils.guestIdOf(user);
 		ChatSessionClaimResponse response = chatSessionService.claimSession(
 				sessionId, userId, guestId);
 
