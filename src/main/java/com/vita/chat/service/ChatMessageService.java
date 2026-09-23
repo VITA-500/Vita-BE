@@ -115,7 +115,14 @@ public class ChatMessageService {
 		ChatSession session = chatSessionRepository.findById(sessionId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "존재하지 않는 세션입니다."));
 		
-		if(!session.getUserId().equals(userId)) {
+		boolean isOwner;
+		if (session.getUserId() != null) {
+		    isOwner = session.getUserId().equals(userId);
+		} else {
+		    isOwner = session.getGuestId().equals(guestId);
+		}
+		
+		if(!isOwner){
 			throw new BusinessException(ErrorCode.FORBIDDEN, "타인의 세션에는 접근할 수 없습니다.");
 		}
 		List<MessageResponse> messages = chatMessageRepository
