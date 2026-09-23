@@ -19,4 +19,8 @@ public interface StoreDistanceProjection {
     String getPhone();
 
     Double getDistanceKm();
+
+    String getConsultServices();
+
+    String getProvidedServices();
 }
