@@ -38,6 +38,8 @@ public class SecurityConfig {
 
 	private final JwtAuthenticationFilter jwtAuthenticationFilter;
 	private final ObjectMapper objectMapper;
+	/** CSRF 면제 판단에 쓴다 — 인증 쿠키가 실제로 있는 요청만 검사 대상이다. */
+	private final CookieUtil cookieUtil;
 	private final CustomOAuth2UserService customOAuth2UserService;
 	private final OAuth2SuccessHandler oAuth2SuccessHandler;
 	private final OAuth2FailureHandler oAuth2FailureHandler;
@@ -69,6 +71,17 @@ public class SecurityConfig {
 			"/auth/**",
 			"/oauth2/**",
 			"/login/oauth2/**"
+	};
+
+	/**
+	 * 로그인한 회원만 쓸 수 있는 경로. 게스트(ROLE_GUEST)는 막힌다.
+	 *
+	 * <p>채팅(/chat/**)은 여기 넣지 않는다 — 비회원도 상담을 쓸 수 있어야 하기 때문이다.
+	 * 게스트는 X-Guest-Id 헤더로 식별되고, 헤더가 없으면 anyRequest()의 authenticated()에서
+	 * 401이 난다.
+	 */
+	private static final String[] MEMBER_PATHS = {
+			"/users/**"
 	};
 
 	/** 인증 없이 열어둘 경로. 구체적인 경로를 먼저 나열하고 anyRequest()는 마지막에 둔다. */
@@ -106,7 +119,7 @@ public class SecurityConfig {
 						.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
 						.csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
 						.ignoringRequestMatchers(CSRF_EXEMPT_PATHS)
-						.ignoringRequestMatchers(request -> request.getHeader("Authorization") != null)
+						.ignoringRequestMatchers(this::isNotCookieAuthenticated)
 						)
 				
 				.cors(cors -> {
@@ -130,6 +143,9 @@ public class SecurityConfig {
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(ADMIN_PATHS).hasRole("ADMIN")
 						.requestMatchers(PUBLIC_PATHS).permitAll()
+						// 회원 전용. 게스트는 ROLE_GUEST라 여기서 막힌다 — anyRequest()의
+						// authenticated()만으로는 게스트도 통과해 마이페이지가 열린다.
+						.requestMatchers(MEMBER_PATHS).hasAnyRole("USER", "ADMIN")
 						.anyRequest().authenticated())
 
 				.exceptionHandling(ex -> ex
@@ -150,6 +166,26 @@ public class SecurityConfig {
 		}
 
 		return http.build();
+	}
+
+	/**
+	 * 인증 쿠키로 인증하는 요청이 아니면 CSRF 검사를 면제한다.
+	 *
+	 * <p>CSRF가 성립하는 전제는 "브라우저가 자격증명을 자동으로 실어 보낸다"는 것이다.
+	 * 공격자 사이트는 우리 쿠키를 읽지는 못해도 요청에 딸려가게 만들 수는 있어서,
+	 * 쿠키 인증 요청은 반드시 토큰으로 대조해야 한다.
+	 *
+	 * <p>반대로 Authorization 헤더나 X-Guest-Id 같은 커스텀 헤더는 브라우저가 자동으로
+	 * 붙이지 않는다. 공격자 페이지가 그 값을 직접 채워 넣어야 하는데, 채워 넣을 수 있다면
+	 * 이미 CSRF가 아니라 값을 탈취한 다른 문제다 — 그래서 면제해도 방어가 약해지지 않는다.
+	 *
+	 * <p>게스트 채팅(POST /chat/sessions)이 이 경우다. 헤더만 쓰고 쿠키를 쓰지 않아
+	 * 면제되며, 같은 경로라도 회원이 쿠키로 인증하면 검사 대상으로 남는다 — 경로를 통째로
+	 * 열지 않는 이유다.
+	 */
+	// 테스트에서 직접 호출할 수 있도록 package-private으로 둔다.
+	boolean isNotCookieAuthenticated(jakarta.servlet.http.HttpServletRequest request) {
+		return cookieUtil.read(request).isEmpty();
 	}
 
 	private void writeError(HttpServletResponse response, ErrorCode errorCode) throws java.io.IOException {
