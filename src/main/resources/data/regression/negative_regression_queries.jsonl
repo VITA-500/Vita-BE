@@ -1,0 +1,100 @@
+{"topic":"OFFTOPIC","query":"오늘 서울 날씨 어때?"}
+{"topic":"OFFTOPIC","query":"내일 비 온대?"}
+{"topic":"OFFTOPIC","query":"점심 뭐 먹을지 추천해줘"}
+{"topic":"OFFTOPIC","query":"삼성전자 주가 얼마야?"}
+{"topic":"OFFTOPIC","query":"환율 오늘 얼마야?"}
+{"topic":"OFFTOPIC","query":"영화 뭐가 재밌어?"}
+{"topic":"OFFTOPIC","query":"넷플릭스 추천작 알려줘"}
+{"topic":"OFFTOPIC","query":"파이썬 공부 어떻게 시작해?"}
+{"topic":"OFFTOPIC","query":"여행지 추천해줘"}
+{"topic":"OFFTOPIC","query":"오늘 무슨 요일이야?"}
+{"topic":"OFFTOPIC","query":"수능 언제야?"}
+{"topic":"OFFTOPIC","query":"로또 번호 추천해줘"}
+{"topic":"OFFTOPIC","query":"커피 맛있게 내리는 법 알려줘"}
+{"topic":"OFFTOPIC","query":"운동 뭐부터 시작하면 좋아?"}
+{"topic":"OFFTOPIC","query":"강아지 사료 추천해줘"}
+{"topic":"OFFTOPIC","query":"부동산 시세 알려줘"}
+{"topic":"OFFTOPIC","query":"주식 지금 사도 돼?"}
+{"topic":"OFFTOPIC","query":"다이어트 어떻게 해야해?"}
+{"topic":"OFFTOPIC","query":"맛집 추천해줘"}
+{"topic":"OFFTOPIC","query":"택배 언제 오는지 알아?"}
+{"topic":"GREETING","query":"안녕하세요"}
+{"topic":"GREETING","query":"안녕"}
+{"topic":"GREETING","query":"반가워요"}
+{"topic":"GREETING","query":"고마워요"}
+{"topic":"GREETING","query":"감사합니다"}
+{"topic":"GREETING","query":"수고하세요"}
+{"topic":"GREETING","query":"잘 부탁드려요"}
+{"topic":"GREETING","query":"너 누구야?"}
+{"topic":"GREETING","query":"넌 AI야?"}
+{"topic":"GREETING","query":"심심해"}
+{"topic":"GREETING","query":"오늘 기분 어때?"}
+{"topic":"GREETING","query":"무슨 일 하는 챗봇이야?"}
+{"topic":"GREETING","query":"넌 뭘 도와줄 수 있어?"}
+{"topic":"GREETING","query":"이름이 뭐야?"}
+{"topic":"GREETING","query":"이 서비스 재밌다"}
+{"topic":"GREETING","query":"고생 많으세요"}
+{"topic":"GREETING","query":"수고했어"}
+{"topic":"GREETING","query":"너 똑똑하네"}
+{"topic":"GREETING","query":"잘 지내?"}
+{"topic":"GREETING","query":"오랜만이야"}
+{"topic":"COMPETITOR","query":"SKT 요금제랑 비교하면 어때?"}
+{"topic":"COMPETITOR","query":"KT는 더 싸다는데 맞아?"}
+{"topic":"COMPETITOR","query":"LG유플러스랑 뭐가 달라?"}
+{"topic":"COMPETITOR","query":"알뜰폰으로 갈아타려는데 어때?"}
+{"topic":"COMPETITOR","query":"통신 3사 중에 어디가 제일 나아?"}
+{"topic":"COMPETITOR","query":"SKT에서 넘어오면 위약금 있어?"}
+{"topic":"COMPETITOR","query":"KT 요금제도 여기서 가입돼?"}
+{"topic":"COMPETITOR","query":"다른 통신사 해지하고 오면 혜택 있어?"}
+{"topic":"COMPETITOR","query":"알뜰폰 유심도 여기서 개통돼?"}
+{"topic":"COMPETITOR","query":"SKT 5G 요금제랑 비교표 있어?"}
+{"topic":"COMPETITOR","query":"타사 결합상품이랑 비교해줘"}
+{"topic":"COMPETITOR","query":"KT 인터넷이랑 속도 비교하면?"}
+{"topic":"COMPETITOR","query":"LG유플러스 로밍이랑 뭐가 달라?"}
+{"topic":"COMPETITOR","query":"알뜰폰이 여기보다 싸지 않아?"}
+{"topic":"COMPETITOR","query":"SKT에서 번호이동하면 뭐가 좋아?"}
+{"topic":"COMPETITOR","query":"다른 통신사 프로모션도 여기서 받을 수 있어?"}
+{"topic":"COMPETITOR","query":"통신사 비교 사이트 추천해줘"}
+{"topic":"COMPETITOR","query":"KT 매장이 더 가까운데 여기로 와야 하는 이유가 뭐야?"}
+{"topic":"COMPETITOR","query":"알뜰폰 대비 장점이 뭐야?"}
+{"topic":"COMPETITOR","query":"SKT 위약금 얼마인지 알아?"}
+{"topic":"UNCOVERED","query":"번호이동 하고 싶어요"}
+{"topic":"UNCOVERED","query":"휴대폰을 분실했는데 어떻게 해야 하나요?"}
+{"topic":"UNCOVERED","query":"5G 요금제 추천해줘"}
+{"topic":"UNCOVERED","query":"멤버십 포인트 얼마 남았어?"}
+{"topic":"UNCOVERED","query":"앱 로그인이 안돼요"}
+{"topic":"UNCOVERED","query":"데이터 다 썼는데 추가로 살 수 있어?"}
+{"topic":"UNCOVERED","query":"단말기 할부금 얼마 남았어?"}
+{"topic":"UNCOVERED","query":"휴대폰 보험 가입하고 싶어요"}
+{"topic":"UNCOVERED","query":"eSIM으로 바꾸고 싶은데 어떻게 해?"}
+{"topic":"UNCOVERED","query":"국제전화 요금이 어떻게 되나요?"}
+{"topic":"UNCOVERED","query":"부가서비스 해지하고 싶어요"}
+{"topic":"UNCOVERED","query":"기기변경 하려면 어떻게 해야 해?"}
+{"topic":"UNCOVERED","query":"명의도용 신고는 어떻게 해요?"}
+{"topic":"UNCOVERED","query":"통화연결음 설정하고 싶어요"}
+{"topic":"UNCOVERED","query":"스팸문자 차단은 어떻게 해?"}
+{"topic":"UNCOVERED","query":"미성년자 명의로 가입할 수 있어?"}
+{"topic":"UNCOVERED","query":"휴대폰 정지 해제는 어떻게 해?"}
+{"topic":"UNCOVERED","query":"번호변경 하고 싶어요"}
+{"topic":"UNCOVERED","query":"해외에서 유심 사면 여기 유심이랑 호환돼?"}
+{"topic":"UNCOVERED","query":"결합할인 새로 신청하고 싶어요"}
+{"topic":"PERSONALIZED","query":"내가 가입한 요금제가 뭐야?"}
+{"topic":"PERSONALIZED","query":"내 이번 달 요금 얼마 나왔어?"}
+{"topic":"PERSONALIZED","query":"나 지금 데이터 얼마나 썼어?"}
+{"topic":"PERSONALIZED","query":"내 통화 이용내역 보여줘"}
+{"topic":"PERSONALIZED","query":"내 명의로 된 회선이 몇 개야?"}
+{"topic":"PERSONALIZED","query":"나 지금 멤버십 등급이 뭐야?"}
+{"topic":"PERSONALIZED","query":"내 계약 만료일이 언제야?"}
+{"topic":"PERSONALIZED","query":"내 유심 상태가 어떻게 돼?"}
+{"topic":"PERSONALIZED","query":"내 결합할인 얼마 받고 있어?"}
+{"topic":"PERSONALIZED","query":"내 요금제 데이터 얼마나 남았어?"}
+{"topic":"PERSONALIZED","query":"내가 예전에 문의한 내역 보여줘"}
+{"topic":"PERSONALIZED","query":"내 번호로 가입된 부가서비스 뭐 있어?"}
+{"topic":"PERSONALIZED","query":"나 지금 위약금 얼마나 돼?"}
+{"topic":"PERSONALIZED","query":"내 로밍 신청 내역 보여줘"}
+{"topic":"PERSONALIZED","query":"내 최근 청구서 보여줘"}
+{"topic":"PERSONALIZED","query":"내가 쓰는 요금제 데이터 소진 언제 돼?"}
+{"topic":"PERSONALIZED","query":"내 회선 정지 상태야?"}
+{"topic":"PERSONALIZED","query":"내 개인정보 뭐로 등록돼있어?"}
+{"topic":"PERSONALIZED","query":"내 포인트 적립 내역 보여줘"}
+{"topic":"PERSONALIZED","query":"나 지금 몇 개월째 쓰고있어?"}
