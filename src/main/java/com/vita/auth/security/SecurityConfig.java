@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -93,7 +94,6 @@ public class SecurityConfig {
 			// 소셜 로그인 진입·콜백. Spring Security가 처리하는 경로라 컨트롤러가 없다.
 			"/oauth2/**",
 			"/login/oauth2/**",
-			"/stores/**",
 			"/swagger-ui/**",
 			"/v3/api-docs/**",
 			"/swagger-ui.html",
@@ -103,6 +103,11 @@ public class SecurityConfig {
 			"/error",
 			// 브라우저가 자동으로 요청한다. 막아두면 401이 섞여 디버깅을 방해한다.
 			"/favicon.ico"
+	};
+
+	private static final String[] PUBLIC_GET_PATHS = {
+			"/stores/**",
+			"/benefits/**"
 	};
 
 	@Bean
@@ -149,6 +154,7 @@ public class SecurityConfig {
 						// 회원 전용. 게스트는 ROLE_GUEST라 여기서 막힌다 — anyRequest()의
 						// authenticated()만으로는 게스트도 통과해 마이페이지가 열린다.
 						.requestMatchers(MEMBER_PATHS).hasAnyRole("USER", "ADMIN")
+						.requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS).permitAll()
 						.anyRequest().authenticated())
 
 				.exceptionHandling(ex -> ex
