@@ -18,10 +18,8 @@
 3. 기술 스택
 4. 시스템 아키텍처 (설계)
 5. ERD (설계)
-6. 기능 및 API 설계
+6. 기능 목록
 7. 핵심 설계 포인트
-8. 현재 구현 상태
-9. 남은 로드맵
 
 ---
 
@@ -63,8 +61,6 @@
 | 9/30 ~ 10/13 | Phase 2 (Core) — 통합 테스트, 임베딩 동기화, 관리자 API, CI/CD 파이프라인 구성 |
 | 10/14 ~ 10/24 | Phase 3 (Hardening) — 예외 처리, 성능 점검, 배포 안정화 |
 | 10/25 ~ 10/28 | 발표 준비 및 최종 점검 |
-
-> 현재 시점은 Phase 1 초반이며, 이번 멘토링은 설계·기획 내용 위주로 진행합니다.
 
 ---
 
@@ -139,23 +135,25 @@
 |---|---|
 | `users` | 회원 정보. `email`/`password_hash`는 nullable(소셜 전용 계정 대응), PII(email/name/phone)는 마스킹 대상 |
 | `user_oauths` | 소셜 로그인 연동(LOCAL/GOOGLE/KAKAO/NAVER), 한 사용자가 여러 소셜 계정 연결 가능 |
-| `faqs` | FAQ 본문 + `embedding vector(768)`(intfloat/multilingual-e5-base 기준). 삭제는 `status`를 `INACTIVE`로 바꾸는 소프트 삭제이며, RAG 검색은 `status='ACTIVE'`만 대상 |
-| `stores` | 매장 정보(좌표, 영업시간, 연락처) |
-| `chat_sessions` / `chat_messages` | 대화 세션과 메시지. `chat_messages.status`로 생성중/완료/실패/재시도 상태 관리, `latency_ms`로 응답 시간 기록 |
+| `faqs` | FAQ 본문(`category`/`subcategory`/`question`/`answer`) + `embedding vector(768)`(intfloat/multilingual-e5-base, 질문+답변 결합 임베딩). 삭제는 `status`를 `INACTIVE`로 바꾸는 소프트 삭제이며, RAG 검색은 `status='ACTIVE'`만 대상. `source_faq_id`/`source_policy_ids`는 FAQ 원본 재적재(upsert) 키 |
+| `plans` | 가상 요금제. `monthly_fee`/`network_type`/`target_group`/`data_policy`/`voice_policy`/`sms_policy` 등 정형 컬럼과, 이를 자연어로 풀어 쓴 `description`(임베딩 대상)을 함께 가짐 — FAQ와 동일 모델·차원 사용 |
+| `stores` | 매장 정보(좌표, 영업시간, 연락처) + `consult_services`/`provided_services`(상담 가능 업무·제공 서비스 배열) |
+| `benefits` / `store_benefits` | 제휴 혜택과 매장-혜택 매핑(N:M). 매장의 혜택 보유 여부는 컬럼이 아니라 `store_benefits` 행 존재로 판단. 테이블만 존재하고 관리자 API는 아직 미구현 |
+| `chat_sessions` / `chat_messages` | 대화 세션과 메시지. `chat_messages.status`로 생성중/완료/실패/재시도 상태 관리. 응답 시간은 컬럼으로 저장하지 않고 요청마다 DTO에서 계산해 반환 |
 | `chat_message_faq_refs` | assistant 메시지가 답변 근거로 사용한 FAQ 매핑(N:M, JSON 배열 대신 정규화) |
-| `store_reservations` | (선택, 추후 확장) 매장 방문 예약 |
+| `store_reservations` | 매장 방문 예약. 테이블만 존재하고 엔티티/API는 아직 미구현(실제 예약 관리 없이 즉시 CONFIRMED 응답하는 목업으로 설계됨) |
 
 **설계 원칙**
-- Vector DB를 따로 두지 않고 `faqs.embedding` 컬럼(pgvector)으로 RDB와 통합
-- FAQ ~1,000건 규모에서는 pgvector 인덱스(IVFFlat/HNSW) 없이 Exact Search로 충분하다고 판단, 필요 시 추후 추가
+- Vector DB를 따로 두지 않고 `faqs.embedding`/`plans.embedding` 컬럼(pgvector)으로 RDB와 통합
+- FAQ·요금제 규모에서는 pgvector 인덱스(IVFFlat/HNSW) 없이 Exact Search로 충분하다고 판단, 필요 시 추후 추가
 - PII 컬럼(email/name/phone)은 로그·API 응답 양쪽에서 마스킹 처리 원칙
 - 테이블명은 전부 복수형(`users`만 PostgreSQL 예약어 회피 목적으로 원래도 복수형)
 
+> 비회원 게스트 채팅(`chat_sessions.guest_id`), 미해결 질문 자동 감지(`chat_messages.is_unresolved`) 등은 팀 회의에서 스코프에 포함하기로 확정했으나 아직 마이그레이션에 반영되지 않은 설계 단계 항목이라 위 표에서는 제외함.
+
 ---
 
-## 6. 기능 및 API 설계
-
-### 전체 기능 목록
+## 6. 기능 목록
 
 | 구분 | 기능 | 우선순위 |
 |---|---|---|
@@ -167,98 +165,185 @@
 | 관리자 | FAQ 관리 CRUD / 매장 관리 CRUD | 필수 |
 | 관리자 | 질문 로그·통계 대시보드 | 선택 |
 
-### API 엔드포인트 설계
-
-공통: 응답은 wrapper 없이 DTO를 최상위로 반환(성공은 body 그대로, 실패는 `{code, message}`), 생성은 `201` 나머지는 `200`+body(`204` 미사용), 페이징은 `page/size/keyword/sortBy` 공통 파라미터.
-
-**Auth**
-
-| Method | Path | 설명 |
-|---|---|---|
-| POST | `/auth/signup` | 회원가입 |
-| POST | `/auth/login` | 로그인 (Access/Refresh 토큰 발급) |
-| POST | `/auth/refresh` | 토큰 재발급 (Refresh Token rotation) |
-| POST | `/auth/logout` | 로그아웃 |
-
-**User**
-
-| Method | Path | 설명 |
-|---|---|---|
-| GET | `/users/me` | 내 정보 조회 |
-| PATCH | `/users/me` | 내 정보 수정 |
-
-**Chat**
-
-| Method | Path | 설명 |
-|---|---|---|
-| GET | `/chat/sessions` | 세션 목록 조회 |
-| POST | `/chat/sessions` | 새 세션 생성 |
-| GET | `/chat/sessions/{id}/messages` | 세션 내 메시지 조회 |
-| POST | `/chat/sessions/{id}/messages` | 질문 전송 → RAG 검색 → LLM 응답 생성 |
-| POST | `/chat/messages/{id}/feedback` | 답변 피드백(선택) |
-
-**Store**
-
-| Method | Path | 설명 |
-|---|---|---|
-| GET | `/stores/nearest` | 가장 가까운 매장 조회 |
-| GET | `/stores/nearby` | 반경 내 매장 목록 조회 |
-| POST | `/stores/{id}/reservations` | 매장 예약(선택, 추후 설계) |
-
-**Admin**
-
-| Method | Path | 설명 |
-|---|---|---|
-| GET/POST/PATCH/DELETE | `/admin/faqs` | FAQ 관리 (대량 등록은 API가 아닌 별도 시드 스크립트로) |
-| GET/POST/PATCH/DELETE | `/admin/stores` | 매장 관리 |
-| GET | `/admin/stats/chat` | 질문/피드백 통계(선택) |
-
-> 전체 요청/응답 스키마는 [`docs/04_API명세서.md`](../docs/04_API명세서.md) 참고.
-
 ---
 
 ## 7. 핵심 설계 포인트
 
-**RAG 응답 생성 흐름**
-1. 사용자 질문을 임베딩으로 변환
-2. pgvector로 유사 FAQ Top-K 검색
-3. 유사도가 임계값 미만이면 "관련 정보 없음"으로 폴백(고객센터 안내)
-4. 검색된 FAQ + 최근 대화 N턴을 프롬프트로 구성해 Bedrock 호출
-5. 생성된 응답을 세션에 저장, 근거 FAQ는 `chat_message_faq_refs`로 매핑
+RAG 파이프라인은 임베딩(BE2) → 벡터 검색·threshold(BE3) → Context 조립·LLM 호출(BE4) 3단계로 역할이 나뉘고, 각 경계는 인터페이스(`EmbeddingProvider`, `FaqRetrievalService`)로 분리되어 있다.
 
-**LLM 추상화**: 향후 다른 LLM 제공자로 교체 가능하도록 Provider 인터페이스로 감싸는 구조 원칙 유지(NFR-EXT01)
+### 임베딩 (BE2)
 
-**인증**: JWT 기반, Access Token(짧은 만료) + Refresh Token(Redis 저장·rotation), 토큰 저장 방식(HttpOnly Cookie vs body)은 BE1-FE1 협의 예정
+- **모델**: `intfloat/multilingual-e5-base`, 768차원, MIT 라이선스 — 한국어 검색 성능·다국어 지원(영문 통신 용어 혼용 대응)·상대적으로 가벼운 크기를 기준으로 초기 선정. 성능 부족 시 `BAAI/bge-m3`(1024차원)로 고도화 후보
+- **인터페이스 추상화**: `EmbeddingProvider`(`embedQuery`/`embedDocument`) 뒤에 `E5EmbeddingProvider` 구현체가 있고, 모델명·차원·prefix 등 세부 사항은 전부 구현체 내부에 캡슐화 — BE3/BE4 코드는 어떤 모델이 쓰이는지 전혀 참조하지 않아 모델 교체가 검색 로직에 영향을 주지 않음(NFR-EXT01과 동일한 원칙)
+- **서버 구성**: HuggingFace TEI(text-embeddings-inference) 컨테이너를 별도로 띄우고 `EMBEDDING_BASE_URL` + `/embed`로 REST 호출. 로컬은 `docker-compose.embedding.yml`로 직접 기동, dev는 `docker-compose.dev.yml`에 백엔드와 함께 포함되어 자동 기동됨
+- **TEI 요청 방식**: 텍스트를 그대로 보내지 않고 역할에 따라 prefix를 붙인 뒤 REST로 호출한다.
+
+  ```java
+  // E5EmbeddingProvider
+  private float[] embed(String prefixedText) {
+      float[][] response = restClient.post()
+          .uri("/embed")
+          .contentType(MediaType.APPLICATION_JSON)
+          .body(new EmbedRequest(List.of(prefixedText), true, true))
+          .retrieve()
+          .body(float[][].class);
+      // response.length != 1 이거나 response[0].length != 768 이면 EmbeddingException
+      return response[0];
+  }
+  ```
+
+  실제 HTTP 요청/응답:
+  ```
+  POST /embed
+  { "inputs": ["query: 로밍 요금제 알려줘"], "normalize": true, "truncate": true }
+
+  → [[0.0123, -0.0456, ..., 0.0789]]   // 768개 float, inputs가 1개라 배열도 1개
+  ```
+  `normalize: true`로 TEI가 L2 정규화된 벡터를 반환해 cosine 유사도 계산이 단순해지고, `truncate: true`로 모델 최대 길이를 넘는 입력은 에러 대신 서버가 잘라서 처리한다. 응답 배열 개수(1개)와 차원(768)을 검증해 어긋나면 `EmbeddingException`을 던진다.
+- **Query/Document 비대칭 인코딩**: E5는 `"query: "` / `"passage: "` prefix가 붙은 쌍으로 contrastive learning된 비대칭 dual-encoder다. 같은 문장이라도 어떤 prefix로 인코딩하느냐에 따라 벡터가 달라지도록 학습되어 있어, 질문(`embedQuery`)과 문서(`embedDocument`)를 반드시 구분해서 호출해야 검색 품질이 나온다.
+- **배치 파이프라인(문서 임베딩)**: 앱 기동 시(`ApplicationRunner`, `faq.embedding.enabled=true`일 때만 동작) `embedding IS NULL`인 FAQ·요금제를 `batch-size`(기본 100)만큼 찾아 `embedDocument()`로 벡터화하고 DB에 영구 저장 — pending이 없어질 때까지 반복. 저장 시 `embedding_model`/`embedding_version`/`embedded_at` 메타데이터도 함께 기록해 어떤 모델·시점에 임베딩됐는지 추적
+- **실시간 파이프라인(질의 임베딩)**: 채팅 요청마다 `embedQuery()`로 즉석 계산하고, 그 요청의 검색에만 쓰고 저장하지 않음(다음 요청은 처음부터 재계산)
+- **모델 교체 시 유의점**: 서로 다른 임베딩 모델은 다른 벡터 공간이라 기존 벡터와 혼용 불가 — 전체 Re-Embedding이 필요하고, 차원이 바뀌면(예: 1024차원) `vector(N)` 컬럼 자체도 재정의해야 함
+
+### RAG 검색 (BE3)
+
+사용자 질문을 그대로 LLM에 넘기지 않고, pgvector로 관련 FAQ·요금제를 먼저 찾아 프롬프트에 근거 자료로 넣는 구조다.
+
+```mermaid
+flowchart TD
+    A[사용자 질문] --> B["질문 임베딩 (BE2)<br/>EmbeddingProvider.embedQuery()<br/>multilingual-e5-base, 768차원"]
+    B --> C1["FAQ 유사도 검색 (BE3)<br/>FaqVectorSearchRepository"]
+    B --> C2["요금제 유사도 검색 (BE3)<br/>PlanVectorSearchRepository"]
+    C1 --> D1{"유사도 ≥ 0.83?"}
+    C2 --> D2{"유사도 ≥ 0.81?"}
+    D1 -->|Yes| E1[참고 FAQ 목록]
+    D1 -->|No| F["topSimilarity만 기록<br/>(미해결 질문 판정용)"]
+    D2 -->|Yes| E2[참고 요금제 목록]
+    D2 -->|No| F
+    E1 --> G["Context 조립 (BE4)<br/>ChatMessageService.buildContext()"]
+    E2 --> G
+    F --> G
+    G --> H["Bedrock 호출 (BE4)<br/>BedrockChatClient.ask(질문, context, 대화이력)"]
+    H --> I[최종 답변 + 근거 FAQ ID 목록]
+```
+
+**벡터 검색 쿼리**: Spring Data JPA의 `@Query`(JPQL)로는 pgvector 전용 연산자 `<=>`를 쓸 수 없어서, `FaqVectorSearchRepository`/`PlanVectorSearchRepository` 모두 `JdbcTemplate` + 순수 SQL로 직접 짰다(커넥션 풀에서 꺼낸 커넥션마다 `PGvector.registerTypes()` 등록 필요).
+
+```sql
+SELECT id, category, subcategory, question, answer, updated_at,
+       1 - (embedding <=> ?) AS similarity
+FROM faqs
+WHERE status = ?
+  AND embedding IS NOT NULL
+  AND 1 - (embedding <=> ?) >= ?
+ORDER BY embedding <=> ?
+LIMIT ?
+```
+
+`<=>`는 코사인 거리(0=완전 동일, 2=정반대)라 작을수록 유사하다. `1 - distance`로 뒤집어야 "유사도"가 되고, 정렬은 distance 기준 오름차순이어야 유사한 것부터 나온다 — 방향을 헷갈리면 정반대 결과가 나온다.
+
+**threshold는 DB가 아니라 애플리케이션에서 건다**: SQL 호출 시 threshold 파라미터엔 항상 0.0을 넘겨 topK를 전부 가져온 뒤, `FaqRetrievalServiceImpl`에서 실제 threshold로 다시 거른다.
+
+```java
+List<FaqSimilarityResult> faqCandidates = faqVectorSearchRepository.searchBySimilarity(
+        queryVector, FaqStatus.ACTIVE, 0.0, topK);
+double faqTopSimilarity = faqCandidates.isEmpty() ? 0.0 : faqCandidates.get(0).similarity();
+
+List<FaqSimilarityResult> faqResults = faqCandidates.stream()
+        .filter(candidate -> candidate.similarity() >= similarityThreshold)
+        .toList();
+```
+
+threshold 미달 후보의 최고 점수(`topSimilarity`)도 버리지 않고 넘겨야 하기 때문이다.
+API 명세서 기준으로 미해결 질문은 `reason` 필드로 `NO_MATCH`(완전 무관한 질문)/`LOW_CONFIDENCE`(topSimilarity가 애매하게 낮은 경우)/`NEGATIVE_FEEDBACK`(답변에 싫어요)/`USER_REPORTED`(사용자 직접 신고) 네 가지로 분류될 예정. 
+실시간 분기 처리가 아닌 사후에 모아 FAQ 데이터·threshold·프롬프트를 개선하는 재료로 쓰기 위한 설계 - 아직 구체적인 사용처는 미정
+
+**threshold 값은 감이 아니라 실측으로 정했다**:
+- **FAQ 0.83** — 카테고리(로밍/요금·납부/유심-eSIM)를 늘린 데이터로 재측정한 값. 단순히 낮추기만 하면 안 되는 이유가 있었는데, "심카드를 새로 받아야 하는데..."(유심 질문, "유심" 단어를 일부러 회피한 표현) 같은 케이스에서 top1이 엉뚱하게 요금/납부 카테고리 FAQ로 0.8179가 나온 적이 있다("카드"라는 글자가 "신용카드"와 겹쳐서로 추정). 0.83은 로밍/요금 파라프레이즈 정답(0.8423/0.8547)은 통과시키면서, 이 잘못된 매칭(0.8179)과 완전 무관한 질문(~0.80)은 걸러내는 경계값이다.
+- **요금제 0.81** — 요금제는 질문/답변이 아니라 설명 문장(description) 형태라 FAQ와 유사도 분포가 다르다. 15종 실측 기준 타겟 그룹이 맞는 질문(청년/시니어/키즈/워치 등)의 top1은 0.8208 ~ 0.8767, 무관한 질문의 top1은 0.7414 ~ 0.8008 — 그 사이값으로 잡았다.
+
+**FAQ·요금제 통합은 UNION이 아니라 별도 쿼리 후 병합**: 두 테이블의 유사도 분포가 다르고(threshold도 다름), 한 번에 정렬·컷오프하면 한쪽이 불리해질 수 있어서다. 요금제가 15건뿐이라 쿼리가 하나 더 도는 비용은 무시할 만하다.
+
+**벡터 인덱스는 아직 없다**: `faqs`/`plans` 모두 HNSW/IVFFlat 없이 완전탐색이다 — 이 규모에서는 인덱스를 걸어도 얻을 게 없고, 데이터가 훨씬 늘어나면 전환을 검토하기로 마이그레이션 주석에 남겨뒀다.
+
+**알려진 한계**
+- 임베딩 유사도는 "의미가 비슷한지"만 판단하고 "가장 저렴한 요금제" 같은 수치 비교는 못 함 — 정형 조건 쿼리가 별도로 필요
+- 동의어·구어체 표현이 threshold를 못 넘기는 사례 존재(예: "티비 안나와") — Reranking/Hybrid Search 후속 과제
+
+### LLM 연동 (BE4)
+
+- **모델**: AWS Bedrock, 기본 모델 `openai.gpt-oss-120b-1:0`, 리전 `ap-northeast-1`(도쿄) — EC2/RDS 리전(서울)과 다른데, 이 모델이 서울 리전엔 없고 도쿄에만 있어 의도적으로 분리한 값. Spring AI `ChatClient`로 래핑해 향후 다른 LLM 제공자로 교체 가능한 구조 유지(NFR-EXT01)
+
+- **Context 직렬화**: BE3가 넘겨준 FAQ 목록을 사람이 읽는 문장이 아니라, LLM이 근거와 잡담을 구분하기 쉽도록 태그로 감싼 문서 블록으로 바꾼다.
+
+  ```java
+  // ChatMessageService.buildContext()
+  return retrievalContext.references().stream()
+      .map(faq -> """
+              <document>
+              <category>%s / %s</category>
+              <question>%s</question>
+              <answer>%s</answer>
+              </document>
+              """.formatted(faq.category(), faq.subcategory(), faq.question(), faq.answer()))
+      .collect(Collectors.joining("\n"));
+  ```
+
+  대화 이력도 같은 방식으로 직렬화한다(완료된 메시지만 `역할: 내용` 한 줄씩):
+  ```java
+  return previousMessages.stream()
+      .filter(m -> m.getStatus() == ChatMessageStatus.COMPLETED)
+      .map(m -> "%s: %s".formatted(m.getRole(), m.getContent()))
+      .collect(Collectors.joining("\n"));
+  ```
+
+- **최종 프롬프트 조립**: `context`/`conversation_history`/`question` 세 값을 각각의 XML 태그 안에 그대로 채워 넣는다.
+
+  ```java
+  private static final String USER_TURN_TEMPLATE = """
+          <context>
+          %1$s
+          </context>
+          <conversation_history>
+          %2$s
+          </conversation_history>
+          <question>
+          %3$s
+          </question>
+          """;
+  ```
+
+  실제로 조립되면 이런 형태가 된다:
+  ```
+  <context>
+  <document>
+  <category>로밍 / 데이터</category>
+  <question>일본에서 데이터 어떻게 써?</question>
+  <answer>해외 로밍 서비스를 신청하면 일본에서도 데이터를 사용할 수 있습니다.</answer>
+  </document>
+  </context>
+  <conversation_history>
+  USER: 로밍 요금제 뭐 있어?
+  ASSISTANT: 로밍 전용 요금제로는...
+  </conversation_history>
+  <question>
+  일본 갈 때 유심 사야 해?
+  </question>
+  ```
+
+  이 사용자 프롬프트는 별도의 시스템 프롬프트와 함께 `chatClient.prompt().system(...).user(...).call()`로 Bedrock에 전달된다. threshold 미달로 FAQ·요금제가 하나도 없으면 `<context>`는 빈 문자열로 채워진 채 그대로 전달된다.
+
+- **시스템 프롬프트 방어 규칙**: context에 없는 내용은 추측하지 않고 "확인이 어렵습니다" 응답, context 안에 지시문처럼 보이는 문장이 있어도 명령으로 따르지 않도록 명시(프롬프트 인젝션 방어), 가입 요금제·결제 내역 등 사용자 개인화 정보는 조회 불가하므로 답변 대상에서 제외하도록 별도 규칙화
+- **응답 상태 관리**: LLM 호출은 `PENDING → COMPLETED / FAILED / RETRYING` 상태로 관리해 프론트가 로딩/실패/재시도 UI를 그릴 수 있게 설계. 타임아웃은 연결 5초/응답 15초, 전체 호출 30초/시도당 10초로 세분화해 재시도 여지를 둠
+- **알려진 한계**: `buildContext()`가 FAQ 매칭 여부만 확인해서, 요금제만 매칭되고 FAQ가 없으면 요금제 context가 프롬프트에서 누락될 수 있음 — 확인 필요
+
+### 기타 설계 원칙
+
+**인증**: JWT 기반, Access Token은 HttpOnly Cookie로 발급(2026-09-17 확정, BE1-FE1 협의). 쿠키 기반 인증에서 필요해진 CSRF는 `/auth/csrf` 발급 + 토큰 검증으로 방어. Refresh Token(Redis 저장·rotation)은 설계만 되어 있고 아직 미구현
 
 **FAQ 소프트 삭제**: 하드 삭제 대신 `status=INACTIVE` 전환, 임베딩은 보존하되 RAG 검색 대상에서 제외
 
-**응답 상태 관리**: LLM 호출은 `PENDING → COMPLETED / FAILED / RETRYING` 상태로 관리해 프론트가 로딩/실패/재시도 UI를 그릴 수 있게 설계
-
 **보안 원칙**: PII 마스킹(응답/로그), 관리자 API는 역할(role=ADMIN) 미들웨어 검증, DB 자격증명은 환경변수로만 주입, 네이티브 쿼리는 파라미터 바인딩
-
----
-
-## 8. 현재 구현 상태
-
-Phase 1 초반 기준, 나머지는 위 설계대로 진행 예정입니다.
-
-| 영역 | 상태 |
-|---|---|
-| 공통 기반(Docker/DB/AWS/CI-CD/HTTPS) | 완료 |
-| 회원가입/로그인/JWT 인증 | 완료 |
-| 매장 CRUD·위치 기반 검색 | 완료 |
-| FAQ 데이터 적재·임베딩 파이프라인 | 초기 구현(테스트 데이터 일부) |
-| RAG 검색(pgvector 유사도) | 키워드 폴백 검색 + 유사도 쿼리 구현, 실 데이터 대기 |
-| LLM 연동·Chat API | 설계 단계 |
-| 프론트 전반 | 진행중 |
-
----
-
-## 9. 남은 로드맵
-
-- Phase 1: FAQ 1,000개 데이터 생성·적재, Chat API 구현, 매장 예약(선택) 검토
-- Phase 2: 전체 도메인 통합 테스트, 관리자 통계 API(선택), Redis 캐싱·토큰 블랙리스트 적용, CI/CD 고도화
-- Phase 3: 예외 처리 강화, 성능 점검, 배포 안정화, (선택) Prometheus/Grafana 모니터링
 
 ---
 

@@ -73,6 +73,14 @@ public class CookieUtil {
 				.build();
 	}
 
+	/**
+	 * 인증 쿠키와 같은 Secure/SameSite를 다른 쿠키에도 입힌다. CSRF 토큰 쿠키가 이 속성을 따로
+	 * 가지면 배포 환경(SameSite=None)에서 인증 쿠키만 실리고 CSRF 쿠키는 빠지는 일이 생긴다.
+	 */
+	public void applyAttributes(ResponseCookie.ResponseCookieBuilder builder) {
+		builder.secure(secure).sameSite(sameSite);
+	}
+
 	public Optional<String> read(HttpServletRequest request) {
 		Cookie[] cookies = request.getCookies();
 		if (cookies == null) {

@@ -17,7 +17,9 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import java.time.LocalDateTime;
+import jakarta.servlet.http.Cookie;
 import java.util.List;
+import java.util.Optional;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
@@ -36,7 +38,7 @@ class AdminFaqControllerTest {
     @MockBean OAuth2FailureHandler failureHandler;
 
     private RequestPostProcessor as(Role role) {
-        var principal = new UserPrincipal(9L, role);
+        var principal = UserPrincipal.ofMember(9L, role);
         return authentication(new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
     }
 
@@ -102,7 +104,10 @@ class AdminFaqControllerTest {
         verifyNoInteractions(service);
     }
     @Test void adminCookieWritesStillRequireCsrf() throws Exception {
-        mvc.perform(delete("/admin/faqs/1").with(as(Role.ADMIN))).andExpect(status().isForbidden());
+        // CSRF 검사는 인증 쿠키가 실린 요청만 대상이다(SecurityConfig.isNotCookieAuthenticated).
+        when(cookieUtil.read(any())).thenReturn(Optional.of("token"));
+        mvc.perform(delete("/admin/faqs/1").with(as(Role.ADMIN)).cookie(new Cookie(CookieUtil.ACCESS_TOKEN, "token")))
+            .andExpect(status().isForbidden());
         verifyNoInteractions(service);
     }
 

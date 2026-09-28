@@ -15,7 +15,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.context.NullSecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
@@ -39,7 +38,10 @@ public class SecurityConfig {
 
 	private final JwtAuthenticationFilter jwtAuthenticationFilter;
 	private final ObjectMapper objectMapper;
-	/** CSRF 면제 판단에 쓴다 — 인증 쿠키가 실제로 있는 요청만 검사 대상이다. */
+	/**
+	 * CSRF 면제 판단에 쓴다 — 인증 쿠키가 실제로 있는 요청만 검사 대상이다.
+	 * CSRF 토큰 쿠키에 인증 쿠키와 같은 Secure/SameSite를 입히는 데도 쓴다.
+	 */
 	private final CookieUtil cookieUtil;
 	private final CustomOAuth2UserService customOAuth2UserService;
 	private final OAuth2SuccessHandler oAuth2SuccessHandler;
@@ -121,7 +123,7 @@ public class SecurityConfig {
 				// 읽어서 헤더에 넣을 수 없기 때문에 위조 요청을 걸러낼 수 있다.
 				// 로그인·회원가입·소셜 로그인은 아직 인증 쿠키가 없는 상태라 제외한다.
 				.csrf(csrf -> csrf
-						.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+						.csrfTokenRepository(csrfTokenRepository())
 						.csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
 						.ignoringRequestMatchers(CSRF_EXEMPT_PATHS)
 						.ignoringRequestMatchers(this::isNotCookieAuthenticated)
@@ -134,8 +136,12 @@ public class SecurityConfig {
 				// JWT는 세션이 필요 없지만, OAuth2의 state(CSRF 방어) 검증이 세션을 쓴다.
 				// STATELESS로 두면 소셜 로그인 콜백에서 authorization_request_not_found가 난다.
 				// 세션은 OAuth 흐름 동안만 쓰이고, 인증 상태는 저장하지 않는다(아래 securityContext 설정).
-				.sessionManagement(session ->
-						session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
+				//
+				// 세션 정책은 기본값(IF_REQUIRED)을 그대로 쓰고 sessionCreationPolicy()를 호출하지 않는다.
+				// 호출하면 SessionManagementFilter가 켜지는데, 인증을 세션에 저장하지 않으니 이 필터는
+				// 매 요청을 "새 로그인"으로 보고 CSRF 토큰을 교체한다 — 로그인 후 첫 쓰기 요청만
+				// 성공하고 다음 요청부터 전부 403이 났다. 실제 로그인 시점의 교체는 OAuth2 로그인
+				// 필터가 따로 수행하므로 이 필터가 없어도 빠지는 방어는 없다.
 
 				// 인증 결과를 세션에 저장하지 않는다. 저장하면 토큰 쿠키를 지워도 세션에 남은 인증으로
 				// 요청이 통과해 로그아웃이 무력화된다 — 인증은 매 요청 토큰으로만 판단해야 한다.
@@ -192,6 +198,20 @@ public class SecurityConfig {
 	// 테스트에서 직접 호출할 수 있도록 package-private으로 둔다.
 	boolean isNotCookieAuthenticated(jakarta.servlet.http.HttpServletRequest request) {
 		return cookieUtil.read(request).isEmpty();
+	}
+
+	/**
+	 * CSRF 토큰을 XSRF-TOKEN 쿠키로 내려보낸다.
+	 *
+	 * <p>기본값 그대로면 쿠키에 SameSite가 없어 브라우저가 Lax로 취급한다. 그러면 도메인이
+	 * 다른 프론트(Vercel)가 보내는 PATCH/POST에 이 쿠키가 실리지 않아, 헤더로 온 토큰과 대조할
+	 * 값이 없어 403이 난다. 인증 쿠키와 같은 속성을 입혀 환경변수 하나로 함께 움직이게 한다.
+	 */
+	// 테스트에서 직접 호출할 수 있도록 package-private으로 둔다.
+	CookieCsrfTokenRepository csrfTokenRepository() {
+		CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+		repository.setCookieCustomizer(cookieUtil::applyAttributes);
+		return repository;
 	}
 
 	private void writeError(HttpServletResponse response, ErrorCode errorCode) throws java.io.IOException {
