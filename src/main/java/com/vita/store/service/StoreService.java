@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
@@ -33,18 +34,25 @@ public class StoreService {
         StoreDistanceProjection nearest = storeRepository.findNearest(lat, lng)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "등록된 매장이 없습니다."));
         return new StoreNearestResponse(nearest.getId(), nearest.getName(), nearest.getAddress(),
-                nearest.getLat(), nearest.getLng(), round2(nearest.getDistanceKm()), nearest.getBusinessHours(), nearest.getPhone());
+                nearest.getLat(), nearest.getLng(), round2(nearest.getDistanceKm()), nearest.getBusinessHours(),
+                nearest.getPhone(), splitServices(nearest.getConsultServices()), splitServices(nearest.getProvidedServices()));
     }
 
     public StoreNearbyListResponse findNearby(BigDecimal lat, BigDecimal lng, double radiusKm){
         List<StoreNearbyItemResponse> stores = storeRepository.findNearBy(lat, lng, radiusKm).stream()
                 .map(p -> new StoreNearbyItemResponse(p.getId(), p.getName(), p.getLat(),
-                        p.getLng(), round2(p.getDistanceKm()))).toList();
+                        p.getLng(), round2(p.getDistanceKm()), splitServices(p.getConsultServices()),
+                        splitServices(p.getProvidedServices()))).toList();
         return new StoreNearbyListResponse(stores);
     }
 
     private static double round2(double value) {
         return Math.round(value * 100) / 100.0;
+    }
+
+    private static List<String> splitServices(String joined){
+        return (joined == null || joined.isBlank()) ? List.of() :
+                Arrays.asList(joined.split("\\|\\|"));
     }
 
     public PageResponse<StoreListItemResponse> search(PageRequest pageRequest){

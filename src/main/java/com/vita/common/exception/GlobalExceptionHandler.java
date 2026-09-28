@@ -8,6 +8,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /** 전역 예외 처리는 이 클래스 하나로 통일 (08_개발표준 2절). */
 @Slf4j
@@ -35,6 +37,11 @@ public class GlobalExceptionHandler {
 	public ResponseEntity<ErrorResponse> handleNoResourceFoundException(NoResourceFoundException e) {
 		return ResponseEntity.status(ErrorCode.NOT_FOUND.getHttpStatus()).body(ErrorResponse.of(ErrorCode.NOT_FOUND));
 	}
+
+    @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})
+    public ResponseEntity<ErrorResponse> handleInvalidRequest(Exception e) {
+        return ResponseEntity.badRequest().body(ErrorResponse.of(ErrorCode.VALIDATION_ERROR));
+    }
 
 	@ExceptionHandler(Exception.class)
 	public ResponseEntity<ErrorResponse> handleUnexpectedException(Exception e) {
