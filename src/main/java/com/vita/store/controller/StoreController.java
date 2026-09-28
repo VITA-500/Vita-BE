@@ -1,0 +1,67 @@
+package com.vita.store.controller;
+
+import com.vita.common.exception.BusinessException;
+import com.vita.common.exception.ErrorCode;
+import com.vita.store.dto.response.*;
+import com.vita.store.service.DirectionService;
+import com.vita.store.service.StoreService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.math.BigDecimal;
+
+@RestController
+@RequiredArgsConstructor
+public class StoreController {
+
+    private final StoreService storeService;
+    private final DirectionService directionService;
+
+    @GetMapping("/stores/nearest")
+    public StoreNearestResponse nearest(
+            @RequestParam(required = false) BigDecimal lat,
+            @RequestParam(required = false) BigDecimal lng){
+        requireLocation(lat, lng);
+        return storeService.findNearest(lat, lng);
+    }
+
+    @GetMapping("/stores/nearby")
+    public StoreNearbyListResponse nearby(
+            @RequestParam(required = false) BigDecimal lat,
+            @RequestParam(required = false) BigDecimal lng,
+            @RequestParam(required = false) Double radius){
+        requireLocation(lat, lng);
+        if(radius == null){
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "반경(radius)은 필수입니다.");
+        }
+        return storeService.findNearby(lat, lng, radius);
+    }
+
+    @GetMapping("/stores/{storeId}")
+    public StoreDetailResponse detail(@PathVariable Long storeId){
+        return storeService.findById(storeId);
+    }
+
+    @GetMapping("/stores/{storeId}/directions")
+    public RouteResponse directions(
+            @PathVariable Long storeId,
+            @RequestParam(required = false) BigDecimal fromLat,
+            @RequestParam(required = false) BigDecimal fromLng,
+            @RequestParam(required = false) String mode){
+        requireLocation(fromLat, fromLng);
+        if(mode == null){
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "이동수단(mode)은 필수입니다.");
+        }
+        StoreDetailResponse store = storeService.findById(storeId);
+        return directionService.findRoute(mode, fromLat, fromLng, store.lat(), store.lng());
+    }
+
+    private void requireLocation(BigDecimal lat, BigDecimal lng){
+        if(lat == null || lng == null){
+            throw new BusinessException(ErrorCode.LOCATION_REQUIRED);
+        }
+    }
+}

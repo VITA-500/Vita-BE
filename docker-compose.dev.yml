@@ -1,5 +1,5 @@
 # EC2 dev 환경용. 09_인프라구성.md 2~3절 기준. 로컬에서 실행하지 않음 — EC2에서만.
-# postgres는 컨테이너로 안 올림(RDS 사용), redis만 컨테이너로 띄운다.
+# postgres는 컨테이너로 안 올림(RDS 사용), redis/embedding만 컨테이너로 띄운다.
 # 배포: docker compose -f docker-compose.dev.yml up -d --build
 name: vita-dev
 
@@ -15,9 +15,24 @@ services:
       - .env.dev
     depends_on:
       - redis
+      - embedding
     restart: unless-stopped
 
   redis:
     image: redis:7
     container_name: vita-redis-dev
     restart: unless-stopped
+
+  # RAG 검색(질문 임베딩 변환)용 TEI 서버. 로컬(docker-compose.embedding.yml)과 같은 이미지/모델.
+  # host.docker.internal은 EC2(리눅스 Docker Engine)에서 못 써서 컨테이너로 직접 띄우고,
+  # 백엔드는 .env.dev의 EMBEDDING_BASE_URL=http://embedding:80 으로 서비스명 접근한다.
+  embedding:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9
+    container_name: vita-embedding-dev
+    command: --model-id intfloat/multilingual-e5-base
+    volumes:
+      - embedding-model-data:/data
+    restart: unless-stopped
+
+volumes:
+  embedding-model-data:
