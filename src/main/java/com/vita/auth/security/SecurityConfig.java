@@ -38,6 +38,8 @@ public class SecurityConfig {
 
 	private final JwtAuthenticationFilter jwtAuthenticationFilter;
 	private final ObjectMapper objectMapper;
+	/** CSRF 토큰 쿠키에 인증 쿠키와 같은 Secure/SameSite를 입히는 데 쓴다. */
+	private final CookieUtil cookieUtil;
 	private final CustomOAuth2UserService customOAuth2UserService;
 	private final OAuth2SuccessHandler oAuth2SuccessHandler;
 	private final OAuth2FailureHandler oAuth2FailureHandler;
@@ -103,7 +105,7 @@ public class SecurityConfig {
 				// 읽어서 헤더에 넣을 수 없기 때문에 위조 요청을 걸러낼 수 있다.
 				// 로그인·회원가입·소셜 로그인은 아직 인증 쿠키가 없는 상태라 제외한다.
 				.csrf(csrf -> csrf
-						.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+						.csrfTokenRepository(csrfTokenRepository())
 						.csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
 						.ignoringRequestMatchers(CSRF_EXEMPT_PATHS)
 						.ignoringRequestMatchers(request -> request.getHeader("Authorization") != null)
@@ -150,6 +152,20 @@ public class SecurityConfig {
 		}
 
 		return http.build();
+	}
+
+	/**
+	 * CSRF 토큰을 XSRF-TOKEN 쿠키로 내려보낸다.
+	 *
+	 * <p>기본값 그대로면 쿠키에 SameSite가 없어 브라우저가 Lax로 취급한다. 그러면 도메인이
+	 * 다른 프론트(Vercel)가 보내는 PATCH/POST에 이 쿠키가 실리지 않아, 헤더로 온 토큰과 대조할
+	 * 값이 없어 403이 난다. 인증 쿠키와 같은 속성을 입혀 환경변수 하나로 함께 움직이게 한다.
+	 */
+	// 테스트에서 직접 호출할 수 있도록 package-private으로 둔다.
+	CookieCsrfTokenRepository csrfTokenRepository() {
+		CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+		repository.setCookieCustomizer(cookieUtil::applyAttributes);
+		return repository;
 	}
 
 	private void writeError(HttpServletResponse response, ErrorCode errorCode) throws java.io.IOException {
