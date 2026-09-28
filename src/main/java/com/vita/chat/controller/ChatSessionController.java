@@ -53,11 +53,15 @@ public class ChatSessionController {
 	public ChatSessionListResponse getSessions(
 			@AuthenticationPrincipal UserPrincipal user
 			){
-		if(user == null) {
+		
+		Long userId = PrincipalUtils.userIdOf(user);
+		UUID guestId = PrincipalUtils.guestIdOf(user);
+		
+		if(userId == null  && guestId == null) {
 			throw new BusinessException(ErrorCode.UNAUTHORIZED);
 		}
 		
-		ChatSessionListResponse response = chatSessionService.getSessions(user.getUserId());
+		ChatSessionListResponse response = chatSessionService.getSessions(userId);
 		
 		return response;
 	}
@@ -67,8 +71,6 @@ public class ChatSessionController {
 			@PathVariable Long sessionId,
 			@AuthenticationPrincipal UserPrincipal user,
 			@RequestHeader(value = "X-Guest-Id", required = false) UUID guestId) {
-
-		log.info("컨트롤러 진입: sessionId={}, user={}, guestId={}", sessionId, user, guestId);
 		
 		Long userId = PrincipalUtils.userIdOf(user);
 		if (userId == null) {

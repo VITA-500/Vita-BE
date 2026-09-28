@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.apache.coyote.BadRequestException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.vita.chat.dto.ChatSessionClaimResponse;
 import com.vita.chat.dto.ChatSessionCreateResponse;
@@ -16,7 +17,6 @@ import com.vita.chat.repository.ChatSessionRepository;
 import com.vita.common.exception.BusinessException;
 import com.vita.common.exception.ErrorCode;
 
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -36,12 +36,12 @@ public class ChatSessionService {
 	public ChatSessionCreateResponse createSession(Long userId, UUID guestId) {
 		
 		if (userId == null && guestId == null) {
-			throw new 	BusinessException(ErrorCode.USER_NOT_FOUND, "사용자를 찾을 수 없습니다.");
+			throw new 	BusinessException(ErrorCode.UNAUTHORIZED, "사용자를 찾을 수 없습니다.");
 		}
 		
 		ChatSession session = ChatSession.builder()
 				.userId(userId)
-				.guestId(guestId)
+				.guestId(userId != null ? null : guestId)
 				.title(null)
 				.build();
 		
@@ -50,7 +50,12 @@ public class ChatSessionService {
 		return ChatSessionCreateResponse.from(saved);
 	}
 	
+	@Transactional(readOnly = true)
 	public ChatSessionListResponse getSessions(Long userId) {
+		if (userId == null) {
+			return new ChatSessionListResponse(List.of()); // 게스트는 이력 목록 없음
+		}
+		
 		List<ChatSessionSummaryResponse> sessions = chatSessionRepository
 				.findAllByUserIdOrderByUpdatedAtDesc(userId)
 				.stream()
@@ -62,7 +67,7 @@ public class ChatSessionService {
 	
 	@Transactional
 	public ChatSessionClaimResponse claimSession(Long sessionId, Long userId, UUID guestId) {
-		log.info("claimSession 진입: sessionId={}, userId={}, guestId={}", sessionId, userId, guestId);
+//		log.info("claimSession 진입: sessionId={}, userId={}, guestId={}", sessionId, userId, guestId);
 		if(guestId == null) {
 			throw new BusinessException(ErrorCode.VALIDATION_ERROR, "X-Guest-Id 헤더가 필요합니다");
 		}
