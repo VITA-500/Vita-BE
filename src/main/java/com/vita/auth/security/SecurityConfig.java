@@ -15,7 +15,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.context.NullSecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
@@ -137,8 +136,12 @@ public class SecurityConfig {
 				// JWT는 세션이 필요 없지만, OAuth2의 state(CSRF 방어) 검증이 세션을 쓴다.
 				// STATELESS로 두면 소셜 로그인 콜백에서 authorization_request_not_found가 난다.
 				// 세션은 OAuth 흐름 동안만 쓰이고, 인증 상태는 저장하지 않는다(아래 securityContext 설정).
-				.sessionManagement(session ->
-						session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
+				//
+				// 세션 정책은 기본값(IF_REQUIRED)을 그대로 쓰고 sessionCreationPolicy()를 호출하지 않는다.
+				// 호출하면 SessionManagementFilter가 켜지는데, 인증을 세션에 저장하지 않으니 이 필터는
+				// 매 요청을 "새 로그인"으로 보고 CSRF 토큰을 교체한다 — 로그인 후 첫 쓰기 요청만
+				// 성공하고 다음 요청부터 전부 403이 났다. 실제 로그인 시점의 교체는 OAuth2 로그인
+				// 필터가 따로 수행하므로 이 필터가 없어도 빠지는 방어는 없다.
 
 				// 인증 결과를 세션에 저장하지 않는다. 저장하면 토큰 쿠키를 지워도 세션에 남은 인증으로
 				// 요청이 통과해 로그아웃이 무력화된다 — 인증은 매 요청 토큰으로만 판단해야 한다.
