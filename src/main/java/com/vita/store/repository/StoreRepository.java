@@ -15,11 +15,13 @@ public interface StoreRepository extends JpaRepository<Store, Long>  {
 
     @Query(value = """
             SELECT s.id, s.name, s.address, s.lat, s.lng, s.business_hours,
-                s.phone, 2 * 6371 * asin(sqrt(
-                        power(sin(radians(s.lat - :lat) / 2), 2)
-                        + cos(radians(:lat)) * cos(radians(s.lat)) *
-                        power(sin(radians(s.lng - :lng) / 2), 2)
-                        )) AS distance_km
+                s.phone, array_to_string(s.consult_services, '||') AS consult_services,
+                array_to_string(s.provided_services, '||') AS provided_services,
+                2 * 6371 * asin(sqrt(
+                    power(sin(radians(s.lat - :lat) / 2), 2)
+                    + cos(radians(:lat)) * cos(radians(s.lat)) *
+                    power(sin(radians(s.lng - :lng) / 2), 2)
+                    )) AS distance_km
             FROM stores s
             ORDER BY distance_km
             LIMIT 1
@@ -29,11 +31,13 @@ public interface StoreRepository extends JpaRepository<Store, Long>  {
     @Query(value = """
             SELECT * FROM(
                 SELECT s.id, s.name, s.address, s.lat, s.lng, s.business_hours,
-                s.phone, 2 * 6371 * asin(sqrt(
-                        power(sin(radians(s.lat - :lat) / 2), 2)
-                        + cos(radians(:lat)) * cos(radians(s.lat)) *
-                        power(sin(radians(s.lng - :lng) / 2), 2)
-                        )) AS distance_km
+                s.phone, array_to_string(s.consult_services, '||') AS consult_services,
+                array_to_string(s.provided_services, '||') AS provided_services,
+                2 * 6371 * asin(sqrt(
+                    power(sin(radians(s.lat - :lat) / 2), 2)
+                    + cos(radians(:lat)) * cos(radians(s.lat)) *
+                    power(sin(radians(s.lng - :lng) / 2), 2)
+                    )) AS distance_km
                 FROM stores s
             ) ranked
             WHERE distance_km <= :radiusKm
