@@ -48,6 +48,20 @@ class CsrfCookieAttributesTest {
 		assertThat(cookie.isHttpOnly()).isFalse();
 	}
 
+	@Test
+	@DisplayName("refreshToken 쿠키는 HttpOnly이고 /auth 경로로만 전송되며, 인증 쿠키와 같은 SameSite/Secure를 쓴다")
+	void refreshCookieAttributes() {
+		CookieUtil cookieUtil = new CookieUtil(true, "None");
+		var cookie = cookieUtil.createRefresh("token", java.time.Duration.ofDays(14));
+
+		assertThat(cookie.isHttpOnly()).isTrue();
+		assertThat(cookie.getPath()).isEqualTo("/auth");
+		assertThat(cookie.getSameSite()).isEqualTo("None");
+		assertThat(cookie.isSecure()).isTrue();
+		// 만료 쿠키는 발급 때와 경로가 같아야 브라우저가 실제로 지운다
+		assertThat(cookieUtil.expireRefresh().getPath()).isEqualTo("/auth");
+	}
+
 	private Cookie issueCsrfCookie(CookieUtil cookieUtil) {
 		SecurityConfig config = new SecurityConfig(null, null, cookieUtil, null, null, null, null);
 		CookieCsrfTokenRepository repository = config.csrfTokenRepository();
