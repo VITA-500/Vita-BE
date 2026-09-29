@@ -6,5 +6,6 @@ public record StoreListItemResponse(
         Long storeId,
         String name,
         String address,
+        String storeType,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) { }

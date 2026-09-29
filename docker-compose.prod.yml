@@ -6,9 +6,12 @@ name: vita-prod
 
 services:
   backend:
+    # jar는 deploy-prod.yml이 러너에서 빌드해 app-prod.jar로 올려둔다. 서버에서는 복사만 한다.
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.deploy
+      args:
+        JAR_FILE: app-prod.jar
     container_name: vita-backend-prod
     ports:
       - "8000:8080"

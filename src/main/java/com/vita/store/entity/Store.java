@@ -49,6 +49,10 @@ public class Store extends BaseTimeEntity {
     @Column(name = "provided_services", columnDefinition = "text[]", nullable = false)
     private List<String> providedServices = new ArrayList<>();
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "store_type", nullable = false, length = 20)
+    private StoreType storeType = StoreType.PHONE;
+
     @Builder
     public Store(String name, String address, BigDecimal lat, BigDecimal lng, String businessHours,
                  String phone, List<String> consultServices, List<String> providedServices){

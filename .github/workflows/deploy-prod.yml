@@ -1,23 +1,64 @@
 name: Deploy to EC2 (prod)
 
 # 09_인프라구성.md 5절 기준: main 브랜치 push(=develop→main PR 머지) 시 EC2 prod 컨테이너 자동 배포.
+#
+# EC2 메모리(약 3.7GB)를 임베딩 서버·백엔드 2개가 이미 대부분 쓰고 있어, 서버에서 Gradle 빌드를
+# 돌리면 멈춘다. 그래서 jar는 이 러너에서 빌드해 EC2로 전송하고, 서버는 복사·실행만 한다.
 on:
   push:
     branches:
       - main
 
+# dev/prod가 같은 ~/Vita-BE 디렉터리에서 브랜치만 바꿔 쓰므로, 동시에 배포되면 서로 꼬인다.
+concurrency:
+  group: ec2-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle (의존성 캐시)
+        uses: gradle/actions/setup-gradle@v4
+
+      # 테스트는 PR 때 test.yml이 돌리므로 배포에서는 제외한다.
+      - name: Build jar
+        run: |
+          chmod +x gradlew
+          ./gradlew bootJar --no-daemon -x test
+          cp "$(ls build/libs/*.jar | grep -v -- '-plain.jar' | head -n 1)" app-prod.jar
+
+      - name: Upload jar to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: app-prod.jar
+          target: /home/ec2-user/Vita-BE
+
       - name: SSH into EC2 and redeploy prod
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
+          command_timeout: 15m
           script: |
             cd ~/Vita-BE
             git checkout main
             git pull origin main
+            # 배포마다 쌓이는 빌드 캐시가 디스크(20GB)를 채워 빌드가 실패한 적이 있어, 빌드 전에 먼저 비운다.
+            docker builder prune -f --filter "until=24h"
             docker compose -f docker-compose.prod.yml up -d --build
+            # 재빌드로 태그를 뺏긴 이전 이미지(dangling)를 정리한다. 실행 중인 이미지와 볼륨은 건드리지 않는다.
+            docker image prune -f
