@@ -3,6 +3,9 @@ HELP.md
 build/
 !gradle/wrapper/gradle-wrapper.jar
 
+# GitHub Actions가 EC2로 전송하는 배포용 jar (deploy-dev/prod.yml)
+/app-*.jar
+
 ### IntelliJ IDEA ###
 .idea
 *.iws

@@ -5,9 +5,12 @@ name: vita-dev
 
 services:
   backend:
+    # jar는 deploy-dev.yml이 러너에서 빌드해 app-dev.jar로 올려둔다. 서버에서는 복사만 한다.
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.deploy
+      args:
+        JAR_FILE: app-dev.jar
     container_name: vita-backend-dev
     ports:
       - "8080:8080"
