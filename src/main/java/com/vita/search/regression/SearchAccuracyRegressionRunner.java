@@ -6,6 +6,7 @@ import com.vita.search.dto.PlanSimilarityResult;
 import com.vita.search.entity.FaqStatus;
 import com.vita.search.repository.FaqVectorSearchRepository;
 import com.vita.search.repository.PlanVectorSearchRepository;
+import com.vita.search.service.FaqCandidateSelector;
 import java.io.IOException;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
@@ -84,8 +85,10 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 
 	private FaqResultRow evaluateFaqQuery(FaqRegressionQuery item) {
 		float[] vector = embeddingProvider.embedQuery(item.query());
-		List<FaqSimilarityResult> results = faqVectorSearchRepository.searchBySimilarity(
-				vector, FaqStatus.ACTIVE, 0.0, TOP_K);
+		// 실제 검색(FaqRetrievalServiceImpl)과 같은 방식으로, 후보를 넉넉히 가져와 중복 답변을 걷어낸 뒤 자른다.
+		List<FaqSimilarityResult> pool = faqVectorSearchRepository.searchBySimilarity(
+				vector, FaqStatus.ACTIVE, 0.0, FaqCandidateSelector.poolSize(TOP_K));
+		List<FaqSimilarityResult> results = FaqCandidateSelector.selectDistinct(pool, TOP_K);
 		boolean top1Match = !results.isEmpty() && matchesFaq(results.get(0), item);
 		boolean top3Match = results.stream().anyMatch(r -> matchesFaq(r, item));
 		double top1Similarity = results.isEmpty() ? 0.0 : results.get(0).similarity();
