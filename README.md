@@ -148,7 +148,7 @@
 
 **설계 원칙**
 - Vector DB를 따로 두지 않고 `faqs.embedding`/`plans.embedding` 컬럼(pgvector)으로 RDB와 통합
-- FAQ 약 10,000건·요금제 15종 규모에서는 pgvector 인덱스(IVFFlat/HNSW) 없이 Exact Search로 충분하다고 판단, 필요 시 추후 추가
+- FAQ 1,529건·요금제 15종 규모에서는 pgvector 인덱스(IVFFlat/HNSW) 없이 Exact Search로 충분하다고 판단, 필요 시 추후 추가
 - PII 컬럼(email/name/phone)은 로그·API 응답 양쪽에서 마스킹 처리 원칙
 - 테이블명은 전부 복수형(`users`만 PostgreSQL 예약어 회피 목적으로 원래도 복수형)
 
@@ -206,7 +206,7 @@ RAG 파이프라인은 임베딩(BE2) → 벡터 검색·threshold(BE3) → Cont
   ```
   `normalize: true`로 TEI가 L2 정규화된 벡터를 반환해 cosine 유사도 계산이 단순해지고, `truncate: true`로 모델 최대 길이를 넘는 입력은 에러 대신 서버가 잘라서 처리한다. 응답 배열 개수(1개)와 차원(768)을 검증해 어긋나면 `EmbeddingException`을 던진다.
 - **Query/Document 비대칭 인코딩**: E5는 `"query: "` / `"passage: "` prefix가 붙은 쌍으로 contrastive learning된 비대칭 dual-encoder다. 같은 문장이라도 어떤 prefix로 인코딩하느냐에 따라 벡터가 달라지도록 학습되어 있어, 질문(`embedQuery`)과 문서(`embedDocument`)를 반드시 구분해서 호출해야 검색 품질이 나온다.
-- **FAQ 적재**: 합성 FAQ 약 10,000건(`faq_all_cleaned.jsonl`)을 `faq.import.enabled=true`일 때만 동작하는 JSONL 적재기가 `source_faq_id` 기준으로 upsert — 재실행하면 관리자가 수정한 내용과 `INACTIVE` 상태도 덮어쓸 수 있어 기본은 꺼져 있음
+- **FAQ 적재**: 대표 FAQ 1,529건(`faq_all_cleaned.jsonl`)을 `faq.import.enabled=true`일 때만 동작하는 JSONL 적재기가 `source_faq_id` 기준으로 upsert — 재실행하면 관리자가 수정한 내용과 `INACTIVE` 상태도 덮어쓸 수 있어 기본은 꺼져 있음
 - **배치 파이프라인(문서 임베딩)**: 앱 기동 시(`ApplicationRunner`, `faq.embedding.enabled=true`일 때만 동작) `embedding IS NULL`인 FAQ·요금제를 `batch-size`(기본 100)만큼 찾아 `embedDocument()`로 벡터화하고 DB에 영구 저장 — pending이 없어질 때까지 반복. 저장 시 `embedding_model`/`embedding_version`/`embedded_at` 메타데이터도 함께 기록해 어떤 모델·시점에 임베딩됐는지 추적
 - **실시간 파이프라인(질의 임베딩)**: 채팅 요청마다 `embedQuery()`로 즉석 계산하고, 그 요청의 검색에만 쓰고 저장하지 않음(다음 요청은 처음부터 재계산)
 - **모델 교체 시 유의점**: 서로 다른 임베딩 모델은 다른 벡터 공간이라 기존 벡터와 혼용 불가 — 전체 Re-Embedding이 필요하고, 차원이 바뀌면(예: 1024차원) `vector(N)` 컬럼 자체도 재정의해야 함
