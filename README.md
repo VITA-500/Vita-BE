@@ -130,8 +130,7 @@
 
 ## 5. ERD (설계)
 
-<img width="2606" height="3088" alt="Vita-500_2026-09-29T01_55_43 336Z" src="https://github.com/user-attachments/assets/f6c3f4a8-17c1-46d2-8499-3cd64a3ef967" />
-
+<img width="2604" height="3012" alt="Vita-500_2026-09-29T08_09_12 637Z" src="https://github.com/user-attachments/assets/3c3c184e-14a3-4954-b5b7-ca652010f128" />
 
 | 테이블 | 설명 |
 |---|---|
@@ -139,8 +138,8 @@
 | `user_oauths` | 소셜 로그인 연동(LOCAL/GOOGLE/KAKAO/NAVER), 한 사용자가 여러 소셜 계정 연결 가능 |
 | `faqs` | FAQ 본문(`category`/`subcategory`/`question`/`answer`) + `embedding vector(768)`(intfloat/multilingual-e5-base, 질문+답변 결합 임베딩). 삭제는 `status`를 `INACTIVE`로 바꾸는 소프트 삭제이며, RAG 검색은 `status='ACTIVE'`만 대상. `source_faq_id`/`source_policy_ids`는 FAQ 원본 재적재(upsert) 키 |
 | `plans` | 가상 요금제. `monthly_fee`/`network_type`/`target_group`/`data_policy`/`voice_policy`/`sms_policy` 등 정형 컬럼과, 이를 자연어로 풀어 쓴 `description`(임베딩 대상)을 함께 가짐 — FAQ와 동일 모델·차원 사용 |
-| `stores` | 매장 정보(좌표, 영업시간, 연락처) + `consult_services`/`provided_services`(상담 가능 업무·제공 서비스 배열) |
-| `benefits` / `store_benefits` | 제휴 혜택과 매장-혜택 매핑(N:M). 매장의 혜택 보유 여부는 컬럼이 아니라 `store_benefits` 행 존재로 판단. 테이블만 존재하고 관리자 API는 아직 미구현 |
+| `stores` | 매장 정보(좌표, 영업시간, 연락처) + `consult_services`/`provided_services`(상담 가능 업무·제공 서비스 배열) + `store_type`(`PHONE` 통신 매장 / `PARTNER` 제휴 매장, CHECK 제약, 기본 `PHONE`). 제휴 매장도 같은 테이블의 행이라 상세 조회·길찾기는 그대로 동작하고, "가장 가까운 매장"·"주변 매장" 검색은 통신 매장(`PHONE`)만 대상 |
+| `benefits` / `store_benefits` | 제휴 혜택과 매장-혜택 매핑(N:M). 매장의 혜택 보유 여부는 컬럼이 아니라 `store_benefits` 행 존재로 판단. 테이블과 엔티티만 있고 조회·관리 API는 아직 미구현 |
 | `chat_sessions` / `chat_messages` | 대화 세션과 메시지. 세션은 회원(`user_id`) 또는 비회원 게스트(`guest_id`, UUID) 중 **정확히 하나**에 속하며(CHECK 제약), 게스트 세션은 로그인 후 claim으로 회원에게 이어붙일 수 있음. `chat_messages.status`로 생성중/완료/실패/재시도 상태 관리, 응답 시간은 컬럼으로 저장하지 않고 요청마다 DTO에서 계산해 반환 |
 | `chat_message_faq_refs` | assistant 메시지가 답변 근거로 사용한 FAQ 매핑(N:M, JSON 배열 대신 정규화) |
 | `unresolved_question_reports` | 사용자가 "관리자에게 보내기"로 신고한 미해결 질문. (메시지, 사용자) 쌍이 유일하고 `status`(기본 `OPEN`)로 처리 상태 관리, 신고 시점의 질문 원문을 함께 저장. 회원 세션의 메시지만 신고 가능 |
@@ -165,7 +164,7 @@
 | 채팅 | 비회원(게스트) 채팅 — `X-Guest-Id`로 식별, 로그인 시 세션 claim으로 회원에게 이어붙이기 | 필수 |
 | 채팅 | 미해결 질문 관리자 신고 (`POST /chat/messages/{id}/report-to-admin`) | 필수 |
 | 채팅 | 답변 피드백(👍/👎) — 엔티티 컬럼만 있고 API는 미구현 | 선택 |
-| 매장 | 가까운 매장 안내 / 주변 매장 목록 조회 / 길찾기 | 필수 |
+| 매장 | 가까운 통신 매장 안내 / 주변 통신 매장 목록 조회 / 매장 상세·길찾기(제휴 매장 포함) | 필수 |
 | 매장 | 매장 예약 | 선택(추후) |
 | 관리자 | FAQ 관리 CRUD / 매장 관리 CRUD | 필수 |
 | 관리자 | 질문 로그·통계 대시보드 | 선택 |
@@ -376,7 +375,7 @@ API 명세서 기준으로 미해결 질문은 `reason` 필드로 `NO_MATCH`(완
 
 ### 기타 설계 원칙
 
-**인증**: JWT 기반, Access Token은 HttpOnly Cookie로 발급(2026-09-17 확정, BE1-FE1 협의). 쿠키 기반 인증에서 필요해진 CSRF는 `/auth/csrf` 발급 + 토큰 검증으로 방어. 비회원은 `X-Guest-Id` 헤더(UUID)로 식별해 `ROLE_GUEST`로 취급하고, 회원 전용 경로(`/users/**`)는 막되 채팅은 허용하며, 로그인 상태에서 게스트 헤더가 함께 와도 회원을 우선한다. Refresh Token(Redis 저장·rotation)은 설계만 되어 있고 아직 미구현
+**인증**: JWT 기반, Access Token은 HttpOnly Cookie로 발급(BE1-FE1 협의). 쿠키 기반 인증에서 필요해진 CSRF는 `/auth/csrf` 발급 + 토큰 검증으로 방어. 비회원은 `X-Guest-Id` 헤더(UUID)로 식별해 `ROLE_GUEST`로 취급하고, 회원 전용 경로(`/users/**`)는 막되 채팅은 허용하며, 로그인 상태에서 게스트 헤더가 함께 와도 회원을 우선한다. Refresh Token(Redis 저장·rotation)은 설계만 되어 있고 아직 미구현
 
 **FAQ 소프트 삭제**: 하드 삭제 대신 `status=INACTIVE` 전환, 임베딩은 보존하되 RAG 검색 대상에서 제외
 
