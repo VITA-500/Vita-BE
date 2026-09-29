@@ -17,9 +17,10 @@ public record SignupRequest(
 		@Email(message = "이메일 형식이 아닙니다.")
 		String email,
 
-		@Schema(description = "비밀번호 (8자 이상)", example = "password1234")
+		// 형식 규칙은 PasswordPolicy가 검사한다 — 위반 시 VALIDATION_ERROR가 아니라
+		// INVALID_PASSWORD_FORMAT으로 응답해야 해서 여기서는 필수 여부만 본다.
+		@Schema(description = "비밀번호 (8자 이상, 영문/숫자/특수문자 포함)", example = "P@ssw0rd123")
 		@NotBlank(message = "비밀번호는 필수입니다.")
-		@Size(min = 8, message = "비밀번호는 8자 이상이어야 합니다.")
 		String password,
 
 		@Schema(description = "이름", example = "홍길동")

@@ -20,8 +20,9 @@ public record MyPageUpdateRequest(
 		@Size(min = 1, max = 100, message = "이름은 1자 이상 100자 이하여야 합니다.")
 		String name,
 
-		@Schema(description = "변경할 비밀번호 (8자 이상). 생략하면 그대로 둔다", example = "newPassword1234")
-		@Size(min = 8, message = "비밀번호는 8자 이상이어야 합니다.")
+		// 형식 규칙은 PasswordPolicy가 검사한다(SignupRequest와 같은 이유).
+		@Schema(description = "변경할 비밀번호 (8자 이상, 영문/숫자/특수문자 포함). 생략하면 그대로 둔다",
+				example = "NewP@ss123")
 		String password
 ) {
 }
