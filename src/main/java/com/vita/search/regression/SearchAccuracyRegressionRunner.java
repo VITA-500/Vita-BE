@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -51,15 +52,18 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 	private final PlanVectorSearchRepository planVectorSearchRepository;
 	private final RegressionQueryReader queryReader;
 
+	/** top은 실제로 검색된 상위 결과(CSV에서 어떤 답이 나왔는지 확인하기 위해 보관). */
 	private record FaqResultRow(String category, String subcategory, String style, String query,
-			boolean top1Match, boolean top3Match, double top1Similarity) {
+			boolean top1Match, boolean top3Match, double top1Similarity, List<FaqSimilarityResult> top) {
 	}
 
 	private record PlanResultRow(String planCode, String aspect, String query,
-			boolean top1Match, boolean top3Match, double top1Similarity) {
+			boolean top1Match, boolean top3Match, double top1Similarity, List<PlanSimilarityResult> top) {
 	}
 
-	private record NegativeResultRow(String topic, String query, double faqTop1Similarity, double planTop1Similarity) {
+	/** planTop1은 요금제 쪽 1등(없으면 null). */
+	private record NegativeResultRow(String topic, String query, double faqTop1Similarity, double planTop1Similarity,
+			List<FaqSimilarityResult> faqTop, PlanSimilarityResult planTop1) {
 	}
 
 	@Override
@@ -93,7 +97,7 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 		boolean top3Match = results.stream().anyMatch(r -> matchesFaq(r, item));
 		double top1Similarity = results.isEmpty() ? 0.0 : results.get(0).similarity();
 		return new FaqResultRow(item.category(), item.subcategory(), item.style(), item.query(),
-				top1Match, top3Match, top1Similarity);
+				top1Match, top3Match, top1Similarity, results);
 	}
 
 	private boolean matchesFaq(FaqSimilarityResult result, FaqRegressionQuery item) {
@@ -106,17 +110,19 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 		boolean top1Match = !results.isEmpty() && results.get(0).planCode().equals(item.planCode());
 		boolean top3Match = results.stream().anyMatch(r -> r.planCode().equals(item.planCode()));
 		double top1Similarity = results.isEmpty() ? 0.0 : results.get(0).similarity();
-		return new PlanResultRow(item.planCode(), item.aspect(), item.query(), top1Match, top3Match, top1Similarity);
+		return new PlanResultRow(item.planCode(), item.aspect(), item.query(), top1Match, top3Match, top1Similarity, results);
 	}
 
 	private NegativeResultRow evaluateNegativeQuery(NegativeRegressionQuery item) {
 		float[] vector = embeddingProvider.embedQuery(item.query());
-		List<FaqSimilarityResult> faqResults = faqVectorSearchRepository.searchBySimilarity(
-				vector, FaqStatus.ACTIVE, 0.0, 1);
+		List<FaqSimilarityResult> faqPool = faqVectorSearchRepository.searchBySimilarity(
+				vector, FaqStatus.ACTIVE, 0.0, FaqCandidateSelector.poolSize(TOP_K));
+		List<FaqSimilarityResult> faqResults = FaqCandidateSelector.selectDistinct(faqPool, TOP_K);
 		List<PlanSimilarityResult> planResults = planVectorSearchRepository.searchBySimilarity(vector, 0.0, 1);
 		double faqTop1 = faqResults.isEmpty() ? 0.0 : faqResults.get(0).similarity();
 		double planTop1 = planResults.isEmpty() ? 0.0 : planResults.get(0).similarity();
-		return new NegativeResultRow(item.topic(), item.query(), faqTop1, planTop1);
+		PlanSimilarityResult planTop1Result = planResults.isEmpty() ? null : planResults.get(0);
+		return new NegativeResultRow(item.topic(), item.query(), faqTop1, planTop1, faqResults, planTop1Result);
 	}
 
 	private void printFaqSummary(List<FaqResultRow> results) {
@@ -202,16 +208,30 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 		try {
 			Files.createDirectories(dir);
 			try (Writer writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
-				writer.write("type,label,styleOrAspect,query,top1Match,top3Match,top1Similarity\n");
+				// 엑셀은 BOM이 없는 UTF-8 CSV의 한글을 깨뜨려서 읽으므로, 파일 맨 앞에 UTF-8 BOM을 붙인다.
+				writer.write('﻿');
+				writer.write("type,label,styleOrAspect,query,top1Match,top3Match,top1Similarity,"
+						+ "faqTop1Similarity,planTop1Similarity,planTop1Name,"
+						+ "r1_similarity,r1_label,r1_question,r1_answer,"
+						+ "r2_similarity,r2_label,r2_question,r2_answer,"
+						+ "r3_similarity,r3_label,r3_question,r3_answer\n");
 				for (FaqResultRow r : faqResults) {
-					writeCsvRow(writer, "FAQ", r.category() + "/" + r.subcategory(), r.style(), r.query(), r.top1Match(), r.top3Match(), r.top1Similarity());
+					writeCsvRow(writer, "FAQ", r.category() + "/" + r.subcategory(), r.style(), r.query(),
+							String.valueOf(r.top1Match()), String.valueOf(r.top3Match()), r.top1Similarity(),
+							"", "", "", faqCells(r.top()));
 				}
 				for (PlanResultRow r : planResults) {
-					writeCsvRow(writer, "PLAN", r.planCode(), r.aspect(), r.query(), r.top1Match(), r.top3Match(), r.top1Similarity());
+					writeCsvRow(writer, "PLAN", r.planCode(), r.aspect(), r.query(),
+							String.valueOf(r.top1Match()), String.valueOf(r.top3Match()), r.top1Similarity(),
+							"", "", "", planCells(r.top()));
 				}
 				for (NegativeResultRow r : negativeResults) {
-					writeCsvRow(writer, "NEGATIVE", r.topic(), "-", r.query(), false, false,
-							Math.max(r.faqTop1Similarity(), r.planTop1Similarity()));
+					String planName = r.planTop1() == null ? "" : r.planTop1().name();
+					writeCsvRow(writer, "NEGATIVE", r.topic(), "-", r.query(), "false", "false",
+							Math.max(r.faqTop1Similarity(), r.planTop1Similarity()),
+							String.format("%.4f", r.faqTop1Similarity()),
+							String.format("%.4f", r.planTop1Similarity()),
+							planName, faqCells(r.faqTop()));
 				}
 			}
 			log.info("CSV 리포트 저장: {}", file.toAbsolutePath());
@@ -220,9 +240,62 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 		}
 	}
 
+	/** 상위 TOP_K개 FAQ 결과를 (유사도, 분류, 질문, 답변) 4칸씩으로 펼친다. 부족한 순위는 빈 칸. */
+	private List<String> faqCells(List<FaqSimilarityResult> top) {
+		List<String> cells = new ArrayList<>();
+		for (int i = 0; i < TOP_K; i++) {
+			if (i < top.size()) {
+				FaqSimilarityResult r = top.get(i);
+				cells.add(String.format("%.4f", r.similarity()));
+				cells.add(csv(r.category() + "/" + r.subcategory()));
+				cells.add(csv(r.question()));
+				cells.add(csv(r.answer()));
+			} else {
+				cells.addAll(List.of("", "", "", ""));
+			}
+		}
+		return cells;
+	}
+
+	/** 상위 TOP_K개 요금제 결과를 (유사도, 요금제 코드, 이름·월요금, 설명) 4칸씩으로 펼친다. */
+	private List<String> planCells(List<PlanSimilarityResult> top) {
+		List<String> cells = new ArrayList<>();
+		for (int i = 0; i < TOP_K; i++) {
+			if (i < top.size()) {
+				PlanSimilarityResult r = top.get(i);
+				cells.add(String.format("%.4f", r.similarity()));
+				cells.add(csv(r.planCode()));
+				cells.add(csv("%s (월 %,d원)".formatted(r.name(), r.monthlyFee())));
+				cells.add(csv(r.description()));
+			} else {
+				cells.addAll(List.of("", "", "", ""));
+			}
+		}
+		return cells;
+	}
+
 	private void writeCsvRow(Writer writer, String type, String label, String styleOrAspect, String query,
-			boolean top1Match, boolean top3Match, double top1Similarity) throws IOException {
-		writer.write("%s,%s,%s,\"%s\",%s,%s,%.4f\n".formatted(
-				type, label, styleOrAspect, query.replace("\"", "\"\""), top1Match, top3Match, top1Similarity));
+			String top1Match, String top3Match, double top1Similarity,
+			String faqTop1Similarity, String planTop1Similarity, String planTop1Name,
+			List<String> rankCells) throws IOException {
+		List<String> cells = new ArrayList<>();
+		cells.add(type);
+		cells.add(csv(label));
+		cells.add(styleOrAspect);
+		cells.add(csv(query));
+		cells.add(top1Match);
+		cells.add(top3Match);
+		cells.add(String.format("%.4f", top1Similarity));
+		cells.add(faqTop1Similarity);
+		cells.add(planTop1Similarity);
+		cells.add(csv(planTop1Name));
+		cells.addAll(rankCells);
+		writer.write(String.join(",", cells) + "\n");
+	}
+
+	/** CSV 한 칸으로 안전하게 감싼다: 큰따옴표는 두 번, 줄바꿈은 공백으로 바꾼다. */
+	private String csv(String value) {
+		String flat = value == null ? "" : value.replace("\r", " ").replace("\n", " ");
+		return "\"" + flat.replace("\"", "\"\"") + "\"";
 	}
 }
