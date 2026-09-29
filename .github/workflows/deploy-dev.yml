@@ -20,4 +20,8 @@ jobs:
             cd ~/Vita-BE
             git checkout develop
             git pull origin develop
+            # 배포마다 쌓이는 빌드 캐시가 디스크(20GB)를 채워 빌드가 실패한 적이 있어, 빌드 전에 먼저 비운다.
+            docker builder prune -f --filter "until=24h"
             docker compose -f docker-compose.dev.yml up -d --build
+            # 재빌드로 태그를 뺏긴 이전 이미지(dangling)를 정리한다. 실행 중인 이미지와 볼륨은 건드리지 않는다.
+            docker image prune -f
