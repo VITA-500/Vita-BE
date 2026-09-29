@@ -21,6 +21,8 @@ public enum ErrorCode {
 
 	// 인증 (auth) — 04_API명세서 1절 기준
 	EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다."),
+	/** 비밀번호 규칙(PasswordPolicy) 위반. 회원가입과 내 정보 수정이 함께 쓴다. */
+	INVALID_PASSWORD_FORMAT(HttpStatus.BAD_REQUEST, "비밀번호는 8자 이상, 영문/숫자/특수문자를 포함해야 합니다."),
 	/**
 	 * 이메일이 없는 경우와 비밀번호가 틀린 경우를 구분하지 않는다 — 구분해서 응답하면
 	 * 공격자가 어떤 이메일이 가입되어 있는지 알아낼 수 있다.
