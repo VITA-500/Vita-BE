@@ -8,7 +8,6 @@ import com.vita.search.dto.PlanReference;
 import com.vita.search.dto.PlanSimilarityResult;
 import com.vita.search.entity.FaqStatus;
 import com.vita.search.repository.FaqVectorSearchRepository;
-import com.vita.search.repository.PlanVectorSearchRepository;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -50,15 +49,15 @@ public class FaqRetrievalServiceImpl implements FaqRetrievalService {
 
 	private final EmbeddingProvider embeddingProvider;
 	private final FaqVectorSearchRepository faqVectorSearchRepository;
-	private final PlanVectorSearchRepository planVectorSearchRepository;
+	private final PlanSearchService planSearchService;
 
 	public FaqRetrievalServiceImpl(
 			EmbeddingProvider embeddingProvider,
 			FaqVectorSearchRepository faqVectorSearchRepository,
-			PlanVectorSearchRepository planVectorSearchRepository) {
+			PlanSearchService planSearchService) {
 		this.embeddingProvider = embeddingProvider;
 		this.faqVectorSearchRepository = faqVectorSearchRepository;
-		this.planVectorSearchRepository = planVectorSearchRepository;
+		this.planSearchService = planSearchService;
 	}
 
 	@Override
@@ -88,17 +87,26 @@ public class FaqRetrievalServiceImpl implements FaqRetrievalService {
 		// FAQ와 각각(별도 쿼리) 조회 후 병합한다 — UNION 한 쿼리 대신 이 방식을 택한 이유는
 		// 두 테이블의 유사도 분포가 달라(threshold도 다름) 한 번에 정렬·컷오프하면 한쪽이
 		// 불리해질 수 있어서다. 요금제 15종 규모라 쿼리 하나 더 도는 비용은 무시할 만하다.
-		List<PlanSimilarityResult> planCandidates = planVectorSearchRepository.searchBySimilarity(
-				queryVector, 0.0, topK);
+		// 요금제는 벡터 유사도에 더해, 질문의 가격·데이터량·대상 그룹·무제한 여부를 plans 컬럼과 직접 비교한다.
+		PlanSearchService.PlanSearchOutcome planOutcome = planSearchService.search(query, queryVector, topK);
+		List<PlanSimilarityResult> planCandidates = planOutcome.results();
 		double planTopSimilarity = planCandidates.isEmpty() ? 0.0 : planCandidates.get(0).similarity();
 
-		List<PlanSimilarityResult> planResults = planCandidates.stream()
-				.filter(candidate -> candidate.similarity() >= planSimilarityThreshold)
-				.toList();
+		// 조건으로 좁혀진 결과는 "3만1천원"처럼 임베딩 유사도가 낮게 나오는 질문도 포함하므로 threshold를 적용하지 않는다.
+		List<PlanSimilarityResult> planResults = planOutcome.conditionMatched()
+				? planCandidates
+				: planCandidates.stream()
+						.filter(candidate -> candidate.similarity() >= planSimilarityThreshold)
+						.toList();
 
 		if (planResults.isEmpty()) {
 			log.info("관련 요금제 없음 (threshold={}, 최고 유사도={}). query={}",
 					planSimilarityThreshold, String.format("%.4f", planTopSimilarity), query);
+		} else if (planOutcome.conditionMatched()) {
+			log.info("요금제 조건 매칭: query={} → {}", query,
+					planResults.stream().map(PlanSimilarityResult::planCode).toList());
+			// 조건이 맞은 요금제는 확실한 근거라, BE4의 LOW_CONFIDENCE 판단에서 낮은 유사도로 밀리지 않도록 threshold 이상으로 올린다.
+			planTopSimilarity = Math.max(planTopSimilarity, planSimilarityThreshold);
 		}
 
 		double topSimilarity = Math.max(faqTopSimilarity, planTopSimilarity);

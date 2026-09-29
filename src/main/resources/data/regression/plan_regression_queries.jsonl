@@ -1,90 +1,90 @@
-{"planCode":"VITA-LITE-5","aspect":"TARGET_GROUP","query":"일반 요금제 중에 저렴한 거 있어?"}
-{"planCode":"VITA-LITE-5","aspect":"PRICE","query":"2만5천원짜리 요금제 있어?"}
-{"planCode":"VITA-LITE-5","aspect":"DATA","query":"데이터 5기가 주는 요금제 뭐야?"}
+{"planCode":"VITA-LITE-5","aspect":"TARGET_GROUP","query":"일반 요금제 중에 저렴한 거 있어?","expect":{"targetGroup":"GENERAL"}}
+{"planCode":"VITA-LITE-5","aspect":"PRICE","query":"2만5천원짜리 요금제 있어?","expect":{"monthlyFee":25000}}
+{"planCode":"VITA-LITE-5","aspect":"DATA","query":"데이터 5기가 주는 요금제 뭐야?","expect":{"dataMb":5120}}
 {"planCode":"VITA-LITE-5","aspect":"UNLIMITED","query":"이 요금제 데이터 무제한이야?"}
-{"planCode":"VITA-LITE-5","aspect":"VOICE_SMS","query":"통화랑 문자는 무제한으로 되는 요금제 있어?"}
-{"planCode":"VITA-LITE-5","aspect":"NAME","query":"비타 라이트 5 요금제 설명해줘"}
-{"planCode":"VITA-LITE-10","aspect":"TARGET_GROUP","query":"일반 사용자용 요금제 추천해줘"}
-{"planCode":"VITA-LITE-10","aspect":"PRICE","query":"3만1천원 요금제 있어?"}
-{"planCode":"VITA-LITE-10","aspect":"DATA","query":"데이터 10기가 주는 요금제 있어?"}
-{"planCode":"VITA-LITE-10","aspect":"UNLIMITED","query":"무제한 아니고 적당히 쓰는 요금제 있어?"}
-{"planCode":"VITA-LITE-10","aspect":"VOICE_SMS","query":"문자 무제한인 요금제 알려줘"}
-{"planCode":"VITA-LITE-10","aspect":"NAME","query":"비타 라이트 10이 어떤 요금제야?"}
-{"planCode":"VITA-BALANCE-20","aspect":"TARGET_GROUP","query":"일반 요금제 중에 데이터 좀 넉넉한거 있어?"}
-{"planCode":"VITA-BALANCE-20","aspect":"PRICE","query":"3만7천원짜리 요금제 뭐야?"}
-{"planCode":"VITA-BALANCE-20","aspect":"DATA","query":"20기가 주는 요금제 있어?"}
+{"planCode":"VITA-LITE-5","aspect":"VOICE_SMS","query":"통화랑 문자는 무제한으로 되는 요금제 있어?","expect":{"voicePolicy":"UNLIMITED","smsPolicy":"UNLIMITED"}}
+{"planCode":"VITA-LITE-5","aspect":"NAME","query":"비타 라이트 5 요금제 설명해줘","expect":{"planCode":"VITA-LITE-5"}}
+{"planCode":"VITA-LITE-10","aspect":"TARGET_GROUP","query":"일반 사용자용 요금제 추천해줘","expect":{"targetGroup":"GENERAL"}}
+{"planCode":"VITA-LITE-10","aspect":"PRICE","query":"3만1천원 요금제 있어?","expect":{"monthlyFee":31000}}
+{"planCode":"VITA-LITE-10","aspect":"DATA","query":"데이터 10기가 주는 요금제 있어?","expect":{"dataMb":10240}}
+{"planCode":"VITA-LITE-10","aspect":"UNLIMITED","query":"무제한 아니고 적당히 쓰는 요금제 있어?","expect":{"dataPolicy":"LIMITED"}}
+{"planCode":"VITA-LITE-10","aspect":"VOICE_SMS","query":"문자 무제한인 요금제 알려줘","expect":{"smsPolicy":"UNLIMITED"}}
+{"planCode":"VITA-LITE-10","aspect":"NAME","query":"비타 라이트 10이 어떤 요금제야?","expect":{"planCode":"VITA-LITE-10"}}
+{"planCode":"VITA-BALANCE-20","aspect":"TARGET_GROUP","query":"일반 요금제 중에 데이터 좀 넉넉한거 있어?","expect":{"targetGroup":"GENERAL"}}
+{"planCode":"VITA-BALANCE-20","aspect":"PRICE","query":"3만7천원짜리 요금제 뭐야?","expect":{"monthlyFee":37000}}
+{"planCode":"VITA-BALANCE-20","aspect":"DATA","query":"20기가 주는 요금제 있어?","expect":{"dataMb":20480}}
 {"planCode":"VITA-BALANCE-20","aspect":"UNLIMITED","query":"이거 데이터 다 쓰면 완전 끊겨?"}
-{"planCode":"VITA-BALANCE-20","aspect":"VOICE_SMS","query":"통화 무제한인 요금제 있어?"}
-{"planCode":"VITA-BALANCE-20","aspect":"NAME","query":"비타 밸런스 20 요금제 알려줘"}
-{"planCode":"VITA-BALANCE-40","aspect":"TARGET_GROUP","query":"일반 요금제 중에 데이터 많이 주는거 있어?"}
-{"planCode":"VITA-BALANCE-40","aspect":"PRICE","query":"4만3천원 요금제 뭐야?"}
-{"planCode":"VITA-BALANCE-40","aspect":"DATA","query":"40기가 주는 요금제 있어?"}
-{"planCode":"VITA-BALANCE-40","aspect":"UNLIMITED","query":"40기가 다 쓰면 속도 줄어드는거야?"}
-{"planCode":"VITA-BALANCE-40","aspect":"VOICE_SMS","query":"통화 문자 다 무제한인 요금제 있어?"}
-{"planCode":"VITA-BALANCE-40","aspect":"NAME","query":"비타 밸런스 40 설명해줘"}
+{"planCode":"VITA-BALANCE-20","aspect":"VOICE_SMS","query":"통화 무제한인 요금제 있어?","expect":{"voicePolicy":"UNLIMITED"}}
+{"planCode":"VITA-BALANCE-20","aspect":"NAME","query":"비타 밸런스 20 요금제 알려줘","expect":{"planCode":"VITA-BALANCE-20"}}
+{"planCode":"VITA-BALANCE-40","aspect":"TARGET_GROUP","query":"일반 요금제 중에 데이터 많이 주는거 있어?","expect":{"targetGroup":"GENERAL"}}
+{"planCode":"VITA-BALANCE-40","aspect":"PRICE","query":"4만3천원 요금제 뭐야?","expect":{"monthlyFee":43000}}
+{"planCode":"VITA-BALANCE-40","aspect":"DATA","query":"40기가 주는 요금제 있어?","expect":{"dataMb":40960}}
+{"planCode":"VITA-BALANCE-40","aspect":"UNLIMITED","query":"40기가 다 쓰면 속도 줄어드는거야?","expect":{"dataMb":40960}}
+{"planCode":"VITA-BALANCE-40","aspect":"VOICE_SMS","query":"통화 문자 다 무제한인 요금제 있어?","expect":{"voicePolicy":"UNLIMITED","smsPolicy":"UNLIMITED"}}
+{"planCode":"VITA-BALANCE-40","aspect":"NAME","query":"비타 밸런스 40 설명해줘","expect":{"planCode":"VITA-BALANCE-40"}}
 {"planCode":"VITA-PLUS-80","aspect":"TARGET_GROUP","query":"데이터 많이 쓰는 사람한테 맞는 요금제 있어?"}
-{"planCode":"VITA-PLUS-80","aspect":"PRICE","query":"5만1천원짜리 요금제 뭐야?"}
-{"planCode":"VITA-PLUS-80","aspect":"DATA","query":"80기가 주는 요금제 있어?"}
-{"planCode":"VITA-PLUS-80","aspect":"UNLIMITED","query":"무제한은 아니고 많이 주는 요금제 있어?"}
-{"planCode":"VITA-PLUS-80","aspect":"VOICE_SMS","query":"통화 문자 무제한이면서 데이터 많은 요금제 있어?"}
-{"planCode":"VITA-PLUS-80","aspect":"NAME","query":"비타 플러스 80 요금제 알려줘"}
-{"planCode":"VITA-PLUS-120","aspect":"TARGET_GROUP","query":"일반 요금제 중에 무제한 빼고 제일 데이터 많이 주는거 있어?"}
-{"planCode":"VITA-PLUS-120","aspect":"PRICE","query":"5만9천원 요금제 뭐야?"}
-{"planCode":"VITA-PLUS-120","aspect":"DATA","query":"120기가 주는 요금제 있어?"}
+{"planCode":"VITA-PLUS-80","aspect":"PRICE","query":"5만1천원짜리 요금제 뭐야?","expect":{"monthlyFee":51000}}
+{"planCode":"VITA-PLUS-80","aspect":"DATA","query":"80기가 주는 요금제 있어?","expect":{"dataMb":81920}}
+{"planCode":"VITA-PLUS-80","aspect":"UNLIMITED","query":"무제한은 아니고 많이 주는 요금제 있어?","expect":{"dataPolicy":"LIMITED"}}
+{"planCode":"VITA-PLUS-80","aspect":"VOICE_SMS","query":"통화 문자 무제한이면서 데이터 많은 요금제 있어?","expect":{"voicePolicy":"UNLIMITED","smsPolicy":"UNLIMITED"}}
+{"planCode":"VITA-PLUS-80","aspect":"NAME","query":"비타 플러스 80 요금제 알려줘","expect":{"planCode":"VITA-PLUS-80"}}
+{"planCode":"VITA-PLUS-120","aspect":"TARGET_GROUP","query":"일반 요금제 중에 무제한 빼고 제일 데이터 많이 주는거 있어?","expect":{"planCode":"VITA-PLUS-120"}}
+{"planCode":"VITA-PLUS-120","aspect":"PRICE","query":"5만9천원 요금제 뭐야?","expect":{"monthlyFee":59000}}
+{"planCode":"VITA-PLUS-120","aspect":"DATA","query":"120기가 주는 요금제 있어?","expect":{"dataMb":122880}}
 {"planCode":"VITA-PLUS-120","aspect":"UNLIMITED","query":"이거 무제한 요금제야?"}
-{"planCode":"VITA-PLUS-120","aspect":"VOICE_SMS","query":"통화 문자 무제한인 요금제 있어?"}
-{"planCode":"VITA-PLUS-120","aspect":"NAME","query":"비타 플러스 120이 어떤 요금제야?"}
-{"planCode":"VITA-MAX","aspect":"TARGET_GROUP","query":"데이터 걱정 없이 쓰고 싶은데 요금제 뭐가 좋아?"}
-{"planCode":"VITA-MAX","aspect":"PRICE","query":"6만9천원짜리 요금제 있어?"}
-{"planCode":"VITA-MAX","aspect":"DATA","query":"데이터 무제한 요금제 있어?"}
+{"planCode":"VITA-PLUS-120","aspect":"VOICE_SMS","query":"통화 문자 무제한인 요금제 있어?","expect":{"voicePolicy":"UNLIMITED","smsPolicy":"UNLIMITED"}}
+{"planCode":"VITA-PLUS-120","aspect":"NAME","query":"비타 플러스 120이 어떤 요금제야?","expect":{"planCode":"VITA-PLUS-120"}}
+{"planCode":"VITA-MAX","aspect":"TARGET_GROUP","query":"데이터 걱정 없이 쓰고 싶은데 요금제 뭐가 좋아?","expect":{"dataPolicy":"UNLIMITED"}}
+{"planCode":"VITA-MAX","aspect":"PRICE","query":"6만9천원짜리 요금제 있어?","expect":{"monthlyFee":69000}}
+{"planCode":"VITA-MAX","aspect":"DATA","query":"데이터 무제한 요금제 있어?","expect":{"dataPolicy":"UNLIMITED"}}
 {"planCode":"VITA-MAX","aspect":"UNLIMITED","query":"이 요금제 진짜 무제한이야?"}
-{"planCode":"VITA-MAX","aspect":"VOICE_SMS","query":"통화 문자도 무제한이야?"}
-{"planCode":"VITA-MAX","aspect":"NAME","query":"비타 맥스 요금제 설명해줘"}
-{"planCode":"VITA-MAX-SHARE","aspect":"TARGET_GROUP","query":"가족이랑 데이터 나눠쓸 수 있는 요금제 있어?"}
-{"planCode":"VITA-MAX-SHARE","aspect":"PRICE","query":"7만5천원짜리 요금제 뭐야?"}
-{"planCode":"VITA-MAX-SHARE","aspect":"DATA","query":"무제한이면서 데이터 쉐어링 되는 요금제 있어?"}
+{"planCode":"VITA-MAX","aspect":"VOICE_SMS","query":"통화 문자도 무제한이야?","expect":{"voicePolicy":"UNLIMITED","smsPolicy":"UNLIMITED"}}
+{"planCode":"VITA-MAX","aspect":"NAME","query":"비타 맥스 요금제 설명해줘","expect":{"planCode":"VITA-MAX"}}
+{"planCode":"VITA-MAX-SHARE","aspect":"TARGET_GROUP","query":"가족이랑 데이터 나눠쓸 수 있는 요금제 있어?","expect":{"planCode":"VITA-MAX-SHARE"}}
+{"planCode":"VITA-MAX-SHARE","aspect":"PRICE","query":"7만5천원짜리 요금제 뭐야?","expect":{"monthlyFee":75000}}
+{"planCode":"VITA-MAX-SHARE","aspect":"DATA","query":"무제한이면서 데이터 쉐어링 되는 요금제 있어?","expect":{"planCode":"VITA-MAX-SHARE"}}
 {"planCode":"VITA-MAX-SHARE","aspect":"UNLIMITED","query":"이것도 무제한 요금제야?"}
-{"planCode":"VITA-MAX-SHARE","aspect":"VOICE_SMS","query":"통화 문자 무제한 맞아?"}
-{"planCode":"VITA-MAX-SHARE","aspect":"NAME","query":"비타 맥스 쉐어가 뭐야?"}
-{"planCode":"VITA-YOUTH-30","aspect":"TARGET_GROUP","query":"청년 전용 요금제 있어?"}
-{"planCode":"VITA-YOUTH-30","aspect":"PRICE","query":"3만5천원짜리 청년 요금제 있어?"}
-{"planCode":"VITA-YOUTH-30","aspect":"DATA","query":"청년 요금제 데이터 얼마나 줘?"}
-{"planCode":"VITA-YOUTH-30","aspect":"UNLIMITED","query":"청년 요금제는 무제한이야?"}
-{"planCode":"VITA-YOUTH-30","aspect":"VOICE_SMS","query":"청년 요금제도 통화 문자 무제한이야?"}
-{"planCode":"VITA-YOUTH-30","aspect":"NAME","query":"비타 유스 30 요금제 알려줘"}
-{"planCode":"VITA-YOUTH-70","aspect":"TARGET_GROUP","query":"청년 요금제 중에 데이터 많이 주는거 있어?"}
-{"planCode":"VITA-YOUTH-70","aspect":"PRICE","query":"4만5천원짜리 청년 요금제 있어?"}
-{"planCode":"VITA-YOUTH-70","aspect":"DATA","query":"청년 요금제 중에 70기가 주는거 있어?"}
-{"planCode":"VITA-YOUTH-70","aspect":"UNLIMITED","query":"청년 요금제 중에 무제한 있어?"}
-{"planCode":"VITA-YOUTH-70","aspect":"VOICE_SMS","query":"청년 요금제 통화 문자 어때?"}
-{"planCode":"VITA-YOUTH-70","aspect":"NAME","query":"비타 유스 70 설명해줘"}
-{"planCode":"VITA-SENIOR-8","aspect":"TARGET_GROUP","query":"시니어 전용 요금제 있어?"}
-{"planCode":"VITA-SENIOR-8","aspect":"PRICE","query":"2만3천원짜리 시니어 요금제 있어?"}
-{"planCode":"VITA-SENIOR-8","aspect":"DATA","query":"시니어 요금제 데이터 얼마나 줘?"}
-{"planCode":"VITA-SENIOR-8","aspect":"UNLIMITED","query":"시니어 요금제는 데이터 무제한이야?"}
-{"planCode":"VITA-SENIOR-8","aspect":"VOICE_SMS","query":"시니어 요금제도 통화 무제한이야?"}
-{"planCode":"VITA-SENIOR-8","aspect":"NAME","query":"비타 시니어 8 요금제 알려줘"}
-{"planCode":"VITA-SENIOR-20","aspect":"TARGET_GROUP","query":"부모님 드릴 시니어 요금제 추천해줘"}
-{"planCode":"VITA-SENIOR-20","aspect":"PRICE","query":"3만3천원짜리 시니어 요금제 있어?"}
-{"planCode":"VITA-SENIOR-20","aspect":"DATA","query":"시니어 요금제 중에 20기가 주는거 있어?"}
-{"planCode":"VITA-SENIOR-20","aspect":"UNLIMITED","query":"이 시니어 요금제 무제한이야?"}
-{"planCode":"VITA-SENIOR-20","aspect":"VOICE_SMS","query":"시니어 요금제 통화 문자 다 되나?"}
-{"planCode":"VITA-SENIOR-20","aspect":"NAME","query":"비타 시니어 20 설명해줘"}
-{"planCode":"VITA-KIDS-5","aspect":"TARGET_GROUP","query":"아이 쓰기 좋은 요금제 있어?"}
-{"planCode":"VITA-KIDS-5","aspect":"PRICE","query":"1만9천원짜리 키즈 요금제 있어?"}
-{"planCode":"VITA-KIDS-5","aspect":"DATA","query":"키즈 요금제 데이터 얼마나 줘?"}
-{"planCode":"VITA-KIDS-5","aspect":"UNLIMITED","query":"키즈 요금제는 통화도 무제한이야?"}
-{"planCode":"VITA-KIDS-5","aspect":"VOICE_SMS","query":"아이 요금제 통화 문자 제한 있어?"}
-{"planCode":"VITA-KIDS-5","aspect":"NAME","query":"비타 키즈 5 요금제 알려줘"}
-{"planCode":"VITA-WATCH-1","aspect":"TARGET_GROUP","query":"스마트워치용 요금제 있어?"}
-{"planCode":"VITA-WATCH-1","aspect":"PRICE","query":"1만1천원짜리 요금제 있어?"}
-{"planCode":"VITA-WATCH-1","aspect":"DATA","query":"워치 요금제 데이터 얼마나 줘?"}
-{"planCode":"VITA-WATCH-1","aspect":"UNLIMITED","query":"워치 요금제도 무제한 있어?"}
-{"planCode":"VITA-WATCH-1","aspect":"VOICE_SMS","query":"워치 요금제로 전화도 걸 수 있어?"}
-{"planCode":"VITA-WATCH-1","aspect":"NAME","query":"비타 워치 1 요금제 설명해줘"}
-{"planCode":"VITA-TABLET-20","aspect":"TARGET_GROUP","query":"태블릿 전용 요금제 있어?"}
-{"planCode":"VITA-TABLET-20","aspect":"PRICE","query":"2만2천원짜리 태블릿 요금제 있어?"}
-{"planCode":"VITA-TABLET-20","aspect":"DATA","query":"태블릿 요금제 데이터 얼마나 줘?"}
-{"planCode":"VITA-TABLET-20","aspect":"UNLIMITED","query":"태블릿 요금제 무제한이야?"}
-{"planCode":"VITA-TABLET-20","aspect":"VOICE_SMS","query":"태블릿 요금제로 전화도 되나?"}
-{"planCode":"VITA-TABLET-20","aspect":"NAME","query":"비타 태블릿 20 요금제 알려줘"}
+{"planCode":"VITA-MAX-SHARE","aspect":"VOICE_SMS","query":"통화 문자 무제한 맞아?","expect":{"voicePolicy":"UNLIMITED","smsPolicy":"UNLIMITED"}}
+{"planCode":"VITA-MAX-SHARE","aspect":"NAME","query":"비타 맥스 쉐어가 뭐야?","expect":{"planCode":"VITA-MAX-SHARE"}}
+{"planCode":"VITA-YOUTH-30","aspect":"TARGET_GROUP","query":"청년 전용 요금제 있어?","expect":{"targetGroup":"YOUTH"}}
+{"planCode":"VITA-YOUTH-30","aspect":"PRICE","query":"3만5천원짜리 청년 요금제 있어?","expect":{"targetGroup":"YOUTH","monthlyFee":35000}}
+{"planCode":"VITA-YOUTH-30","aspect":"DATA","query":"청년 요금제 데이터 얼마나 줘?","expect":{"targetGroup":"YOUTH"}}
+{"planCode":"VITA-YOUTH-30","aspect":"UNLIMITED","query":"청년 요금제는 무제한이야?","expect":{"targetGroup":"YOUTH"}}
+{"planCode":"VITA-YOUTH-30","aspect":"VOICE_SMS","query":"청년 요금제도 통화 문자 무제한이야?","expect":{"targetGroup":"YOUTH"}}
+{"planCode":"VITA-YOUTH-30","aspect":"NAME","query":"비타 유스 30 요금제 알려줘","expect":{"planCode":"VITA-YOUTH-30"}}
+{"planCode":"VITA-YOUTH-70","aspect":"TARGET_GROUP","query":"청년 요금제 중에 데이터 많이 주는거 있어?","expect":{"targetGroup":"YOUTH"}}
+{"planCode":"VITA-YOUTH-70","aspect":"PRICE","query":"4만5천원짜리 청년 요금제 있어?","expect":{"targetGroup":"YOUTH","monthlyFee":45000}}
+{"planCode":"VITA-YOUTH-70","aspect":"DATA","query":"청년 요금제 중에 70기가 주는거 있어?","expect":{"targetGroup":"YOUTH","dataMb":71680}}
+{"planCode":"VITA-YOUTH-70","aspect":"UNLIMITED","query":"청년 요금제 중에 무제한 있어?","expect":{"targetGroup":"YOUTH"}}
+{"planCode":"VITA-YOUTH-70","aspect":"VOICE_SMS","query":"청년 요금제 통화 문자 어때?","expect":{"targetGroup":"YOUTH"}}
+{"planCode":"VITA-YOUTH-70","aspect":"NAME","query":"비타 유스 70 설명해줘","expect":{"planCode":"VITA-YOUTH-70"}}
+{"planCode":"VITA-SENIOR-8","aspect":"TARGET_GROUP","query":"시니어 전용 요금제 있어?","expect":{"targetGroup":"SENIOR"}}
+{"planCode":"VITA-SENIOR-8","aspect":"PRICE","query":"2만3천원짜리 시니어 요금제 있어?","expect":{"targetGroup":"SENIOR","monthlyFee":23000}}
+{"planCode":"VITA-SENIOR-8","aspect":"DATA","query":"시니어 요금제 데이터 얼마나 줘?","expect":{"targetGroup":"SENIOR"}}
+{"planCode":"VITA-SENIOR-8","aspect":"UNLIMITED","query":"시니어 요금제는 데이터 무제한이야?","expect":{"targetGroup":"SENIOR"}}
+{"planCode":"VITA-SENIOR-8","aspect":"VOICE_SMS","query":"시니어 요금제도 통화 무제한이야?","expect":{"targetGroup":"SENIOR"}}
+{"planCode":"VITA-SENIOR-8","aspect":"NAME","query":"비타 시니어 8 요금제 알려줘","expect":{"planCode":"VITA-SENIOR-8"}}
+{"planCode":"VITA-SENIOR-20","aspect":"TARGET_GROUP","query":"부모님 드릴 시니어 요금제 추천해줘","expect":{"targetGroup":"SENIOR"}}
+{"planCode":"VITA-SENIOR-20","aspect":"PRICE","query":"3만3천원짜리 시니어 요금제 있어?","expect":{"targetGroup":"SENIOR","monthlyFee":33000}}
+{"planCode":"VITA-SENIOR-20","aspect":"DATA","query":"시니어 요금제 중에 20기가 주는거 있어?","expect":{"targetGroup":"SENIOR","dataMb":20480}}
+{"planCode":"VITA-SENIOR-20","aspect":"UNLIMITED","query":"이 시니어 요금제 무제한이야?","expect":{"targetGroup":"SENIOR"}}
+{"planCode":"VITA-SENIOR-20","aspect":"VOICE_SMS","query":"시니어 요금제 통화 문자 다 되나?","expect":{"targetGroup":"SENIOR"}}
+{"planCode":"VITA-SENIOR-20","aspect":"NAME","query":"비타 시니어 20 설명해줘","expect":{"planCode":"VITA-SENIOR-20"}}
+{"planCode":"VITA-KIDS-5","aspect":"TARGET_GROUP","query":"아이 쓰기 좋은 요금제 있어?","expect":{"targetGroup":"KIDS"}}
+{"planCode":"VITA-KIDS-5","aspect":"PRICE","query":"1만9천원짜리 키즈 요금제 있어?","expect":{"targetGroup":"KIDS","monthlyFee":19000}}
+{"planCode":"VITA-KIDS-5","aspect":"DATA","query":"키즈 요금제 데이터 얼마나 줘?","expect":{"targetGroup":"KIDS"}}
+{"planCode":"VITA-KIDS-5","aspect":"UNLIMITED","query":"키즈 요금제는 통화도 무제한이야?","expect":{"targetGroup":"KIDS"}}
+{"planCode":"VITA-KIDS-5","aspect":"VOICE_SMS","query":"아이 요금제 통화 문자 제한 있어?","expect":{"targetGroup":"KIDS"}}
+{"planCode":"VITA-KIDS-5","aspect":"NAME","query":"비타 키즈 5 요금제 알려줘","expect":{"planCode":"VITA-KIDS-5"}}
+{"planCode":"VITA-WATCH-1","aspect":"TARGET_GROUP","query":"스마트워치용 요금제 있어?","expect":{"targetGroup":"WATCH"}}
+{"planCode":"VITA-WATCH-1","aspect":"PRICE","query":"1만1천원짜리 요금제 있어?","expect":{"monthlyFee":11000}}
+{"planCode":"VITA-WATCH-1","aspect":"DATA","query":"워치 요금제 데이터 얼마나 줘?","expect":{"targetGroup":"WATCH"}}
+{"planCode":"VITA-WATCH-1","aspect":"UNLIMITED","query":"워치 요금제도 무제한 있어?","expect":{"targetGroup":"WATCH"}}
+{"planCode":"VITA-WATCH-1","aspect":"VOICE_SMS","query":"워치 요금제로 전화도 걸 수 있어?","expect":{"targetGroup":"WATCH"}}
+{"planCode":"VITA-WATCH-1","aspect":"NAME","query":"비타 워치 1 요금제 설명해줘","expect":{"planCode":"VITA-WATCH-1"}}
+{"planCode":"VITA-TABLET-20","aspect":"TARGET_GROUP","query":"태블릿 전용 요금제 있어?","expect":{"targetGroup":"TABLET"}}
+{"planCode":"VITA-TABLET-20","aspect":"PRICE","query":"2만2천원짜리 태블릿 요금제 있어?","expect":{"targetGroup":"TABLET","monthlyFee":22000}}
+{"planCode":"VITA-TABLET-20","aspect":"DATA","query":"태블릿 요금제 데이터 얼마나 줘?","expect":{"targetGroup":"TABLET"}}
+{"planCode":"VITA-TABLET-20","aspect":"UNLIMITED","query":"태블릿 요금제 무제한이야?","expect":{"targetGroup":"TABLET"}}
+{"planCode":"VITA-TABLET-20","aspect":"VOICE_SMS","query":"태블릿 요금제로 전화도 되나?","expect":{"targetGroup":"TABLET"}}
+{"planCode":"VITA-TABLET-20","aspect":"NAME","query":"비타 태블릿 20 요금제 알려줘","expect":{"planCode":"VITA-TABLET-20"}}
