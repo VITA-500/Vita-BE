@@ -6,6 +6,7 @@ import com.vita.search.dto.PlanSimilarityResult;
 import com.vita.search.entity.FaqStatus;
 import com.vita.search.repository.FaqVectorSearchRepository;
 import com.vita.search.repository.PlanVectorSearchRepository;
+import com.vita.search.service.FaqCandidateSelector;
 import java.io.IOException;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
@@ -31,6 +32,10 @@ import org.springframework.stereotype.Component;
  * <p>Testcontainers를 쓸 수 없는 환경이라({@link com.vita.search.regression} 패키지 전체가
  * 이 제약을 전제로 함) 기본 `./gradlew test`에는 포함하지 않고, 로컬 도커(Postgres+임베딩
  * 서버)가 떠 있을 때 {@code search.regression.enabled=true}로 켜서 수동 실행한다.
+ *
+ * <p>질문셋의 정답/무관 라벨은 FAQ·요금제 데이터에 종속된다. 데이터가 크게 바뀌면(예: FAQ 대량
+ * 추가) 특히 무관 질문 중 UNCOVERED("FAQ에 없는 주제") 항목이 이제 정답이 있는 질문이 됐는지
+ * 키워드 검색으로 재확인하고 라벨을 고친 뒤 돌린다.
  */
 @Slf4j
 @Component
@@ -80,8 +85,10 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 
 	private FaqResultRow evaluateFaqQuery(FaqRegressionQuery item) {
 		float[] vector = embeddingProvider.embedQuery(item.query());
-		List<FaqSimilarityResult> results = faqVectorSearchRepository.searchBySimilarity(
-				vector, FaqStatus.ACTIVE, 0.0, TOP_K);
+		// 실제 검색(FaqRetrievalServiceImpl)과 같은 방식으로, 후보를 넉넉히 가져와 중복 답변을 걷어낸 뒤 자른다.
+		List<FaqSimilarityResult> pool = faqVectorSearchRepository.searchBySimilarity(
+				vector, FaqStatus.ACTIVE, 0.0, FaqCandidateSelector.poolSize(TOP_K));
+		List<FaqSimilarityResult> results = FaqCandidateSelector.selectDistinct(pool, TOP_K);
 		boolean top1Match = !results.isEmpty() && matchesFaq(results.get(0), item);
 		boolean top3Match = results.stream().anyMatch(r -> matchesFaq(r, item));
 		double top1Similarity = results.isEmpty() ? 0.0 : results.get(0).similarity();

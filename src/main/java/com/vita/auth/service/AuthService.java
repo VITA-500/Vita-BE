@@ -1,5 +1,6 @@
 package com.vita.auth.service;
 
+import com.vita.auth.PasswordPolicy;
 import com.vita.auth.dto.LoginRequest;
 import com.vita.auth.dto.LoginResult;
 import com.vita.auth.dto.SignupRequest;
@@ -24,6 +25,8 @@ public class AuthService {
 
 	@Transactional
 	public SignupResponse signup(SignupRequest request) {
+		PasswordPolicy.validate(request.password());
+
 		if (userRepository.existsByEmail(request.email())) {
 			throw new BusinessException(ErrorCode.EMAIL_ALREADY_EXISTS);
 		}

@@ -67,9 +67,11 @@ public class FaqRetrievalServiceImpl implements FaqRetrievalService {
 		float[] queryVector = embeddingProvider.embedQuery(query);
 
 		// threshold 미달 후보의 최고 점수도 topSimilarity로 알려야 해서, DB에서는 threshold 없이
-		// 가까운 순 topK를 가져오고 threshold는 아래에서 적용한다(정렬이 유사도 순이라 결과 집합은 동일).
-		List<FaqSimilarityResult> faqCandidates = faqVectorSearchRepository.searchBySimilarity(
-				queryVector, FaqStatus.ACTIVE, 0.0, topK);
+		// 가까운 순으로 가져오고 threshold는 아래에서 적용한다(정렬이 유사도 순이라 결과 집합은 동일).
+		// 같은 답변의 변형이 topK를 다 차지하지 않도록, topK보다 넉넉히 가져와 중복을 걷어낸 뒤 자른다.
+		List<FaqSimilarityResult> faqPool = faqVectorSearchRepository.searchBySimilarity(
+				queryVector, FaqStatus.ACTIVE, 0.0, FaqCandidateSelector.poolSize(topK));
+		List<FaqSimilarityResult> faqCandidates = FaqCandidateSelector.selectDistinct(faqPool, topK);
 		double faqTopSimilarity = faqCandidates.isEmpty() ? 0.0 : faqCandidates.get(0).similarity();
 
 		List<FaqSimilarityResult> faqResults = faqCandidates.stream()

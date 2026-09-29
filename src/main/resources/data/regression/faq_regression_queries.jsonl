@@ -213,3 +213,9 @@
 {"category":"유심(USIM) 업데이트 · 교체","subcategory":"그 외 안내사항","style":"SHORT","query":"유심 업데이트 교체 구분"}
 {"category":"유심(USIM) 업데이트 · 교체","subcategory":"그 외 안내사항","style":"NEGATION","query":"잘못 진행하면 문제 생기나요?"}
 {"category":"유심(USIM) 업데이트 · 교체","subcategory":"그 외 안내사항","style":"TYPO","query":"유심업데이트 교체 뭐가맞는지모르겟음"}
+{"category":"가입 및 변경","subcategory":"모바일","style":"NEWTOPIC","query":"번호이동 하고 싶어요"}
+{"category":"모바일","subcategory":"단말기(휴대폰)","style":"NEWTOPIC","query":"휴대폰을 분실했는데 어떻게 해야 하나요?"}
+{"category":"모바일","subcategory":"모바일서비스","style":"NEWTOPIC","query":"앱 로그인이 안돼요"}
+{"category":"모바일","subcategory":"모바일서비스","style":"NEWTOPIC","query":"스팸문자 차단은 어떻게 해?"}
+{"category":"모바일","subcategory":"모바일서비스","style":"NEWTOPIC","query":"모바일 부가서비스 해지하고 싶어요"}
+{"category":"가입 및 변경","subcategory":"모바일","style":"NEWTOPIC","query":"미성년자 명의로 모바일 회선 가입할 수 있어요?"}

@@ -25,13 +25,16 @@ class FaqJsonlReaderTest {
 		List<FaqJsonlRecord> faqs = reader.read(
 			new ClassPathResource("data/faq/cleaned/faq_all_cleaned.jsonl")
 		);
-		assertThat(faqs).hasSize(1000);
+		assertThat(faqs).hasSize(10000);
 		assertThat(faqs).extracting(FaqJsonlRecord::stableId).doesNotHaveDuplicates();
 		assertThat(faqs).extracting(FaqJsonlRecord::question).doesNotHaveDuplicates();
 		assertThat(faqs).allSatisfy(faq -> {
-			assertThat(faq.faqId()).matches("SYN-\\d{6}");
+			assertThat(faq.faqId()).matches(
+				"SYN-(?:\\d{6}|GAP-(?:MNP|LOSS|ESIM|LOGIN|ADDON|SPAM|MINOR)-\\d{3}|AUG-\\d{6})"
+			);
 			assertThat(faq.stableId()).isEqualTo(faq.faqId());
-			assertThat(faq.sourcePolicyIds()).containsExactly("SYNTHETIC-GENERATED");
+			assertThat(faq.sourcePolicyIds()).hasSize(1);
+			assertThat(faq.sourcePolicyIds().getFirst()).startsWith("SYNTHETIC-");
 		});
 	}
 
