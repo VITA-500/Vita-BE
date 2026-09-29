@@ -1,0 +1,15 @@
+# EC2 배포 전용. jar는 GitHub Actions 러너에서 미리 빌드해 서버로 전송하므로, 여기서는 Gradle을
+# 돌리지 않고 복사만 한다. (EC2 메모리가 빠듯해 서버에서 빌드하면 Gradle이 멈춘다.)
+# 로컬/개발용 전체 빌드는 기존 Dockerfile을 그대로 쓴다.
+FROM eclipse-temurin:21-jre
+WORKDIR /app
+
+ARG JAR_FILE
+COPY ${JAR_FILE} app.jar
+
+# 04_API명세서 0절 확정: 모든 timestamp는 KST(Asia/Seoul) 고정. LocalDateTime.now()가 JVM 기본
+# 타임존을 따라가므로 컨테이너 기본값(UTC)이 아니라 여기서 명시적으로 고정해야 한다.
+ENV TZ=Asia/Seoul
+
+EXPOSE 8080
+ENTRYPOINT ["java", "-Duser.timezone=Asia/Seoul", "-jar", "app.jar"]
