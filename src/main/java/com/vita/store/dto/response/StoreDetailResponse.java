@@ -14,5 +14,6 @@ public record StoreDetailResponse (
         String phone,
         List<String> consultServices,
         List<String> providedServices,
+        String storeType,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) { }

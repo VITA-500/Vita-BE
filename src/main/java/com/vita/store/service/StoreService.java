@@ -60,14 +60,15 @@ public class StoreService {
                 pageRequest.keyword() != null ? pageRequest.keyword() : "",
                 pageRequest.toSpringPageRequest(ADMIN_LIST_SORT_FIELDS, ADMIN_LIST_DEFAULT_SORT));
         return PageResponse.from(page, store -> new StoreListItemResponse(store.getId(), store.getName(),
-                store.getAddress(), store.getCreatedAt(), store.getUpdatedAt()));
+                store.getAddress(), store.getStoreType().name(), store.getCreatedAt(), store.getUpdatedAt()));
     }
 
     public StoreDetailResponse findById(Long storeId){
         Store store = findStoreOrThrow(storeId);
         return new StoreDetailResponse(store.getId(), store.getName(), store.getAddress(),
                 store.getLat(), store.getLng(), store.getBusinessHours(), store.getPhone(),
-                store.getConsultServices(), store.getProvidedServices(), store.getCreatedAt(), store.getUpdatedAt());
+                store.getConsultServices(), store.getProvidedServices(), store.getStoreType().name(),
+                store.getCreatedAt(), store.getUpdatedAt());
     }
 
     @Transactional
