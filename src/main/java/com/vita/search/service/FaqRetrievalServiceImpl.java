@@ -8,7 +8,6 @@ import com.vita.search.dto.PlanReference;
 import com.vita.search.dto.PlanSimilarityResult;
 import com.vita.search.entity.FaqStatus;
 import com.vita.search.repository.FaqVectorSearchRepository;
-import com.vita.search.repository.PlanVectorSearchRepository;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -45,20 +44,28 @@ public class FaqRetrievalServiceImpl implements FaqRetrievalService {
 	@Value("${plan.retrieval.similarity-threshold:0.81}")
 	private double planSimilarityThreshold;
 
+	/**
+	 * 규칙(정규식)으로 개인 정보 조회·타사 질문을 미리 알아보고, 걸리면 FAQ·요금제 컨텍스트를 비울지 여부.
+	 * 회귀 측정에서 정상 질문 오탐 0건(FAQ DB 1,529건 등 1,863개)에 threshold를 넘어 새던 무관 질문의
+	 * 절반 이상(45~79%)을 막았다. 실사용에서 잘못 막는 사례가 보이면 이 값을 false로 꺼서 즉시 되돌릴 수 있다.
+	 */
+	@Value("${retrieval.irrelevant-rule.enabled:true}")
+	private boolean irrelevantRuleEnabled;
+
 	/** 한글/영문/숫자가 2자 이상 연속된 덩어리만 키워드로 취급 (조사 등 형태소 분리는 안 함 — 근사치). */
 	private static final Pattern KEYWORD_PATTERN = Pattern.compile("[가-힣a-zA-Z0-9]{2,}");
 
 	private final EmbeddingProvider embeddingProvider;
 	private final FaqVectorSearchRepository faqVectorSearchRepository;
-	private final PlanVectorSearchRepository planVectorSearchRepository;
+	private final PlanSearchService planSearchService;
 
 	public FaqRetrievalServiceImpl(
 			EmbeddingProvider embeddingProvider,
 			FaqVectorSearchRepository faqVectorSearchRepository,
-			PlanVectorSearchRepository planVectorSearchRepository) {
+			PlanSearchService planSearchService) {
 		this.embeddingProvider = embeddingProvider;
 		this.faqVectorSearchRepository = faqVectorSearchRepository;
-		this.planVectorSearchRepository = planVectorSearchRepository;
+		this.planSearchService = planSearchService;
 	}
 
 	@Override
@@ -66,10 +73,16 @@ public class FaqRetrievalServiceImpl implements FaqRetrievalService {
 		// FAQ와 요금제는 같은 임베딩 모델·차원이라 벡터 변환은 한 번만 하고 두 테이블에 그대로 쓴다.
 		float[] queryVector = embeddingProvider.embedQuery(query);
 
+		// 개인 정보 조회·타사 질문처럼 FAQ로 답할 수 없는 유형은 문장 모양(규칙)으로 미리 알아본다.
+		Set<IrrelevantQueryDetector.Rule> irrelevantRules =
+				irrelevantRuleEnabled ? IrrelevantQueryDetector.detect(query) : Set.of();
+
 		// threshold 미달 후보의 최고 점수도 topSimilarity로 알려야 해서, DB에서는 threshold 없이
-		// 가까운 순 topK를 가져오고 threshold는 아래에서 적용한다(정렬이 유사도 순이라 결과 집합은 동일).
-		List<FaqSimilarityResult> faqCandidates = faqVectorSearchRepository.searchBySimilarity(
-				queryVector, FaqStatus.ACTIVE, 0.0, topK);
+		// 가까운 순으로 가져오고 threshold는 아래에서 적용한다(정렬이 유사도 순이라 결과 집합은 동일).
+		// 같은 답변의 변형이 topK를 다 차지하지 않도록, topK보다 넉넉히 가져와 중복을 걷어낸 뒤 자른다.
+		List<FaqSimilarityResult> faqPool = faqVectorSearchRepository.searchBySimilarity(
+				queryVector, FaqStatus.ACTIVE, 0.0, FaqCandidateSelector.poolSize(topK));
+		List<FaqSimilarityResult> faqCandidates = FaqCandidateSelector.selectDistinct(faqPool, topK);
 		double faqTopSimilarity = faqCandidates.isEmpty() ? 0.0 : faqCandidates.get(0).similarity();
 
 		List<FaqSimilarityResult> faqResults = faqCandidates.stream()
@@ -79,24 +92,43 @@ public class FaqRetrievalServiceImpl implements FaqRetrievalService {
 		if (faqResults.isEmpty()) {
 			log.info("관련 FAQ 없음 (threshold={}, 최고 유사도={}). query={}",
 					similarityThreshold, String.format("%.4f", faqTopSimilarity), query);
-		} else {
+		} else if (irrelevantRules.isEmpty()) {
 			logRankingSignals(query, faqResults);
 		}
 
 		// FAQ와 각각(별도 쿼리) 조회 후 병합한다 — UNION 한 쿼리 대신 이 방식을 택한 이유는
 		// 두 테이블의 유사도 분포가 달라(threshold도 다름) 한 번에 정렬·컷오프하면 한쪽이
 		// 불리해질 수 있어서다. 요금제 15종 규모라 쿼리 하나 더 도는 비용은 무시할 만하다.
-		List<PlanSimilarityResult> planCandidates = planVectorSearchRepository.searchBySimilarity(
-				queryVector, 0.0, topK);
+		// 요금제는 벡터 유사도에 더해, 질문의 가격·데이터량·대상 그룹·무제한 여부를 plans 컬럼과 직접 비교한다.
+		PlanSearchService.PlanSearchOutcome planOutcome = planSearchService.search(query, queryVector, topK);
+		List<PlanSimilarityResult> planCandidates = planOutcome.results();
 		double planTopSimilarity = planCandidates.isEmpty() ? 0.0 : planCandidates.get(0).similarity();
 
-		List<PlanSimilarityResult> planResults = planCandidates.stream()
-				.filter(candidate -> candidate.similarity() >= planSimilarityThreshold)
-				.toList();
+		// 규칙에 걸린 질문은 FAQ·요금제를 모두 비워 BE4에 "관련 없음"으로 전달한다. 개인 정보 질문에는 조회할
+		// 실제 데이터가 없고, 타사 비교 질문에 우리 요금제를 주면 LLM이 타사 정보를 지어낼 위험이 있다.
+		// topSimilarity는 BE4의 분석에 쓰이므로 인위적으로 바꾸지 않고 실제 최고 유사도를 그대로 전달한다.
+		// 규칙이 잘못 막는 사례를 실사용 로그로 확인할 수 있도록 질문과 규칙 이름을 남긴다.
+		if (!irrelevantRules.isEmpty()) {
+			log.info("무관 질문 규칙 판정으로 FAQ·요금제 컨텍스트 제외: rules={}, FAQ 최고 유사도={}, 요금제 최고 유사도={}. query={}",
+					irrelevantRules, String.format("%.4f", faqTopSimilarity), String.format("%.4f", planTopSimilarity), query);
+			return new FaqRetrievalContext(List.of(), List.of(), Math.max(faqTopSimilarity, planTopSimilarity));
+		}
+
+		// 조건으로 좁혀진 결과는 "3만1천원"처럼 임베딩 유사도가 낮게 나오는 질문도 포함하므로 threshold를 적용하지 않는다.
+		List<PlanSimilarityResult> planResults = planOutcome.conditionMatched()
+				? planCandidates
+				: planCandidates.stream()
+						.filter(candidate -> candidate.similarity() >= planSimilarityThreshold)
+						.toList();
 
 		if (planResults.isEmpty()) {
 			log.info("관련 요금제 없음 (threshold={}, 최고 유사도={}). query={}",
 					planSimilarityThreshold, String.format("%.4f", planTopSimilarity), query);
+		} else if (planOutcome.conditionMatched()) {
+			log.info("요금제 조건 매칭: query={} → {}", query,
+					planResults.stream().map(PlanSimilarityResult::planCode).toList());
+			// 조건이 맞은 요금제는 확실한 근거라, BE4의 LOW_CONFIDENCE 판단에서 낮은 유사도로 밀리지 않도록 threshold 이상으로 올린다.
+			planTopSimilarity = Math.max(planTopSimilarity, planSimilarityThreshold);
 		}
 
 		double topSimilarity = Math.max(faqTopSimilarity, planTopSimilarity);

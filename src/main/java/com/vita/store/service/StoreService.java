@@ -25,7 +25,7 @@ import java.util.Set;
 @Transactional(readOnly = true)
 public class StoreService {
 
-    private static final Set<String> ADMIN_LIST_SORT_FIELDS = Set.of("createdAt", "name");
+    private static final Set<String> ADMIN_LIST_SORT_FIELDS = Set.of("createdAt", "updatedAt", "name");
     private static final String ADMIN_LIST_DEFAULT_SORT = "createdAt, desc";
 
     private final StoreRepository storeRepository;
@@ -59,13 +59,16 @@ public class StoreService {
         var page = storeRepository.search(
                 pageRequest.keyword() != null ? pageRequest.keyword() : "",
                 pageRequest.toSpringPageRequest(ADMIN_LIST_SORT_FIELDS, ADMIN_LIST_DEFAULT_SORT));
-        return PageResponse.from(page, store -> new StoreListItemResponse(store.getId(), store.getName(), store.getAddress()));
+        return PageResponse.from(page, store -> new StoreListItemResponse(store.getId(), store.getName(),
+                store.getAddress(), store.getStoreType().name(), store.getCreatedAt(), store.getUpdatedAt()));
     }
 
     public StoreDetailResponse findById(Long storeId){
         Store store = findStoreOrThrow(storeId);
         return new StoreDetailResponse(store.getId(), store.getName(), store.getAddress(),
-                store.getLat(), store.getLng(), store.getBusinessHours(), store.getPhone(), store.getConsultServices(), store.getProvidedServices());
+                store.getLat(), store.getLng(), store.getBusinessHours(), store.getPhone(),
+                store.getConsultServices(), store.getProvidedServices(), store.getStoreType().name(),
+                store.getCreatedAt(), store.getUpdatedAt());
     }
 
     @Transactional

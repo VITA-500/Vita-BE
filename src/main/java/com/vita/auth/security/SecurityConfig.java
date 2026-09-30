@@ -11,10 +11,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.context.NullSecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
@@ -38,6 +38,11 @@ public class SecurityConfig {
 
 	private final JwtAuthenticationFilter jwtAuthenticationFilter;
 	private final ObjectMapper objectMapper;
+	/**
+	 * CSRF 면제 판단에 쓴다 — 인증 쿠키가 실제로 있는 요청만 검사 대상이다.
+	 * CSRF 토큰 쿠키에 인증 쿠키와 같은 Secure/SameSite를 입히는 데도 쓴다.
+	 */
+	private final CookieUtil cookieUtil;
 	private final CustomOAuth2UserService customOAuth2UserService;
 	private final OAuth2SuccessHandler oAuth2SuccessHandler;
 	private final OAuth2FailureHandler oAuth2FailureHandler;
@@ -71,13 +76,23 @@ public class SecurityConfig {
 			"/login/oauth2/**"
 	};
 
+	/**
+	 * 로그인한 회원만 쓸 수 있는 경로. 게스트(ROLE_GUEST)는 막힌다.
+	 *
+	 * <p>채팅(/chat/**)은 여기 넣지 않는다 — 비회원도 상담을 쓸 수 있어야 하기 때문이다.
+	 * 게스트는 X-Guest-Id 헤더로 식별되고, 헤더가 없으면 anyRequest()의 authenticated()에서
+	 * 401이 난다.
+	 */
+	private static final String[] MEMBER_PATHS = {
+			"/users/**"
+	};
+
 	/** 인증 없이 열어둘 경로. 구체적인 경로를 먼저 나열하고 anyRequest()는 마지막에 둔다. */
 	private static final String[] PUBLIC_PATHS = {
 			"/auth/**",
 			// 소셜 로그인 진입·콜백. Spring Security가 처리하는 경로라 컨트롤러가 없다.
 			"/oauth2/**",
 			"/login/oauth2/**",
-			"/stores/**",
 			"/swagger-ui/**",
 			"/v3/api-docs/**",
 			"/swagger-ui.html",
@@ -87,6 +102,11 @@ public class SecurityConfig {
 			"/error",
 			// 브라우저가 자동으로 요청한다. 막아두면 401이 섞여 디버깅을 방해한다.
 			"/favicon.ico"
+	};
+
+	private static final String[] PUBLIC_GET_PATHS = {
+			"/stores/**",
+			"/benefits/**"
 	};
 
 	@Bean
@@ -103,10 +123,10 @@ public class SecurityConfig {
 				// 읽어서 헤더에 넣을 수 없기 때문에 위조 요청을 걸러낼 수 있다.
 				// 로그인·회원가입·소셜 로그인은 아직 인증 쿠키가 없는 상태라 제외한다.
 				.csrf(csrf -> csrf
-						.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+						.csrfTokenRepository(csrfTokenRepository())
 						.csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
 						.ignoringRequestMatchers(CSRF_EXEMPT_PATHS)
-						.ignoringRequestMatchers(request -> request.getHeader("Authorization") != null)
+						.ignoringRequestMatchers(this::isNotCookieAuthenticated)
 						)
 				
 				.cors(cors -> {
@@ -116,8 +136,12 @@ public class SecurityConfig {
 				// JWT는 세션이 필요 없지만, OAuth2의 state(CSRF 방어) 검증이 세션을 쓴다.
 				// STATELESS로 두면 소셜 로그인 콜백에서 authorization_request_not_found가 난다.
 				// 세션은 OAuth 흐름 동안만 쓰이고, 인증 상태는 저장하지 않는다(아래 securityContext 설정).
-				.sessionManagement(session ->
-						session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
+				//
+				// 세션 정책은 기본값(IF_REQUIRED)을 그대로 쓰고 sessionCreationPolicy()를 호출하지 않는다.
+				// 호출하면 SessionManagementFilter가 켜지는데, 인증을 세션에 저장하지 않으니 이 필터는
+				// 매 요청을 "새 로그인"으로 보고 CSRF 토큰을 교체한다 — 로그인 후 첫 쓰기 요청만
+				// 성공하고 다음 요청부터 전부 403이 났다. 실제 로그인 시점의 교체는 OAuth2 로그인
+				// 필터가 따로 수행하므로 이 필터가 없어도 빠지는 방어는 없다.
 
 				// 인증 결과를 세션에 저장하지 않는다. 저장하면 토큰 쿠키를 지워도 세션에 남은 인증으로
 				// 요청이 통과해 로그아웃이 무력화된다 — 인증은 매 요청 토큰으로만 판단해야 한다.
@@ -130,6 +154,10 @@ public class SecurityConfig {
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(ADMIN_PATHS).hasRole("ADMIN")
 						.requestMatchers(PUBLIC_PATHS).permitAll()
+						// 회원 전용. 게스트는 ROLE_GUEST라 여기서 막힌다 — anyRequest()의
+						// authenticated()만으로는 게스트도 통과해 마이페이지가 열린다.
+						.requestMatchers(MEMBER_PATHS).hasAnyRole("USER", "ADMIN")
+						.requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS).permitAll()
 						.anyRequest().authenticated())
 
 				.exceptionHandling(ex -> ex
@@ -150,6 +178,40 @@ public class SecurityConfig {
 		}
 
 		return http.build();
+	}
+
+	/**
+	 * 인증 쿠키로 인증하는 요청이 아니면 CSRF 검사를 면제한다.
+	 *
+	 * <p>CSRF가 성립하는 전제는 "브라우저가 자격증명을 자동으로 실어 보낸다"는 것이다.
+	 * 공격자 사이트는 우리 쿠키를 읽지는 못해도 요청에 딸려가게 만들 수는 있어서,
+	 * 쿠키 인증 요청은 반드시 토큰으로 대조해야 한다.
+	 *
+	 * <p>반대로 Authorization 헤더나 X-Guest-Id 같은 커스텀 헤더는 브라우저가 자동으로
+	 * 붙이지 않는다. 공격자 페이지가 그 값을 직접 채워 넣어야 하는데, 채워 넣을 수 있다면
+	 * 이미 CSRF가 아니라 값을 탈취한 다른 문제다 — 그래서 면제해도 방어가 약해지지 않는다.
+	 *
+	 * <p>게스트 채팅(POST /chat/sessions)이 이 경우다. 헤더만 쓰고 쿠키를 쓰지 않아
+	 * 면제되며, 같은 경로라도 회원이 쿠키로 인증하면 검사 대상으로 남는다 — 경로를 통째로
+	 * 열지 않는 이유다.
+	 */
+	// 테스트에서 직접 호출할 수 있도록 package-private으로 둔다.
+	boolean isNotCookieAuthenticated(jakarta.servlet.http.HttpServletRequest request) {
+		return cookieUtil.read(request).isEmpty();
+	}
+
+	/**
+	 * CSRF 토큰을 XSRF-TOKEN 쿠키로 내려보낸다.
+	 *
+	 * <p>기본값 그대로면 쿠키에 SameSite가 없어 브라우저가 Lax로 취급한다. 그러면 도메인이
+	 * 다른 프론트(Vercel)가 보내는 PATCH/POST에 이 쿠키가 실리지 않아, 헤더로 온 토큰과 대조할
+	 * 값이 없어 403이 난다. 인증 쿠키와 같은 속성을 입혀 환경변수 하나로 함께 움직이게 한다.
+	 */
+	// 테스트에서 직접 호출할 수 있도록 package-private으로 둔다.
+	CookieCsrfTokenRepository csrfTokenRepository() {
+		CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+		repository.setCookieCustomizer(cookieUtil::applyAttributes);
+		return repository;
 	}
 
 	private void writeError(HttpServletResponse response, ErrorCode errorCode) throws java.io.IOException {

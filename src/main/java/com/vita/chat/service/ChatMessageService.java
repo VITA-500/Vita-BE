@@ -1,6 +1,8 @@
 package com.vita.chat.service;
 
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -14,6 +16,7 @@ import com.vita.chat.dto.ChatMessageSendRequest;
 import com.vita.chat.dto.ChatSessionListResponse;
 import com.vita.chat.dto.ChatSessionSummaryResponse;
 import com.vita.chat.dto.MessageResponse;
+import com.vita.chat.dto.PlanIntent;
 import com.vita.chat.dto.SessionMessagesResponse;
 import com.vita.chat.entity.ChatMessage;
 import com.vita.chat.entity.ChatSession;
@@ -23,7 +26,9 @@ import com.vita.common.exception.BusinessException;
 import com.vita.common.exception.ErrorCode;
 import com.vita.search.dto.FaqReference;
 import com.vita.search.dto.FaqRetrievalContext;
+import com.vita.search.dto.PlanReference;
 import com.vita.search.service.FaqRetrievalService;
+import com.vita.search.service.PlanLookupService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,9 +48,11 @@ public class ChatMessageService {
 	private final ChatMessagePersistence persistence;
 	private final ChatMessageRepository chatMessageRepository;
 	private final ChatSessionRepository chatSessionRepository;
+	private final PlanLookupService planLookupService;
+	private final PlanIntentClassifier planIntentClassifier;
 	
 	@Transactional
-	public ChatMessageResponse sendMessage(Long sessionId, ChatMessageSendRequest request) {
+	public ChatMessageResponse sendMessage(Long sessionId, Long userId, UUID guestId, ChatMessageSendRequest request) {
 		
 		ChatMessage assistantMessage = persistence.saveUserAndPendingAssistant(sessionId, request);
 		
@@ -80,20 +87,70 @@ public class ChatMessageService {
 	private String buildContext(String query) {
 		FaqRetrievalContext retrievalContext = faqRetrievalService.search(query, TOP_K);
 		
-		if (!retrievalContext.hasRelevantFaq()) {
-			log.info("관련 FAQ 없음 (topSimilarity={}). query={}", retrievalContext.topSimilarity(), query);
+		List<FaqReference> faqs = retrievalContext.hasRelevantFaq() ? retrievalContext.references() : List.of();
+		List<PlanReference> plans = retrievalContext.planReferences();
+
+		// 요금제 검색이 히트했을 때만 극값 여부 판단
+		List<PlanReference> extremePlans = List.of();
+		log.info("plans={}, faqs={}, topSimilarity={}", plans.size(), faqs.size(), retrievalContext.topSimilarity());
+
+		if (!plans.isEmpty()) {
+			PlanIntent intent = planIntentClassifier.classify(query);
+			log.info("intent={}", intent);
+			if (intent.extreme()) {
+				extremePlans = planLookupService.findExtreme(intent.sortKey(), intent.limit());
+			}
+		}
+		
+		
+		if (faqs.isEmpty() && plans.isEmpty() && extremePlans.isEmpty()) {
+			log.info("관련 FAQ/요금제 없음 (topSimilarity={}). query={}", retrievalContext.topSimilarity(), query);
 			return "";
 		}
- 
-		return retrievalContext.references().stream()
-				.map(faq -> """
-						<document>
-						<category>%s / %s</category>
-						<question>%s</question>
-						<answer>%s</answer>
-						</document>
-						""".formatted(faq.category(), faq.subcategory(), faq.question(), faq.answer()))
-				.collect(Collectors.joining("\n"));
+
+		Set<Long> extremeIds = extremePlans.stream()
+				.map(PlanReference::planId)
+				.collect(Collectors.toSet());
+
+		StringBuilder sb = new StringBuilder();
+
+		if (!extremePlans.isEmpty()) {
+			sb.append("<comparison_result>\n")
+			  .append(extremePlans.stream().map(this::toPlanXml).collect(Collectors.joining("\n")))
+			  .append("\n</comparison_result>\n");
+		}
+
+		plans.stream()
+				.filter(p -> !extremeIds.contains(p.planId()))   // 중복 제거
+				.map(this::toPlanXml)
+				.forEach(xml -> sb.append(xml).append("\n"));
+
+		faqs.stream()
+				.map(this::toFaqXml)
+				.forEach(xml -> sb.append(xml).append("\n"));
+
+		return sb.toString();
+	}
+	
+	private String toFaqXml(FaqReference faq) {
+		return """
+				<document>
+				<category>%s / %s</category>
+				<question>%s</question>
+				<answer>%s</answer>
+				</document>
+				""".formatted(faq.category(), faq.subcategory(), faq.question(), faq.answer());
+	}
+
+	private String toPlanXml(PlanReference p) {
+		return """
+				<plan>
+				<name>%s</name>
+				<monthly_fee>월 %,d원</monthly_fee>
+				<summary>%s</summary>
+				<description>%s</description>
+				</plan>
+				""".formatted(p.name(), p.monthlyFee(), p.summary(), p.description());
 	}
 	
 	private String buildConversationHistory (Long sessionId) {
@@ -109,12 +166,19 @@ public class ChatMessageService {
 	}
 	
 	@Transactional(readOnly = true)
-	public SessionMessagesResponse getMessages(Long sessionId, Long userId) {
+	public SessionMessagesResponse getMessages(Long sessionId, Long userId, UUID guestId) {
 		
 		ChatSession session = chatSessionRepository.findById(sessionId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "존재하지 않는 세션입니다."));
 		
-		if(!session.getUserId().equals(userId)) {
+		boolean isOwner;
+		if (session.getUserId() != null) {
+		    isOwner = session.getUserId().equals(userId);
+		} else {
+		    isOwner = session.getGuestId().equals(guestId);
+		}
+		
+		if(!isOwner){
 			throw new BusinessException(ErrorCode.FORBIDDEN, "타인의 세션에는 접근할 수 없습니다.");
 		}
 		List<MessageResponse> messages = chatMessageRepository

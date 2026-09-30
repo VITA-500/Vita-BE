@@ -1,9 +1,13 @@
 package com.vita.search.repository;
 
 import com.vita.search.dto.PlanReference;
+import com.vita.search.service.PlanQueryConditions;
 import com.vita.search.service.PlanSortKey;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import javax.sql.DataSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -63,5 +67,48 @@ public class PlanLookupRepository {
 						1.0,
 						rs.getObject("updated_at", LocalDateTime.class)),
 				limit);
+	}
+
+	/**
+	 * 질문에서 추출한 조건({@link PlanQueryConditions})을 모두 만족하는 ACTIVE 요금제의 plan_code 집합을 조회한다.
+	 *
+	 * <p>WHERE 절은 조건이 있는 항목마다 고정된 SQL 조각만 이어 붙이고, 값은 전부 JDBC 파라미터로 바인딩하므로
+	 * 사용자 입력이 SQL 문자열에 들어가지 않는다. 데이터 하한만 있는 경우("80기가 이상")는 무제한 요금제도
+	 * 조건을 만족하는 것으로 본다(base_data_mb가 NULL이라 숫자 비교만으로는 빠지기 때문).
+	 */
+	public Set<String> findPlanCodesByConditions(PlanQueryConditions conditions) {
+		StringBuilder sql = new StringBuilder("SELECT plan_code FROM plans WHERE status = 'ACTIVE'");
+		List<Object> params = new ArrayList<>();
+
+		if (conditions.feeMin() != null) {
+			sql.append(" AND monthly_fee >= ?");
+			params.add(conditions.feeMin());
+		}
+		if (conditions.feeMax() != null) {
+			sql.append(" AND monthly_fee <= ?");
+			params.add(conditions.feeMax());
+		}
+		if (conditions.dataMbMin() != null) {
+			if (conditions.dataMbMax() == null) {
+				sql.append(" AND (base_data_mb >= ? OR data_policy = 'UNLIMITED')");
+			} else {
+				sql.append(" AND base_data_mb >= ?");
+			}
+			params.add(conditions.dataMbMin());
+		}
+		if (conditions.dataMbMax() != null) {
+			sql.append(" AND base_data_mb <= ?");
+			params.add(conditions.dataMbMax());
+		}
+		if (conditions.targetGroup() != null) {
+			sql.append(" AND target_group = ?");
+			params.add(conditions.targetGroup());
+		}
+		if (conditions.dataPolicy() != null) {
+			sql.append(" AND data_policy = ?");
+			params.add(conditions.dataPolicy());
+		}
+
+		return new HashSet<>(jdbcTemplate.queryForList(sql.toString(), String.class, params.toArray()));
 	}
 }

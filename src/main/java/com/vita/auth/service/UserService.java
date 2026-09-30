@@ -4,6 +4,7 @@ import com.vita.auth.dto.MyPageResponse;
 import com.vita.auth.dto.MyPageUpdateRequest;
 import com.vita.auth.dto.MyPageUpdateResponse;
 import com.vita.auth.AuthProvider;
+import com.vita.auth.PasswordPolicy;
 import com.vita.auth.entity.User;
 import com.vita.auth.entity.UserOAuth;
 import com.vita.auth.repository.UserOAuthRepository;
@@ -57,6 +58,7 @@ public class UserService {
 			if (!user.hasPassword()) {
 				throw new BusinessException(ErrorCode.PASSWORD_NOT_SUPPORTED);
 			}
+			PasswordPolicy.validate(request.password());
 			user.changePassword(passwordEncoder.encode(request.password()));
 		}
 

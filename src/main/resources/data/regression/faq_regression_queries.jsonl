@@ -1,0 +1,224 @@
+{"category":"전화","subcategory":"인터넷전화","style":"FORMAL","query":"인터넷전화 서비스를 우리 지역에서도 이용할 수 있는지 알고 싶습니다."}
+{"category":"전화","subcategory":"인터넷전화","style":"CASUAL","query":"인터넷전화 우리 동네에서도 되나요?"}
+{"category":"전화","subcategory":"인터넷전화","style":"SHORT","query":"인터넷전화 지역 확인"}
+{"category":"전화","subcategory":"인터넷전화","style":"NEGATION","query":"인터넷전화가 안 되는 지역도 있어요?"}
+{"category":"전화","subcategory":"인터넷전화","style":"TYPO","query":"인터넷전화 됨?"}
+{"category":"전화","subcategory":"수신자 부담전화","style":"FORMAL","query":"수신자 부담전화 서비스는 어떤 상황에서 이용 가능한가요?"}
+{"category":"전화","subcategory":"수신자 부담전화","style":"CASUAL","query":"수신자부담전화 언제 쓸 수 있어?"}
+{"category":"전화","subcategory":"수신자 부담전화","style":"SHORT","query":"수신자부담전화 이용조건"}
+{"category":"전화","subcategory":"수신자 부담전화","style":"NEGATION","query":"수신자 부담전화를 못 쓰는 경우도 있나요?"}
+{"category":"전화","subcategory":"수신자 부담전화","style":"TYPO","query":"수신자부담전화 어케씀"}
+{"category":"모바일","subcategory":"요금제","style":"FORMAL","query":"모바일 요금제에 가입하기 전에 미리 확인해야 할 사항이 있을까요?"}
+{"category":"모바일","subcategory":"요금제","style":"CASUAL","query":"모바일 요금제 신청 전에 뭐 확인해야 돼?"}
+{"category":"모바일","subcategory":"요금제","style":"SHORT","query":"요금제 신청 조건"}
+{"category":"모바일","subcategory":"요금제","style":"NEGATION","query":"확인 안 하고 신청하면 문제 생기나요?"}
+{"category":"모바일","subcategory":"요금제","style":"TYPO","query":"요금제 신청 전에 확인할거 ㅜ"}
+{"category":"모바일","subcategory":"모바일서비스","style":"FORMAL","query":"모바일 부가서비스를 이용할 수 있는 조건이 궁금합니다."}
+{"category":"모바일","subcategory":"모바일서비스","style":"CASUAL","query":"모바일 부가서비스 아무때나 쓸 수 있어?"}
+{"category":"모바일","subcategory":"모바일서비스","style":"SHORT","query":"부가서비스 이용조건"}
+{"category":"모바일","subcategory":"모바일서비스","style":"NEGATION","query":"가입 상태에 따라 부가서비스를 못 쓰는 경우도 있나요?"}
+{"category":"모바일","subcategory":"모바일서비스","style":"TYPO","query":"부가서비스 이용가능한가요오"}
+{"category":"모바일","subcategory":"단말기(휴대폰)","style":"FORMAL","query":"제 휴대폰이 통신망에 정상적으로 연결되어 있는지 확인하고 싶습니다."}
+{"category":"모바일","subcategory":"단말기(휴대폰)","style":"CASUAL","query":"폰이 통신망에 잘 연결된 건지 어떻게 확인해?"}
+{"category":"모바일","subcategory":"단말기(휴대폰)","style":"SHORT","query":"휴대폰 통신망 연결 확인"}
+{"category":"모바일","subcategory":"단말기(휴대폰)","style":"NEGATION","query":"연결이 안 되는 것 같은데 어떻게 확인해야 하나요?"}
+{"category":"모바일","subcategory":"단말기(휴대폰)","style":"TYPO","query":"폰 통신망 연결 확인하는법"}
+{"category":"소상공인","subcategory":"전화","style":"FORMAL","query":"소상공인 전화 서비스가 저희 매장 지역에서도 이용 가능한지 알고 싶습니다."}
+{"category":"소상공인","subcategory":"전화","style":"CASUAL","query":"소상공인 전화 우리 가게 지역에서 되나요?"}
+{"category":"소상공인","subcategory":"전화","style":"SHORT","query":"소상공인 전화 지역 확인"}
+{"category":"소상공인","subcategory":"전화","style":"NEGATION","query":"소상공인 전화 설치가 안 되는 지역도 있나요?"}
+{"category":"소상공인","subcategory":"전화","style":"TYPO","query":"소상공인전화 됨?"}
+{"category":"소상공인","subcategory":"인터넷","style":"FORMAL","query":"소상공인 인터넷 서비스를 저희 상가에서 이용할 수 있는지 확인하고 싶습니다."}
+{"category":"소상공인","subcategory":"인터넷","style":"CASUAL","query":"소상공인 인터넷 우리 가게에서도 돼?"}
+{"category":"소상공인","subcategory":"인터넷","style":"SHORT","query":"소상공인 인터넷 지역 확인"}
+{"category":"소상공인","subcategory":"인터넷","style":"NEGATION","query":"소상공인 인터넷이 설치 안 되는 곳도 있나요?"}
+{"category":"소상공인","subcategory":"인터넷","style":"TYPO","query":"소상공인인터넷 되나오"}
+{"category":"소상공인","subcategory":"CCTV","style":"FORMAL","query":"소상공인용 CCTV 서비스를 저희 매장 지역에서 설치할 수 있는지 확인하고 싶습니다."}
+{"category":"소상공인","subcategory":"CCTV","style":"CASUAL","query":"소상공인 CCTV 우리 가게 지역에서 설치 가능해?"}
+{"category":"소상공인","subcategory":"CCTV","style":"SHORT","query":"소상공인 CCTV 설치 지역"}
+{"category":"소상공인","subcategory":"CCTV","style":"NEGATION","query":"CCTV 설치가 안 되는 지역도 있어요?"}
+{"category":"소상공인","subcategory":"CCTV","style":"TYPO","query":"소상공인시씨티비 설치되나"}
+{"category":"소상공인","subcategory":"IPTV","style":"FORMAL","query":"소상공인 IPTV 서비스가 저희 매장 지역에서도 이용 가능한지 궁금합니다."}
+{"category":"소상공인","subcategory":"IPTV","style":"CASUAL","query":"소상공인 IPTV 우리 가게에서 되나?"}
+{"category":"소상공인","subcategory":"IPTV","style":"SHORT","query":"소상공인 IPTV 지역 확인"}
+{"category":"소상공인","subcategory":"IPTV","style":"NEGATION","query":"IPTV 설치가 안 되는 상가 지역도 있나요?"}
+{"category":"소상공인","subcategory":"IPTV","style":"TYPO","query":"소상공인아이피티비 되용"}
+{"category":"해외로밍","subcategory":"서비스안내","style":"FORMAL","query":"해외로밍 서비스는 출국 전에 미리 신청해야 하나요?"}
+{"category":"해외로밍","subcategory":"서비스안내","style":"CASUAL","query":"해외로밍 출국 전에 미리 신청해야 돼?"}
+{"category":"해외로밍","subcategory":"서비스안내","style":"SHORT","query":"해외로밍 사전신청"}
+{"category":"해외로밍","subcategory":"서비스안내","style":"NEGATION","query":"신청 안 하고 그냥 나가면 로밍 안 되나요?"}
+{"category":"해외로밍","subcategory":"서비스안내","style":"TYPO","query":"해외로밍 출국전에신청해야함?"}
+{"category":"해외로밍","subcategory":"WCDMA/GSM","style":"FORMAL","query":"방문하는 국가에서 WCDMA/GSM 로밍망을 사용할 수 있는지 확인하는 방법이 궁금합니다."}
+{"category":"해외로밍","subcategory":"WCDMA/GSM","style":"CASUAL","query":"3G만 되는 나라인지 어떻게 확인해?"}
+{"category":"해외로밍","subcategory":"WCDMA/GSM","style":"SHORT","query":"WCDMA GSM 로밍 확인방법"}
+{"category":"해외로밍","subcategory":"WCDMA/GSM","style":"NEGATION","query":"구형 통신망을 지원 안 하는 나라도 있나요?"}
+{"category":"해외로밍","subcategory":"WCDMA/GSM","style":"TYPO","query":"WCDMA GSM 로밍 되는지 확인하는법"}
+{"category":"서비스안내","subcategory":"정보변경","style":"FORMAL","query":"등록된 가입자 연락처를 변경하고 싶습니다."}
+{"category":"서비스안내","subcategory":"정보변경","style":"CASUAL","query":"내 연락처 바꾸고 싶은데 어떻게 해?"}
+{"category":"서비스안내","subcategory":"정보변경","style":"SHORT","query":"연락처 변경 방법"}
+{"category":"서비스안내","subcategory":"정보변경","style":"NEGATION","query":"본인 확인 안 하면 연락처 변경 안 되나요?"}
+{"category":"서비스안내","subcategory":"정보변경","style":"TYPO","query":"연락처 변경하는법좀"}
+{"category":"서비스안내","subcategory":"통화품질","style":"FORMAL","query":"통화 중 연결이 자주 끊기는 문제가 있어서 확인하고 싶습니다."}
+{"category":"서비스안내","subcategory":"통화품질","style":"CASUAL","query":"통화하다가 자꾸 끊기는데 왜그래?"}
+{"category":"서비스안내","subcategory":"통화품질","style":"SHORT","query":"통화 자꾸 끊김"}
+{"category":"서비스안내","subcategory":"통화품질","style":"NEGATION","query":"특정 장소에서만 끊기면 어떻게 해야 하나요?"}
+{"category":"서비스안내","subcategory":"통화품질","style":"TYPO","query":"통화 자꾸끊킴 ㅠㅠ"}
+{"category":"결합 할인","subcategory":"유무선 결합","style":"FORMAL","query":"유무선 결합 할인이 적용되는 가입 조건이 궁금합니다."}
+{"category":"결합 할인","subcategory":"유무선 결합","style":"CASUAL","query":"유무선 결합할인 어떤 조건이면 받을 수 있어?"}
+{"category":"결합 할인","subcategory":"유무선 결합","style":"SHORT","query":"유무선 결합할인 조건"}
+{"category":"결합 할인","subcategory":"유무선 결합","style":"NEGATION","query":"가입 상태가 안 맞으면 결합할인 못 받나요?"}
+{"category":"결합 할인","subcategory":"유무선 결합","style":"TYPO","query":"유무선결합할인 조건이멀까"}
+{"category":"결합 할인","subcategory":"무선 결합","style":"FORMAL","query":"무선 결합 할인을 받을 수 있는 가입 조건을 알고 싶습니다."}
+{"category":"결합 할인","subcategory":"무선 결합","style":"CASUAL","query":"무선 결합할인 어떻게 하면 받아?"}
+{"category":"결합 할인","subcategory":"무선 결합","style":"SHORT","query":"무선 결합할인 조건"}
+{"category":"결합 할인","subcategory":"무선 결합","style":"NEGATION","query":"조건이 안 맞으면 무선 결합할인 못 받는 거예요?"}
+{"category":"결합 할인","subcategory":"무선 결합","style":"TYPO","query":"무선결합할인 어케받음"}
+{"category":"결합 할인","subcategory":"유선 결합","style":"FORMAL","query":"유선 결합 할인이 적용되는 가입 조건을 확인하고 싶습니다."}
+{"category":"결합 할인","subcategory":"유선 결합","style":"CASUAL","query":"유선 결합할인 조건이 뭐야?"}
+{"category":"결합 할인","subcategory":"유선 결합","style":"SHORT","query":"유선 결합할인 조건"}
+{"category":"결합 할인","subcategory":"유선 결합","style":"NEGATION","query":"유선 결합할인을 못 받는 경우도 있나요?"}
+{"category":"결합 할인","subcategory":"유선 결합","style":"TYPO","query":"유선결합할인 조건머임"}
+{"category":"결합 할인","subcategory":"신규 가입 불가","style":"FORMAL","query":"지금은 신규 가입이 안 되는 결합 할인인데, 기존 가입자는 계속 유지할 수 있나요?"}
+{"category":"결합 할인","subcategory":"신규 가입 불가","style":"CASUAL","query":"지금 신규가입 막힌 결합할인 계속 써도 돼?"}
+{"category":"결합 할인","subcategory":"신규 가입 불가","style":"SHORT","query":"신규가입 중단 결합할인 유지"}
+{"category":"결합 할인","subcategory":"신규 가입 불가","style":"NEGATION","query":"유지가 안 되는 경우도 있나요?"}
+{"category":"결합 할인","subcategory":"신규 가입 불가","style":"TYPO","query":"신규가입불가결합할인 계속쓸수있나요"}
+{"category":"가입 및 변경","subcategory":"모바일","style":"FORMAL","query":"모바일 회선을 신규로 가입하기 전에 확인해야 할 사항이 궁금합니다."}
+{"category":"가입 및 변경","subcategory":"모바일","style":"CASUAL","query":"모바일 새로 가입하기 전에 뭐 봐야돼?"}
+{"category":"가입 및 변경","subcategory":"모바일","style":"SHORT","query":"모바일 신규가입 확인사항"}
+{"category":"가입 및 변경","subcategory":"모바일","style":"NEGATION","query":"확인 안 하고 가입하면 나중에 문제 되나요?"}
+{"category":"가입 및 변경","subcategory":"모바일","style":"TYPO","query":"모바일 신규가입 전에 확인할거 알려줘"}
+{"category":"가입 및 변경","subcategory":"인터넷","style":"FORMAL","query":"인터넷 회선의 명의를 다른 사람 앞으로 변경하고 싶습니다."}
+{"category":"가입 및 변경","subcategory":"인터넷","style":"CASUAL","query":"인터넷 명의 다른 사람으로 바꾸고 싶은데 어떻게 해?"}
+{"category":"가입 및 변경","subcategory":"인터넷","style":"SHORT","query":"인터넷 명의변경 방법"}
+{"category":"가입 및 변경","subcategory":"인터넷","style":"NEGATION","query":"동의 없이 명의변경 안 되나요?"}
+{"category":"가입 및 변경","subcategory":"인터넷","style":"TYPO","query":"인터넷명의변경하는법좀요"}
+{"category":"가입 및 변경","subcategory":"인터넷전화","style":"FORMAL","query":"인터넷전화 명의를 다른 사람으로 변경하고 싶습니다."}
+{"category":"가입 및 변경","subcategory":"인터넷전화","style":"CASUAL","query":"인터넷전화 명의 바꾸려면 어떻게 해?"}
+{"category":"가입 및 변경","subcategory":"인터넷전화","style":"SHORT","query":"인터넷전화 명의변경"}
+{"category":"가입 및 변경","subcategory":"인터넷전화","style":"NEGATION","query":"가족이어도 동의가 필요한가요?"}
+{"category":"가입 및 변경","subcategory":"인터넷전화","style":"TYPO","query":"인터넷전화명의변경방법좀"}
+{"category":"가입 및 변경","subcategory":"설치장소 변경","style":"FORMAL","query":"인터넷 설치 장소를 새로운 주소로 변경하고 싶습니다."}
+{"category":"가입 및 변경","subcategory":"설치장소 변경","style":"CASUAL","query":"이사가는데 인터넷 설치장소 옮기려면 어떻게 해?"}
+{"category":"가입 및 변경","subcategory":"설치장소 변경","style":"SHORT","query":"인터넷 설치장소 변경"}
+{"category":"가입 및 변경","subcategory":"설치장소 변경","style":"NEGATION","query":"새 주소에서 설치가 안 되면 어떻게 되나요?"}
+{"category":"가입 및 변경","subcategory":"설치장소 변경","style":"TYPO","query":"인터넷 설치장소변경하는법"}
+{"category":"가입 및 변경","subcategory":"군입대 일시정지","style":"FORMAL","query":"군입대를 앞두고 있는데 회선을 일시정지할 수 있는지 궁금합니다."}
+{"category":"가입 및 변경","subcategory":"군입대 일시정지","style":"CASUAL","query":"군대 가는데 번호 일시정지 할 수 있어?"}
+{"category":"가입 및 변경","subcategory":"군입대 일시정지","style":"SHORT","query":"군입대 일시정지 가능여부"}
+{"category":"가입 및 변경","subcategory":"군입대 일시정지","style":"NEGATION","query":"대상이 안 되면 일시정지 못 하나요?"}
+{"category":"가입 및 변경","subcategory":"군입대 일시정지","style":"TYPO","query":"군입대 일시정지 되나요 ㅠ"}
+{"category":"가입 및 변경","subcategory":"TV","style":"FORMAL","query":"TV 서비스의 명의를 다른 사람으로 변경하고 싶습니다."}
+{"category":"가입 및 변경","subcategory":"TV","style":"CASUAL","query":"TV 명의 다른사람으로 바꾸려면?"}
+{"category":"가입 및 변경","subcategory":"TV","style":"SHORT","query":"TV 명의변경 방법"}
+{"category":"가입 및 변경","subcategory":"TV","style":"NEGATION","query":"동의서 없이 명의변경 가능한가요?"}
+{"category":"가입 및 변경","subcategory":"TV","style":"TYPO","query":"티비명의변경 어떻게하나요"}
+{"category":"요금 및 납부","subcategory":"요금납부","style":"FORMAL","query":"통신요금 납부 내역을 확인하고 싶습니다."}
+{"category":"요금 및 납부","subcategory":"요금납부","style":"CASUAL","query":"요금 낸 내역 어디서 봐?"}
+{"category":"요금 및 납부","subcategory":"요금납부","style":"SHORT","query":"요금 납부내역 확인"}
+{"category":"요금 및 납부","subcategory":"요금납부","style":"NEGATION","query":"납부했는데 반영이 안 되면 어떻게 하나요?"}
+{"category":"요금 및 납부","subcategory":"요금납부","style":"TYPO","query":"요금납부내역보는법"}
+{"category":"요금 및 납부","subcategory":"요금조회","style":"FORMAL","query":"이번 달 청구된 통신요금을 확인하고 싶습니다."}
+{"category":"요금 및 납부","subcategory":"요금조회","style":"CASUAL","query":"이번달 요금 얼마나왔는지 어떻게 봐?"}
+{"category":"요금 및 납부","subcategory":"요금조회","style":"SHORT","query":"이번달 요금조회"}
+{"category":"요금 및 납부","subcategory":"요금조회","style":"NEGATION","query":"예상요금이랑 확정요금이 다르면 어떡하죠?"}
+{"category":"요금 및 납부","subcategory":"요금조회","style":"TYPO","query":"이번달요금 얼마나왔나요"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 상품안내","style":"FORMAL","query":"인터넷 상품을 저희 지역에서도 이용할 수 있는지 확인하고 싶습니다."}
+{"category":"인터넷/IPTV","subcategory":"인터넷 상품안내","style":"CASUAL","query":"인터넷 우리동네에서도 되나?"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 상품안내","style":"SHORT","query":"인터넷 지역 확인"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 상품안내","style":"NEGATION","query":"설치 안 되는 지역이면 어떻게 하나요?"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 상품안내","style":"TYPO","query":"인터넷 이지역서 되나요"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 요금안내","style":"FORMAL","query":"인터넷 요금 청구 항목을 자세히 확인하고 싶습니다."}
+{"category":"인터넷/IPTV","subcategory":"인터넷 요금안내","style":"CASUAL","query":"인터넷 요금 항목 뭐뭐있는지 어떻게 봐?"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 요금안내","style":"SHORT","query":"인터넷 요금 항목 확인"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 요금안내","style":"NEGATION","query":"계약과 다른 항목이 나오면 어떻게 하나요?"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 요금안내","style":"TYPO","query":"인터넷요금 항목보는법"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 장비안내","style":"FORMAL","query":"인터넷 장비가 정상적으로 연결되어 있는지 확인하고 싶습니다."}
+{"category":"인터넷/IPTV","subcategory":"인터넷 장비안내","style":"CASUAL","query":"인터넷 장비 잘 연결됐는지 어떻게 확인해?"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 장비안내","style":"SHORT","query":"인터넷 장비 연결 확인"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 장비안내","style":"NEGATION","query":"연결이 안 되어 있으면 어떻게 해야 하나요?"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 장비안내","style":"TYPO","query":"인터넷장비 연결확인하는법"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 부가서비스","style":"FORMAL","query":"현재 주소에서 인터넷 부가서비스를 신청할 수 있는지 확인하고 싶습니다."}
+{"category":"인터넷/IPTV","subcategory":"인터넷 부가서비스","style":"CASUAL","query":"지금 주소에서 인터넷 부가서비스 신청되나?"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 부가서비스","style":"SHORT","query":"인터넷 부가서비스 신청가능여부"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 부가서비스","style":"NEGATION","query":"장비 지원이 안 되면 신청 못 하나요?"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 부가서비스","style":"TYPO","query":"인터넷부가서비스 신청되나요"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 속도/품질","style":"FORMAL","query":"인터넷 속도가 평소보다 많이 느려져서 확인하고 싶습니다."}
+{"category":"인터넷/IPTV","subcategory":"인터넷 속도/품질","style":"CASUAL","query":"인터넷 왜 이렇게 느려졌지?"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 속도/품질","style":"SHORT","query":"인터넷 속도 느림"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 속도/품질","style":"NEGATION","query":"반복되면 어떻게 신청해야 하나요?"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 속도/품질","style":"TYPO","query":"인터넷 느려여 ㅠㅠ"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 장애/고장","style":"FORMAL","query":"인터넷 서비스가 갑자기 작동하지 않아 확인이 필요합니다."}
+{"category":"인터넷/IPTV","subcategory":"인터넷 장애/고장","style":"CASUAL","query":"인터넷 갑자기 안되는데 왜그래?"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 장애/고장","style":"SHORT","query":"인터넷 장애"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 장애/고장","style":"NEGATION","query":"재시작해도 안 되면 어떻게 하나요?"}
+{"category":"인터넷/IPTV","subcategory":"인터넷 장애/고장","style":"TYPO","query":"인터넷 갑자기 안됨 ㅜㅜ"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 상품안내","style":"FORMAL","query":"IPTV 상품을 저희 지역에서 이용할 수 있는지 확인하고 싶습니다."}
+{"category":"인터넷/IPTV","subcategory":"IPTV 상품안내","style":"CASUAL","query":"IPTV 우리동네서 되나?"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 상품안내","style":"SHORT","query":"IPTV 지역 확인"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 상품안내","style":"NEGATION","query":"설치 안 되는 지역도 있나요?"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 상품안내","style":"TYPO","query":"아이피티비 이지역서되나요"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 요금안내","style":"FORMAL","query":"IPTV 요금의 청구 항목을 상세히 확인하고 싶습니다."}
+{"category":"인터넷/IPTV","subcategory":"IPTV 요금안내","style":"CASUAL","query":"IPTV 요금 항목 뭐있는지 어떻게 봐?"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 요금안내","style":"SHORT","query":"IPTV 요금 항목 확인"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 요금안내","style":"NEGATION","query":"가입 내역과 다른 항목이 있으면요?"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 요금안내","style":"TYPO","query":"아이피티비요금 항목보는법"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 장비안내","style":"FORMAL","query":"IPTV 장비가 정상적으로 연결되어 있는지 확인하고 싶습니다."}
+{"category":"인터넷/IPTV","subcategory":"IPTV 장비안내","style":"CASUAL","query":"IPTV 장비 잘 연결된건지 어떻게 봐?"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 장비안내","style":"SHORT","query":"IPTV 장비 연결 확인"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 장비안내","style":"NEGATION","query":"연결 상태가 이상하면 어떻게 하나요?"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 장비안내","style":"TYPO","query":"아이피티비장비 연결확인법"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 부가서비스","style":"FORMAL","query":"현재 주소에서 IPTV 부가서비스 신청이 가능한지 확인하고 싶습니다."}
+{"category":"인터넷/IPTV","subcategory":"IPTV 부가서비스","style":"CASUAL","query":"지금 주소에서 IPTV 부가서비스 신청되나?"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 부가서비스","style":"SHORT","query":"IPTV 부가서비스 신청가능여부"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 부가서비스","style":"NEGATION","query":"장비 지원 안 되면 못 쓰는 건가요?"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 부가서비스","style":"TYPO","query":"아이피티비부가서비스 되나요"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 주요서비스","style":"FORMAL","query":"IPTV에서 시청 가능한 채널 목록은 어디서 확인할 수 있나요?"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 주요서비스","style":"CASUAL","query":"IPTV 채널목록 어디서 봐?"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 주요서비스","style":"SHORT","query":"IPTV 채널 목록"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 주요서비스","style":"NEGATION","query":"가입 상품에 없는 채널은 어떻게 되나요?"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 주요서비스","style":"TYPO","query":"아이피티비 채널목록보는곳"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 장애/고장","style":"FORMAL","query":"IPTV 서비스가 갑자기 작동하지 않아 확인이 필요합니다."}
+{"category":"인터넷/IPTV","subcategory":"IPTV 장애/고장","style":"CASUAL","query":"IPTV 갑자기 안나오는데 왜그래?"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 장애/고장","style":"SHORT","query":"IPTV 장애"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 장애/고장","style":"NEGATION","query":"재시작해도 안 나오면 어떻게 하나요?"}
+{"category":"인터넷/IPTV","subcategory":"IPTV 장애/고장","style":"TYPO","query":"아이피티비 갑자기 안나옴"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"매장방문","style":"FORMAL","query":"유심 교체를 위해 매장을 방문하려면 사전 예약이 필요한가요?"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"매장방문","style":"CASUAL","query":"유심교체 매장가는데 예약해야돼?"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"매장방문","style":"SHORT","query":"유심교체 매장방문 예약"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"매장방문","style":"NEGATION","query":"예약 안 하고 가면 처리가 안 되나요?"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"매장방문","style":"TYPO","query":"유심교체 매장 예약해야하나요"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"업데이트와 교체 대상 · 일정","style":"FORMAL","query":"제가 유심 업데이트 대상에 해당하는지 확인하고 싶습니다."}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"업데이트와 교체 대상 · 일정","style":"CASUAL","query":"나 유심 업데이트 대상인지 어떻게 알아?"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"업데이트와 교체 대상 · 일정","style":"SHORT","query":"유심 업데이트 대상 확인"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"업데이트와 교체 대상 · 일정","style":"NEGATION","query":"대상이 아니면 업데이트 안 해도 되나요?"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"업데이트와 교체 대상 · 일정","style":"TYPO","query":"유심업데이트 대상인지 확인하는법"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"온라인 간편 업데이트","style":"FORMAL","query":"유심을 온라인으로 간편하게 업데이트할 수 있나요?"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"온라인 간편 업데이트","style":"CASUAL","query":"유심 업데이트 온라인으로 되나?"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"온라인 간편 업데이트","style":"SHORT","query":"유심 온라인 업데이트"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"온라인 간편 업데이트","style":"NEGATION","query":"온라인으로 안 되는 경우도 있나요?"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"온라인 간편 업데이트","style":"TYPO","query":"유심 온라인업데이트 되나요"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"시행 배경","style":"FORMAL","query":"유심 업데이트를 시행하는 이유가 궁금합니다."}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"시행 배경","style":"CASUAL","query":"유심 업데이트 왜 하는거야?"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"시행 배경","style":"SHORT","query":"유심 업데이트 이유"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"시행 배경","style":"NEGATION","query":"안 하면 안 되는 이유가 있나요?"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"시행 배경","style":"TYPO","query":"유심업데이트 왜하는거임"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"유심 무료 교체 쿠폰","style":"FORMAL","query":"유심 무료 교체 쿠폰을 받을 수 있는 대상에 해당하는지 확인하고 싶습니다."}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"유심 무료 교체 쿠폰","style":"CASUAL","query":"유심 무료교체 쿠폰 받을 수 있는지 어떻게 알아?"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"유심 무료 교체 쿠폰","style":"SHORT","query":"유심 무료교체 쿠폰 대상"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"유심 무료 교체 쿠폰","style":"NEGATION","query":"대상이 아니면 쿠폰 못 받나요?"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"유심 무료 교체 쿠폰","style":"TYPO","query":"유심무료교체쿠폰 대상인지확인"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"그 외 안내사항","style":"FORMAL","query":"유심 업데이트와 유심 교체 중 저에게 필요한 절차가 무엇인지 모르겠습니다."}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"그 외 안내사항","style":"CASUAL","query":"유심 업데이트랑 교체 중에 뭐가 맞는지 모르겠어"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"그 외 안내사항","style":"SHORT","query":"유심 업데이트 교체 구분"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"그 외 안내사항","style":"NEGATION","query":"잘못 진행하면 문제 생기나요?"}
+{"category":"유심(USIM) 업데이트 · 교체","subcategory":"그 외 안내사항","style":"TYPO","query":"유심업데이트 교체 뭐가맞는지모르겟음"}
+{"category":"가입 및 변경","subcategory":"모바일","style":"NEWTOPIC","query":"번호이동 하고 싶어요"}
+{"category":"모바일","subcategory":"단말기(휴대폰)","style":"NEWTOPIC","query":"휴대폰을 분실했는데 어떻게 해야 하나요?"}
+{"category":"모바일","subcategory":"모바일서비스","style":"NEWTOPIC","query":"앱 로그인이 안돼요"}
+{"category":"모바일","subcategory":"모바일서비스","style":"NEWTOPIC","query":"스팸문자 차단은 어떻게 해?"}
+{"category":"모바일","subcategory":"모바일서비스","style":"NEWTOPIC","query":"모바일 부가서비스 해지하고 싶어요"}
+{"category":"가입 및 변경","subcategory":"모바일","style":"NEWTOPIC","query":"미성년자 명의로 모바일 회선 가입할 수 있어요?"}
+{"category":"요금 및 납부","subcategory":"요금납부","style":"NEWTOPIC","query":"요금 자동이체 계좌를 바꾸고 싶어요"}
+{"category":"모바일","subcategory":"모바일서비스","style":"NEWTOPIC","query":"데이터 사용량 알림 문자를 받고 싶어요"}
+{"category":"모바일","subcategory":"요금제","style":"NEWTOPIC","query":"가족끼리 데이터 공유하는 방법 알려줘"}
