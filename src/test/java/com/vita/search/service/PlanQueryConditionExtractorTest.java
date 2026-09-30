@@ -57,6 +57,41 @@ class PlanQueryConditionExtractorTest {
 	}
 
 	@Test
+	void treatsCannotExceedPhrasesAsUpperBoundNotLowerBound() {
+		PlanQueryConditions notExceed = extract("3만원 안 넘는 요금제 있어?");
+		assertThat(notExceed.feeMin()).isNull();
+		assertThat(notExceed.feeMax()).isEqualTo(30_000);
+
+		assertThat(extract("3만원 넘지 않는 요금제 알려줘").feeMax()).isEqualTo(30_000);
+		assertThat(extract("3만원 못 넘는 요금제 있어?").feeMax()).isEqualTo(30_000);
+
+		// 그냥 "넘는"은 기존대로 초과(하한)다.
+		PlanQueryConditions exceed = extract("3만원 넘는 요금제 있어?");
+		assertThat(exceed.feeMin()).isEqualTo(30_001);
+		assertThat(exceed.feeMax()).isNull();
+	}
+
+	@Test
+	void turnsApproximatePhrasesIntoRanges() {
+		PlanQueryConditions fee = extract("3만원 정도 하는 요금제 있어?");
+		assertThat(fee.feeMin()).isEqualTo(27_000);
+		assertThat(fee.feeMax()).isEqualTo(33_000);
+
+		PlanQueryConditions data = extract("데이터 20기가쯤 주는 요금제 있어?");
+		assertThat(data.dataMbMin()).isEqualTo(15_360L);
+		assertThat(data.dataMbMax()).isEqualTo(25_600L);
+	}
+
+	@Test
+	void detectsDevicePlanMentionsEvenWithoutPlanWord() {
+		assertThat(PlanQueryConditionExtractor.mentionsDevicePlan("스마트워치 데이터 얼마나 줘?")).isTrue();
+		assertThat(PlanQueryConditionExtractor.mentionsDevicePlan("태블릿용 요금제 있어?")).isTrue();
+		assertThat(PlanQueryConditionExtractor.mentionsDevicePlan("아이패드에 쓸 수 있어?")).isTrue();
+		assertThat(PlanQueryConditionExtractor.mentionsDevicePlan("가장 저렴한 요금제 뭐야?")).isFalse();
+		assertThat(PlanQueryConditionExtractor.mentionsDevicePlan(null)).isFalse();
+	}
+
+	@Test
 	void extractsDataAmountInMegabytes() {
 		PlanQueryConditions c = extract("데이터 20기가 주는 요금제 있어?");
 

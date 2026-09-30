@@ -39,26 +39,44 @@ public final class PlanQueryConditionExtractor {
 
 	private static final Pattern VOICE_OR_SMS = Pattern.compile("통화|문자|전화|음성|SMS|sms");
 
-	private static final Pattern BOUND_MAX = Pattern.compile("^\\s*(?:이하|이내|아래|까지|안쪽)");
+	/** "이하/이내/까지"에 더해 "안 넘는/못 넘는/넘지 않는"도 상한이다("넘는"만 보면 초과로 잘못 읽는다). */
+	private static final Pattern BOUND_MAX = Pattern.compile(
+			"^\\s*(?:이하|이내|아래|까지|안쪽|(?:안|못)\\s*넘|넘지\\s*(?:않|못))");
+	/** "3만원 정도/쯤/안팎"처럼 대략적인 값. 정확히 그 값인 요금제가 없어도 근처 요금제를 찾도록 범위로 바꾼다. */
+	private static final Pattern BOUND_APPROX = Pattern.compile("^\\s*(?:정도|쯤|안팎|내외|가량|언저리)");
 	private static final Pattern BOUND_MAX_EXCLUSIVE = Pattern.compile("^\\s*미만");
 	private static final Pattern BOUND_MIN = Pattern.compile("^\\s*(?:이상|부터)");
 	private static final Pattern BOUND_MIN_EXCLUSIVE = Pattern.compile("^\\s*(?:초과|넘)");
 	private static final Pattern BOUND_BAND = Pattern.compile("^\\s*대(?!신|해|비|체|여)");
 
 	/** 금액/데이터 수치 바로 뒤에 붙는 비교 표현을 볼 범위(글자 수). */
-	private static final int BOUND_LOOKAHEAD = 6;
+	private static final int BOUND_LOOKAHEAD = 8;
 
 	private static final int MB_PER_GB = 1024;
 	private static final int FEE_BAND_WIDTH = 9_999;
+	/** "정도/쯤"을 범위로 바꿀 때의 허용 오차. 요금은 ±10%(3만원 → 2.7만~3.3만), 데이터는 ±25%(20GB → 15~25GB). */
+	private static final int FEE_APPROX_PERCENT = 10;
+	private static final int DATA_APPROX_PERCENT = 25;
+
+	/** 워치·태블릿 같은 기기 전용 요금제를 가리키는 말. 요금제 단어 없이도("스마트워치 데이터 얼마나 줘?") 쓰인다. */
+	private static final Pattern DEVICE_PLAN_MENTION = Pattern.compile("워치|태블릿|패드|갤럭시 ?탭");
 
 	private PlanQueryConditionExtractor() {
 	}
 
 	/** 수치 뒤 비교 표현의 종류. */
-	private enum Bound { EXACT, MAX, MAX_EXCLUSIVE, MIN, MIN_EXCLUSIVE, BAND }
+	private enum Bound { EXACT, MAX, MAX_EXCLUSIVE, MIN, MIN_EXCLUSIVE, BAND, APPROX }
 
 	/** 하나의 수치 조건을 구간으로 바꾼 값(양 끝 포함, null이면 그쪽은 제한 없음). */
 	private record Range(Long min, Long max) {
+	}
+
+	/**
+	 * 질문이 워치·태블릿 같은 기기 전용 요금제를 언급하는지. 요금제 단어가 없어도("스마트워치 데이터 얼마나 줘?")
+	 * 판단한다. 언급이 없으면 기기 전용 요금제는 기본 검색 결과에서 뺀다.
+	 */
+	public static boolean mentionsDevicePlan(String query) {
+		return query != null && DEVICE_PLAN_MENTION.matcher(query).find();
 	}
 
 	/**
@@ -162,6 +180,9 @@ public final class PlanQueryConditionExtractor {
 		if (BOUND_BAND.matcher(tail).find()) {
 			return Bound.BAND;
 		}
+		if (BOUND_APPROX.matcher(tail).find()) {
+			return Bound.APPROX;
+		}
 		return Bound.EXACT;
 	}
 
@@ -176,6 +197,10 @@ public final class PlanQueryConditionExtractor {
 			case MIN -> new Range(amount, null);
 			case MIN_EXCLUSIVE -> new Range(amount + 1, null);
 			case BAND -> isFee ? new Range(amount, amount + FEE_BAND_WIDTH) : new Range(amount, amount);
+			case APPROX -> {
+				long tolerance = amount * (isFee ? FEE_APPROX_PERCENT : DATA_APPROX_PERCENT) / 100;
+				yield new Range(amount - tolerance, amount + tolerance);
+			}
 		};
 	}
 
