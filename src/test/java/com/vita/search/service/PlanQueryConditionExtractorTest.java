@@ -131,6 +131,14 @@ class PlanQueryConditionExtractorTest {
 	}
 
 	@Test
+	void doesNotTreatVitaminAsPlanNameButAcceptsRealPlanNames() {
+		assertThat(extract("비타민 3만1천원짜리 추천해줘").isEmpty()).isTrue();
+		assertThat(extract("3만 1천원짜리 점심 메뉴 추천해줘").isEmpty()).isTrue();
+		assertThat(extract("비타 맥스 6만9천원 맞아?").feeMin()).isEqualTo(69_000);
+		assertThat(extract("비타 라이트 3만1천원이야?").feeMin()).isEqualTo(31_000);
+	}
+
+	@Test
 	void returnsEmptyForPlanQuestionWithoutConditions() {
 		assertThat(extract("요금제 변경은 어떻게 해?").isEmpty()).isTrue();
 		assertThat(extract("비타 라이트 5 요금제 설명해줘").isEmpty()).isTrue();

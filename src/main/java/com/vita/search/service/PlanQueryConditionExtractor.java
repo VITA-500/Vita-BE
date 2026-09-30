@@ -13,12 +13,14 @@ import java.util.regex.Pattern;
  * 같은 부정도 거의 구분하지 못한다. 이런 정형 조건은 벡터 유사도 대신 plans 테이블의 컬럼과 직접
  * 비교하는 편이 정확하다.
  *
- * <p>오탐을 줄이기 위해 질문에 요금제를 가리키는 말({@code 요금제|플랜|비타})이 있을 때만 동작한다.
+ * <p>오탐을 줄이기 위해 질문에 요금제를 가리키는 말({@code 요금제}, {@code 플랜}, 또는 "비타 라이트" 같은 요금제 이름)이 있을 때만 동작한다.
  * "로밍 5기가 얼마야?" 같은 FAQ 질문에서 데이터량 조건이 잘못 잡히는 것을 막기 위해서다.
  */
 public final class PlanQueryConditionExtractor {
 
-	private static final Pattern PLAN_CONTEXT = Pattern.compile("요금제|플랜|비타");
+	/** 요금제를 가리키는 말. "비타"만 쓰면 "비타민"까지 걸리므로 실제 요금제 이름(비타 라이트 등)일 때만 인정한다. */
+	private static final Pattern PLAN_CONTEXT = Pattern.compile(
+			"요금제|플랜|비타\\s*(?:라이트|밸런스|플러스|맥스|유스|시니어|키즈|워치|태블릿)");
 
 	/** "3만1천원", "3만원", "5천원"처럼 한글 단위가 섞인 금액. 그룹1=만 단위 수, 그룹2=천 단위 수. */
 	private static final Pattern KOREAN_FEE = Pattern.compile("(?:(\\d+)\\s*만)?\\s*(?:(\\d+)\\s*천)?\\s*원");
