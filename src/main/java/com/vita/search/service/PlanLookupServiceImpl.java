@@ -16,10 +16,10 @@ public class PlanLookupServiceImpl implements PlanLookupService {
 	}
 
 	@Override
-	public List<PlanReference> findExtreme(PlanSortKey sortKey, int limit) {
+	public List<PlanReference> findExtreme(PlanSortKey sortKey, int limit, String targetGroup) {
 		if (limit < 1) {
 			throw new IllegalArgumentException("limit은 1 이상이어야 합니다.");
 		}
-		return planLookupRepository.findByExtreme(sortKey, limit);
+		return planLookupRepository.findByExtreme(sortKey, limit, targetGroup);
 	}
 }
