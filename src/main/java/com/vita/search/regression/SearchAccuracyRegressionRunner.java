@@ -129,6 +129,8 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 		printPlanSummary(planResults);
 		printNegativeSummary(negativeResults);
 		printRuleDetectorSummary(negativeResults, faqQueries, planQueries);
+		printRuleValidationSummary(queryReader.read(
+				new ClassPathResource("data/regression/rule_validation_queries.jsonl"), RuleValidationQuery.class));
 		writeCsvReport(faqResults, planResults, negativeResults);
 
 		log.info("REGRESSION DONE faq={} plan={} negative={}", faqResults.size(), planResults.size(), negativeResults.size());
@@ -352,6 +354,68 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 				.sorted(Comparator.comparingDouble(NegativeResultRow::faqTop1Similarity).reversed())
 				.forEach(r -> log.info("    남는 누수 [{}] {} (유사도={})",
 						r.topic(), r.query(), String.format("%.4f", r.faqTop1Similarity())));
+	}
+
+	/**
+	 * 규칙을 만들 때 보지 않은 검증 문항({@code rule_validation_queries.jsonl})으로 규칙의 일반화 성능을 잰다.
+	 * PERSONAL/COMPETITOR는 규칙에 걸려야 하고(놓친 질문을 출력), NORMAL은 걸리면 안 된다(오탐을 출력).
+	 * 걸려야 하는 질문 중 FAQ threshold를 넘어 실제로 새던 질문을 몇 개 막는지도 함께 센다.
+	 */
+	private void printRuleValidationSummary(List<RuleValidationQuery> queries) {
+		log.info("=== 규칙 검증 세트 측정 (규칙 작성 때 보지 않은 {}문항) ===", queries.size());
+
+		for (String kind : List.of("PERSONAL", "COMPETITOR", "NORMAL")) {
+			List<RuleValidationQuery> group = queries.stream().filter(q -> q.kind().equals(kind)).toList();
+			boolean shouldCatch = !kind.equals("NORMAL");
+
+			long caught = 0;
+			long leaks = 0;
+			long leaksBlocked = 0;
+			for (RuleValidationQuery q : group) {
+				Set<IrrelevantQueryDetector.Rule> rules = IrrelevantQueryDetector.detect(q.query());
+				boolean flagged = kind.equals("PERSONAL")
+						? rules.contains(IrrelevantQueryDetector.Rule.PERSONAL_LOOKUP)
+						: kind.equals("COMPETITOR")
+								? rules.contains(IrrelevantQueryDetector.Rule.COMPETITOR_BRAND)
+										|| rules.contains(IrrelevantQueryDetector.Rule.COMPETITOR_GENERIC)
+								: !rules.isEmpty();
+				double similarity = faqTop1Similarity(q.query());
+				boolean leak = similarity >= 0.83;
+
+				if (flagged) {
+					caught++;
+				}
+				if (shouldCatch && leak) {
+					leaks++;
+					if (flagged) {
+						leaksBlocked++;
+					}
+				}
+				if (shouldCatch && !flagged) {
+					log.info("    놓침 [{}] {} (FAQ 유사도={}{})", kind, q.query(),
+							String.format("%.4f", similarity), leak ? ", threshold 넘어 샘" : "");
+				}
+				if (!shouldCatch && flagged) {
+					log.info("    오탐 [NORMAL] {} → {}", q.query(), rules);
+				}
+			}
+
+			if (shouldCatch) {
+				log.info("[{}] 규칙에 걸림 {}/{}개, 그중 threshold를 넘어 새던 질문 {}개 중 {}개 차단",
+						kind, caught, group.size(), leaks, leaksBlocked);
+			} else {
+				log.info("[NORMAL] 정상 질문 오탐 {}/{}개", caught, group.size());
+			}
+		}
+	}
+
+	/** 질문의 FAQ 1등 유사도(실제 검색과 같은 후보 풀·중복 제거 적용). 결과가 없으면 0. */
+	private double faqTop1Similarity(String query) {
+		float[] vector = embeddingProvider.embedQuery(query);
+		List<FaqSimilarityResult> pool = faqVectorSearchRepository.searchBySimilarity(
+				vector, FaqStatus.ACTIVE, 0.0, FaqCandidateSelector.poolSize(TOP_K));
+		List<FaqSimilarityResult> results = FaqCandidateSelector.selectDistinct(pool, TOP_K);
+		return results.isEmpty() ? 0.0 : results.get(0).similarity();
 	}
 
 	private void writeCsvReport(List<FaqResultRow> faqResults, List<PlanResultRow> planResults,

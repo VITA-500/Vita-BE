@@ -56,12 +56,47 @@ class IrrelevantQueryDetectorTest {
 	}
 
 	@Test
+	void detectsCompetitorWordsThatAreNotBrandNamesButAlwaysMeanOtherCarriers() {
+		assertThat(detect("타사 결합상품이랑 비교해줘")).contains(Rule.COMPETITOR_BRAND);
+		assertThat(detect("경쟁사보다 나은 점이 뭐예요?")).contains(Rule.COMPETITOR_BRAND);
+		assertThat(detect("U+ 고객센터 번호 알려줘")).contains(Rule.COMPETITOR_BRAND);
+		assertThat(detect("SK 쪽 인터넷 속도는 어떤가요?")).contains(Rule.COMPETITOR_BRAND);
+		assertThat(detect("통신사끼리 로밍 요금 차이가 있나요?")).contains(Rule.COMPETITOR_BRAND);
+	}
+
+	@Test
 	void detectsGenericCompetitorExpressionsOnlyWithComparisonWords() {
-		Set<Rule> rules = detect("타사 결합상품이랑 비교해줘");
-		assertThat(rules).contains(Rule.COMPETITOR_GENERIC);
-		assertThat(rules).doesNotContain(Rule.COMPETITOR_BRAND);
 		assertThat(detect("다른 통신사 해지하고 오면 혜택 있어?")).contains(Rule.COMPETITOR_GENERIC);
+		assertThat(detect("다른 통신사 요금제가 여기보다 싸다던데요")).contains(Rule.COMPETITOR_GENERIC);
 		assertThat(detect("통신사 비교 사이트 추천해줘")).contains(Rule.COMPETITOR_GENERIC);
+		assertThat(detect("타 통신사에서 왔는데 결합할인 받을 수 있나요?")).isEmpty();
+	}
+
+	@Test
+	void detectsPersonalLookupWithMoreRequestAndStatusExpressions() {
+		assertThat(detect("제 남은 데이터 좀 알려주세요")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("지금 제 요금제가 뭔지 궁금해요")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("저 지금 로밍 가입돼 있나요?")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("제 명의로 개통된 회선 조회해줘")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("내 포인트 잔액 확인해줘")).contains(Rule.PERSONAL_LOOKUP);
+	}
+
+	@Test
+	void doesNotFlagQuestionsAboutWhereToCheckMyInfo() {
+		assertThat(detect("제 요금제에서 데이터 얼마나 주는지 확인하는 곳이 어디예요?")).doesNotContain(Rule.PERSONAL_LOOKUP);
+	}
+
+	@Test
+	void doesNotFlagProblemOrPermissionQuestionsThatMentionLookupOrUnpaidWords() {
+		assertThat(detect("유심 업데이트 대상 조회에 제 번호가 안 나와요.")).isEmpty();
+		assertThat(detect("가족이 제 미납요금을 대신 납부해도 되나요?")).isEmpty();
+		assertThat(detect("제 통신요금 미납된 게 있는지 확인해줘")).contains(Rule.PERSONAL_LOOKUP);
+	}
+
+	@Test
+	void doesNotFlagHowToQuestionsThatContainRequestWords() {
+		assertThat(detect("제 스마트폰에서 스팸 문자 차단하는 방법 알려주세요")).isEmpty();
+		assertThat(detect("제 데이터를 가족에게 나눠주는 방법이 궁금해요")).isEmpty();
 	}
 
 	@Test
