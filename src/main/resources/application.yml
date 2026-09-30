@@ -118,6 +118,11 @@ retrieval:
   # 위험이 있어서(예: "심카드" 질문이 "신용카드" 요금 FAQ와 헷갈림, 0.8179), 그 값(0.8179)과
   # 로밍/요금 정답 파라프레이즈 점수(0.8423~0.8547) 사이인 0.83으로 잡음.
   similarity-threshold: ${RETRIEVAL_SIMILARITY_THRESHOLD:0.83}
+  # 규칙(정규식)으로 개인 정보 조회("내 요금 얼마 나왔어?")·타사("SKT랑 비교하면?") 질문을 미리 알아보고,
+  # 걸리면 FAQ·요금제 컨텍스트를 비워 BE4에 "관련 없음"으로 전달한다. 잘못 막는 사례가 보이면
+  # RETRIEVAL_IRRELEVANT_RULE_ENABLED=false로 끌 수 있다.
+  irrelevant-rule:
+    enabled: ${RETRIEVAL_IRRELEVANT_RULE_ENABLED:true}
 
 springdoc:
   swagger-ui:
