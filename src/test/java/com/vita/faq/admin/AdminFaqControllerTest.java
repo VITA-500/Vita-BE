@@ -52,14 +52,16 @@ class AdminFaqControllerTest {
         verifyNoInteractions(service);
     }
 
-    @Test void adminListUsesSpecAndOmitsAnswerAndVector() throws Exception {
-        var item = new FaqItemResponse(1,"모바일",null,"질문","ACTIVE",LocalDateTime.of(2026,9,23,10,0));
-        when(service.list(PageRequest.of(null,null,null,null),null,""))
+    @Test void adminListIncludesAnswerAndUpdatedAtButOmitsVector() throws Exception {
+        var item = new FaqListItemResponse(1,"모바일",null,"질문","답변","ACTIVE",
+            LocalDateTime.of(2026,9,23,10,0),LocalDateTime.of(2026,9,23,11,0));
+        when(service.list(PageRequest.of(null,null,null,"updatedAt,desc"),null,""))
             .thenReturn(new PageResponse<>(List.of(item),1,1,0));
-        mvc.perform(get("/admin/faqs").param("status", "").with(as(Role.ADMIN)))
+        mvc.perform(get("/admin/faqs").param("status", "").param("sortBy","updatedAt,desc").with(as(Role.ADMIN)))
             .andExpect(status().isOk()).andExpect(jsonPath("totalCount").value(1))
             .andExpect(jsonPath("content[0].faqId").value(1))
-            .andExpect(jsonPath("content[0].answer").doesNotExist())
+            .andExpect(jsonPath("content[0].answer").value("답변"))
+            .andExpect(jsonPath("content[0].updatedAt").exists())
             .andExpect(jsonPath("content[0].embedding").doesNotExist());
     }
 
@@ -80,9 +82,11 @@ class AdminFaqControllerTest {
         mvc.perform(post("/admin/faqs").with(as(Role.ADMIN)).with(csrf()).contentType("application/json").content("{"))
             .andExpect(status().isBadRequest());
         mvc.perform(get("/admin/faqs").param("page","abc").with(as(Role.ADMIN))).andExpect(status().isBadRequest());
+        when(service.list(any(),isNull(),isNull()))
+            .thenThrow(new com.vita.common.exception.BusinessException(com.vita.common.exception.ErrorCode.VALIDATION_ERROR));
+        mvc.perform(get("/admin/faqs").param("sortBy","name,asc").with(as(Role.ADMIN))).andExpect(status().isBadRequest());
         mvc.perform(patch("/admin/faqs/1").with(as(Role.ADMIN)).with(csrf()).contentType("application/json").content("{\"typo\":1}"))
             .andExpect(status().isBadRequest());
-        verifyNoInteractions(service);
     }
 
     @Test void mapsMissingFaqAndEmbeddingFailureToApiErrors() throws Exception {
