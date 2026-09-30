@@ -7,6 +7,7 @@ import com.vita.search.entity.FaqStatus;
 import com.vita.search.repository.FaqVectorSearchRepository;
 import com.vita.search.repository.PlanVectorSearchRepository;
 import com.vita.search.service.FaqCandidateSelector;
+import com.vita.search.service.IrrelevantQueryDetector;
 import com.vita.search.service.PlanSearchService;
 import java.io.IOException;
 import java.io.Writer;
@@ -20,6 +21,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -126,6 +128,9 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 		printFaqSummary(faqResults);
 		printPlanSummary(planResults);
 		printNegativeSummary(negativeResults);
+		printRuleDetectorSummary(negativeResults, faqQueries, planQueries);
+		printRuleValidationSummary(queryReader.read(
+				new ClassPathResource("data/regression/rule_validation_queries.jsonl"), RuleValidationQuery.class));
 		writeCsvReport(faqResults, planResults, negativeResults);
 
 		log.info("REGRESSION DONE faq={} plan={} negative={}", faqResults.size(), planResults.size(), negativeResults.size());
@@ -300,6 +305,117 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 					log.info("  주제별 [{}] FAQ 최고={} 요금제 최고={} ({}문항)",
 							entry.getKey(), String.format("%.4f", maxFaq), String.format("%.4f", maxPlan), entry.getValue().size());
 				});
+	}
+
+	/**
+	 * 규칙 기반 무관 질문 판별({@link IrrelevantQueryDetector})의 손익 측정. 규칙마다 (1) 무관 질문을 몇 개 잡는지,
+	 * 그중 FAQ threshold를 넘어 실제로 새던 질문을 몇 개 막는지, (2) 정상 질문을 몇 개 잘못 잡는지를 출력한다.
+	 * 정상 질문은 회귀 FAQ·요금제 질문셋 외에, 실제 사용자 표현에 가까운 FAQ DB의 질문 전체도 함께 본다.
+	 */
+	private void printRuleDetectorSummary(List<NegativeResultRow> negatives, List<FaqRegressionQuery> faqQueries,
+			List<PlanRegressionQuery> planQueries) {
+		List<String> faqDbQuestions = jdbcTemplate.queryForList(
+				"SELECT question FROM faqs WHERE status = 'ACTIVE'", String.class);
+
+		log.info("=== 규칙 기반 무관 질문 판별 측정 (무관 {}문항 / 정상: 회귀 FAQ {}·요금제 {}·FAQ DB 질문 {}) ===",
+				negatives.size(), faqQueries.size(), planQueries.size(), faqDbQuestions.size());
+
+		long leaks = negatives.stream().filter(r -> r.faqTop1Similarity() >= 0.83).count();
+		for (IrrelevantQueryDetector.Rule rule : IrrelevantQueryDetector.Rule.values()) {
+			List<NegativeResultRow> caught = negatives.stream()
+					.filter(r -> IrrelevantQueryDetector.detect(r.query()).contains(rule)).toList();
+			long caughtLeaks = caught.stream().filter(r -> r.faqTop1Similarity() >= 0.83).count();
+			log.info("[{}] 무관 질문 {}/{}개 잡음 (그중 threshold를 넘어 새던 질문 {}/{}개 차단)",
+					rule, caught.size(), negatives.size(), caughtLeaks, leaks);
+			caught.stream().collect(Collectors.groupingBy(NegativeResultRow::topic, TreeMap::new, Collectors.counting()))
+					.forEach((topic, count) -> log.info("    무관 주제 [{}] {}개", topic, count));
+
+			List<String> falseFaq = faqQueries.stream().map(FaqRegressionQuery::query)
+					.filter(q -> IrrelevantQueryDetector.detect(q).contains(rule)).toList();
+			List<String> falsePlan = planQueries.stream().map(PlanRegressionQuery::query)
+					.filter(q -> IrrelevantQueryDetector.detect(q).contains(rule)).toList();
+			List<String> falseDb = faqDbQuestions.stream()
+					.filter(q -> IrrelevantQueryDetector.detect(q).contains(rule)).toList();
+			log.info("    정상 질문 오탐: 회귀 FAQ {}/{}, 요금제 {}/{}, FAQ DB 질문 {}/{}",
+					falseFaq.size(), faqQueries.size(), falsePlan.size(), planQueries.size(),
+					falseDb.size(), faqDbQuestions.size());
+			falseFaq.forEach(q -> log.info("      오탐(회귀 FAQ): {}", q));
+			falsePlan.forEach(q -> log.info("      오탐(회귀 요금제): {}", q));
+			falseDb.stream().limit(30).forEach(q -> log.info("      오탐(FAQ DB): {}", q));
+		}
+
+		List<NegativeResultRow> anyRuleCaught = negatives.stream()
+				.filter(r -> !IrrelevantQueryDetector.detect(r.query()).isEmpty()).toList();
+		long anyLeaksBlocked = anyRuleCaught.stream().filter(r -> r.faqTop1Similarity() >= 0.83).count();
+		log.info("[전체 규칙 합산] 무관 질문 {}/{}개 잡음, threshold를 넘어 새던 {}개 중 {}개 차단, 남는 누수 {}개",
+				anyRuleCaught.size(), negatives.size(), leaks, anyLeaksBlocked, leaks - anyLeaksBlocked);
+		negatives.stream()
+				.filter(r -> r.faqTop1Similarity() >= 0.83 && IrrelevantQueryDetector.detect(r.query()).isEmpty())
+				.sorted(Comparator.comparingDouble(NegativeResultRow::faqTop1Similarity).reversed())
+				.forEach(r -> log.info("    남는 누수 [{}] {} (유사도={})",
+						r.topic(), r.query(), String.format("%.4f", r.faqTop1Similarity())));
+	}
+
+	/**
+	 * 규칙을 만들 때 보지 않은 검증 문항({@code rule_validation_queries.jsonl})으로 규칙의 일반화 성능을 잰다.
+	 * PERSONAL/COMPETITOR는 규칙에 걸려야 하고(놓친 질문을 출력), NORMAL은 걸리면 안 된다(오탐을 출력).
+	 * 걸려야 하는 질문 중 FAQ threshold를 넘어 실제로 새던 질문을 몇 개 막는지도 함께 센다.
+	 */
+	private void printRuleValidationSummary(List<RuleValidationQuery> queries) {
+		log.info("=== 규칙 검증 세트 측정 (규칙 작성 때 보지 않은 {}문항) ===", queries.size());
+
+		for (String kind : List.of("PERSONAL", "COMPETITOR", "NORMAL")) {
+			List<RuleValidationQuery> group = queries.stream().filter(q -> q.kind().equals(kind)).toList();
+			boolean shouldCatch = !kind.equals("NORMAL");
+
+			long caught = 0;
+			long leaks = 0;
+			long leaksBlocked = 0;
+			for (RuleValidationQuery q : group) {
+				Set<IrrelevantQueryDetector.Rule> rules = IrrelevantQueryDetector.detect(q.query());
+				boolean flagged = kind.equals("PERSONAL")
+						? rules.contains(IrrelevantQueryDetector.Rule.PERSONAL_LOOKUP)
+						: kind.equals("COMPETITOR")
+								? rules.contains(IrrelevantQueryDetector.Rule.COMPETITOR_BRAND)
+										|| rules.contains(IrrelevantQueryDetector.Rule.COMPETITOR_GENERIC)
+								: !rules.isEmpty();
+				double similarity = faqTop1Similarity(q.query());
+				boolean leak = similarity >= 0.83;
+
+				if (flagged) {
+					caught++;
+				}
+				if (shouldCatch && leak) {
+					leaks++;
+					if (flagged) {
+						leaksBlocked++;
+					}
+				}
+				if (shouldCatch && !flagged) {
+					log.info("    놓침 [{}] {} (FAQ 유사도={}{})", kind, q.query(),
+							String.format("%.4f", similarity), leak ? ", threshold 넘어 샘" : "");
+				}
+				if (!shouldCatch && flagged) {
+					log.info("    오탐 [NORMAL] {} → {}", q.query(), rules);
+				}
+			}
+
+			if (shouldCatch) {
+				log.info("[{}] 규칙에 걸림 {}/{}개, 그중 threshold를 넘어 새던 질문 {}개 중 {}개 차단",
+						kind, caught, group.size(), leaks, leaksBlocked);
+			} else {
+				log.info("[NORMAL] 정상 질문 오탐 {}/{}개", caught, group.size());
+			}
+		}
+	}
+
+	/** 질문의 FAQ 1등 유사도(실제 검색과 같은 후보 풀·중복 제거 적용). 결과가 없으면 0. */
+	private double faqTop1Similarity(String query) {
+		float[] vector = embeddingProvider.embedQuery(query);
+		List<FaqSimilarityResult> pool = faqVectorSearchRepository.searchBySimilarity(
+				vector, FaqStatus.ACTIVE, 0.0, FaqCandidateSelector.poolSize(TOP_K));
+		List<FaqSimilarityResult> results = FaqCandidateSelector.selectDistinct(pool, TOP_K);
+		return results.isEmpty() ? 0.0 : results.get(0).similarity();
 	}
 
 	private void writeCsvReport(List<FaqResultRow> faqResults, List<PlanResultRow> planResults,
