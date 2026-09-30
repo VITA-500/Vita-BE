@@ -61,16 +61,13 @@
 {"topic":"UNCOVERED","query":"멤버십 포인트 얼마 남았어?"}
 {"topic":"UNCOVERED","query":"명의도용 신고는 어떻게 해요?"}
 {"topic":"UNCOVERED","query":"통화연결음 설정하고 싶어요"}
-{"topic":"UNCOVERED","query":"요금 자동이체 계좌를 바꾸고 싶어요"}
 {"topic":"UNCOVERED","query":"통신요금 카드 자동결제 등록은 어떻게 해?"}
 {"topic":"UNCOVERED","query":"공기계로 개통할 수 있어요?"}
-{"topic":"UNCOVERED","query":"가족끼리 데이터 공유하는 방법 알려줘"}
 {"topic":"UNCOVERED","query":"단말기 공시지원금이 얼마나 돼요?"}
 {"topic":"UNCOVERED","query":"통화 녹음 기능 쓰고 싶어요"}
 {"topic":"UNCOVERED","query":"원하는 번호로 미리 예약해서 가입할 수 있어요?"}
 {"topic":"UNCOVERED","query":"전화번호 뒷자리를 골라서 가입하고 싶어요"}
 {"topic":"UNCOVERED","query":"포인트로 요금 결제할 수 있어?"}
-{"topic":"UNCOVERED","query":"데이터 사용량 알림 문자를 받고 싶어요"}
 {"topic":"UNCOVERED","query":"상담원이랑 직접 통화하고 싶어요"}
 {"topic":"UNCOVERED","query":"가입 이벤트나 프로모션 있어요?"}
 {"topic":"UNCOVERED","query":"친구 추천하면 혜택 받을 수 있어요?"}
@@ -78,6 +75,9 @@
 {"topic":"UNCOVERED","query":"넷플릭스 같은 OTT 결합 상품 있어요?"}
 {"topic":"UNCOVERED","query":"외국인 등록증으로 가입할 수 있어요?"}
 {"topic":"UNCOVERED","query":"복지 대상자 요금 감면 받을 수 있어요?"}
+{"topic":"UNCOVERED","query":"선택약정 할인 받을 수 있어요?"}
+{"topic":"UNCOVERED","query":"자녀 휴대폰 위치 확인할 수 있는 서비스 있어요?"}
+{"topic":"UNCOVERED","query":"통신비 소득공제 받을 수 있어요?"}
 {"topic":"PERSONALIZED","query":"내가 가입한 요금제가 뭐야?"}
 {"topic":"PERSONALIZED","query":"내 이번 달 요금 얼마 나왔어?"}
 {"topic":"PERSONALIZED","query":"나 지금 데이터 얼마나 썼어?"}
