@@ -36,7 +36,8 @@ class PlanSearchServiceTest {
 	}
 
 	private static PlanSimilarityResult plan(String code, int fee, double similarity) {
-		return new PlanSimilarityResult(1L, code, code, "요약", fee, "설명", similarity, null);
+		return new PlanSimilarityResult(1L, code, code, "요약", fee, "설명", similarity, null,
+				"LTE_5G", "GENERAL", null, null, "LIMITED", 40960L, 1000, "UNLIMITED", null, "UNLIMITED", null);
 	}
 
 	private void stubPool(PlanSimilarityResult... plans) {

@@ -55,7 +55,10 @@ public class PlanLookupRepository {
 
 		String groupFilter = targetGroup == null ? "" : "AND target_group = ?";
 		String sql = """
-				SELECT id, plan_code, name, summary, monthly_fee, description, updated_at
+				SELECT id, plan_code, name, summary, monthly_fee, description, updated_at,
+				       network_type, target_group, min_age, max_age,
+				       data_policy, base_data_mb, exhausted_speed_kbps,
+				       voice_policy, voice_minutes, sms_policy, sms_count
 				FROM plans
 				WHERE status = 'ACTIVE' %s
 				ORDER BY %s
@@ -72,7 +75,18 @@ public class PlanLookupRepository {
 						rs.getInt("monthly_fee"),
 						rs.getString("description"),
 						1.0,
-						rs.getObject("updated_at", LocalDateTime.class)),
+						rs.getObject("updated_at", LocalDateTime.class),
+						rs.getString("network_type"),
+						rs.getString("target_group"),
+						rs.getObject("min_age", Integer.class),
+						rs.getObject("max_age", Integer.class),
+						rs.getString("data_policy"),
+						rs.getObject("base_data_mb", Long.class),
+						rs.getObject("exhausted_speed_kbps", Integer.class),
+						rs.getString("voice_policy"),
+						rs.getObject("voice_minutes", Integer.class),
+						rs.getString("sms_policy"),
+						rs.getObject("sms_count", Integer.class)),
 				params);
 	}
 

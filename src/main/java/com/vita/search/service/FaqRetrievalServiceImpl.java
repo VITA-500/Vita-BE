@@ -211,6 +211,17 @@ public class FaqRetrievalServiceImpl implements FaqRetrievalService {
 				result.monthlyFee(),
 				result.description(),
 				result.similarity(),
-				result.updatedAt());
+				result.updatedAt(),
+				result.networkType(),
+				result.targetGroup(),
+				result.minAge(),
+				result.maxAge(),
+				result.dataPolicy(),
+				result.baseDataMb(),
+				result.exhaustedSpeedKbps(),
+				result.voicePolicy(),
+				result.voiceMinutes(),
+				result.smsPolicy(),
+				result.smsCount());
 	}
 }
