@@ -55,7 +55,7 @@ public class Store extends BaseTimeEntity {
 
     @Builder
     public Store(String name, String address, BigDecimal lat, BigDecimal lng, String businessHours,
-                 String phone, List<String> consultServices, List<String> providedServices){
+                 String phone, List<String> consultServices, List<String> providedServices, StoreType storeType){
         this.name = name;
         this.address = address;
         this.lat = lat;
@@ -64,6 +64,7 @@ public class Store extends BaseTimeEntity {
         this.phone = phone;
         this.consultServices = consultServices != null ? new ArrayList<>(consultServices) : new ArrayList<>();
         this.providedServices = providedServices != null ? new ArrayList<>(providedServices) : new ArrayList<>();
+        this.storeType = storeType != null ? storeType : StoreType.PHONE;
     }
 
     public void update(String name, String address, BigDecimal lat, BigDecimal lng, String businessHours,

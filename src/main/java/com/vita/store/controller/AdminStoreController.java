@@ -26,8 +26,9 @@ public class AdminStoreController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) String sortBy){
-        return storeService.search(PageRequest.of(page, size, keyword, sortBy));
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(required = false) String storeType){
+        return storeService.search(PageRequest.of(page, size, keyword, sortBy), storeType);
     }
 
     @PostMapping
