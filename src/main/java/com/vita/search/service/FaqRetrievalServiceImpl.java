@@ -52,6 +52,16 @@ public class FaqRetrievalServiceImpl implements FaqRetrievalService {
 	@Value("${retrieval.irrelevant-rule.enabled:true}")
 	private boolean irrelevantRuleEnabled;
 
+	/**
+	 * 질문에 분류 이름 단어(IPTV, 유선, 소상공인, 유심 등)가 있을 때 그 분류의 FAQ 후보에 더하는 순위용 가산점.
+	 * FAQ가 같은 문장 틀에 상품 이름만 바꿔 만든 구조라, 오타·구어체 질문에서 상품 단어를 약하게 반영하면 이웃 상품의
+	 * FAQ가 1등이 되곤 했다. 회귀 측정에서 0.01은 FAQ Top-1을 85.7% → 88.7%로 올리면서 망가지는 질문이 없었고,
+	 * 규칙을 만들 때 보지 않은 검증 질문 43개에서도 해가 없었다(0.02 이상은 일부 망가짐). 순위에만 쓰이고 유사도 값과
+	 * threshold 판단은 바뀌지 않는다. 0으로 두면 꺼진다.
+	 */
+	@Value("${retrieval.category-boost.bonus:0.01}")
+	private double categoryBoostBonus;
+
 	/** 한글/영문/숫자가 2자 이상 연속된 덩어리만 키워드로 취급 (조사 등 형태소 분리는 안 함 — 근사치). */
 	private static final Pattern KEYWORD_PATTERN = Pattern.compile("[가-힣a-zA-Z0-9]{2,}");
 
@@ -82,8 +92,11 @@ public class FaqRetrievalServiceImpl implements FaqRetrievalService {
 		// 같은 답변의 변형이 topK를 다 차지하지 않도록, topK보다 넉넉히 가져와 중복을 걷어낸 뒤 자른다.
 		List<FaqSimilarityResult> faqPool = faqVectorSearchRepository.searchBySimilarity(
 				queryVector, FaqStatus.ACTIVE, 0.0, FaqCandidateSelector.poolSize(topK));
-		List<FaqSimilarityResult> faqCandidates = FaqCandidateSelector.selectDistinct(faqPool, topK);
-		double faqTopSimilarity = faqCandidates.isEmpty() ? 0.0 : faqCandidates.get(0).similarity();
+		// 질문에 분류 이름 단어가 있으면 그 분류를 약간 앞세워 순위를 다시 매긴다(유사도 값은 그대로).
+		List<FaqSimilarityResult> rankedPool = FaqCategoryTermBooster.rerank(query, faqPool, categoryBoostBonus);
+		List<FaqSimilarityResult> faqCandidates = FaqCandidateSelector.selectDistinct(rankedPool, topK);
+		// BE4에 알리는 최고 유사도는 순위와 상관없이 후보의 원래 최고값이다(재정렬로 1등이 바뀌어도 값이 달라지지 않는다).
+		double faqTopSimilarity = faqPool.stream().mapToDouble(FaqSimilarityResult::similarity).max().orElse(0.0);
 
 		List<FaqSimilarityResult> faqResults = faqCandidates.stream()
 				.filter(candidate -> candidate.similarity() >= similarityThreshold)

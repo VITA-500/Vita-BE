@@ -27,6 +27,7 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.ClassPathResource;
@@ -60,6 +61,10 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 	private final PlanSearchService planSearchService;
 	private final RegressionQueryReader queryReader;
 	private final JdbcTemplate jdbcTemplate;
+
+	/** 실제 검색(FaqRetrievalServiceImpl)과 같은 분류 이름 가산점. 회귀 지표가 실제 검색 동작을 그대로 반영하도록 같은 값을 쓴다. */
+	@Value("${retrieval.category-boost.bonus:0.01}")
+	private double categoryBoostBonus;
 
 	/** top은 실제로 검색된 상위 결과(CSV에서 어떤 답이 나왔는지 확인하기 위해 보관). */
 	private record FaqResultRow(String category, String subcategory, String style, String query,
@@ -146,7 +151,8 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 		// 실제 검색(FaqRetrievalServiceImpl)과 같은 방식으로, 후보를 넉넉히 가져와 중복 답변을 걷어낸 뒤 자른다.
 		List<FaqSimilarityResult> pool = faqVectorSearchRepository.searchBySimilarity(
 				vector, FaqStatus.ACTIVE, 0.0, FaqCandidateSelector.poolSize(TOP_K));
-		List<FaqSimilarityResult> results = FaqCandidateSelector.selectDistinct(pool, TOP_K);
+		List<FaqSimilarityResult> results = FaqCandidateSelector.selectDistinct(
+				FaqCategoryTermBooster.rerank(item.query(), pool, categoryBoostBonus), TOP_K);
 		boolean top1Match = !results.isEmpty() && matchesFaq(results.get(0), item);
 		boolean top3Match = results.stream().anyMatch(r -> matchesFaq(r, item));
 		// 세부분류는 무시하고 카테고리만 맞는지도 본다 — 오답이 "엉뚱한 주제"인지 "같은 카테고리의 이웃 세부분류"인지 구분하기 위해서다.
@@ -197,9 +203,11 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 		float[] vector = embeddingProvider.embedQuery(item.query());
 		List<FaqSimilarityResult> faqPool = faqVectorSearchRepository.searchBySimilarity(
 				vector, FaqStatus.ACTIVE, 0.0, FaqCandidateSelector.poolSize(TOP_K));
-		List<FaqSimilarityResult> faqResults = FaqCandidateSelector.selectDistinct(faqPool, TOP_K);
+		List<FaqSimilarityResult> faqResults = FaqCandidateSelector.selectDistinct(
+				FaqCategoryTermBooster.rerank(item.query(), faqPool, categoryBoostBonus), TOP_K);
 		List<PlanSimilarityResult> planResults = planVectorSearchRepository.searchBySimilarity(vector, 0.0, 1);
-		double faqTop1 = faqResults.isEmpty() ? 0.0 : faqResults.get(0).similarity();
+		// 가산점 재정렬로 1등이 바뀌어도 threshold 판단은 후보의 원래 최고 유사도로 한다(실제 검색과 같다).
+		double faqTop1 = faqResults.stream().mapToDouble(FaqSimilarityResult::similarity).max().orElse(0.0);
 		double planTop1 = planResults.isEmpty() ? 0.0 : planResults.get(0).similarity();
 		PlanSimilarityResult planTop1Result = planResults.isEmpty() ? null : planResults.get(0);
 		return new NegativeResultRow(item.topic(), item.query(), faqTop1, planTop1, faqResults, planTop1Result);
