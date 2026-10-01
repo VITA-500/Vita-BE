@@ -4,6 +4,7 @@ import com.vita.auth.dto.CsrfTokenResponse;
 import com.vita.auth.dto.LoginRequest;
 import com.vita.auth.dto.LoginResponse;
 import com.vita.auth.dto.LoginResult;
+import com.vita.auth.dto.MessageResponse;
 import com.vita.auth.security.CookieUtil;
 import com.vita.auth.security.JwtProvider;
 import com.vita.auth.dto.SignupRequest;
@@ -46,7 +47,7 @@ public class AuthController {
 			description = "이메일과 비밀번호로 가입한다. 비밀번호는 bcrypt로 해싱해서 저장하며 평문은 보관하지 않는다.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "201", description = "가입 성공"),
-			@ApiResponse(responseCode = "400", description = "입력값 검증 실패",
+			@ApiResponse(responseCode = "400", description = "입력값 검증 실패(VALIDATION_ERROR) · 비밀번호 규칙 위반(INVALID_PASSWORD_FORMAT)",
 					content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
 			@ApiResponse(responseCode = "409", description = "이미 가입된 이메일",
 					content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
@@ -93,9 +94,9 @@ public class AuthController {
 	@Operation(summary = "로그아웃",
 			description = "인증 쿠키를 만료시키고 세션을 무효화한다. 세션은 소셜 로그인의 state 검증에만 쓰이며, "
 					+ "남아 있으면 다음 소셜 로그인의 state 검증이 어긋난다.")
-	@ApiResponse(responseCode = "200", description = "로그아웃 성공")
+	@ApiResponse(responseCode = "200", description = "로그아웃 성공 — 로그인 상태가 아니어도 항상 200")
 	@PostMapping("/logout")
-	public ResponseEntity<Void> logout(HttpServletRequest request) {
+	public ResponseEntity<MessageResponse> logout(HttpServletRequest request) {
 		HttpSession session = request.getSession(false);
 		if (session != null) {
 			session.invalidate();
@@ -104,7 +105,7 @@ public class AuthController {
 		return ResponseEntity.ok()
 				.header(HttpHeaders.SET_COOKIE, cookieUtil.expire().toString())
 				.header(HttpHeaders.SET_COOKIE, cookieUtil.expireSession().toString())
-				.build();
+				.body(MessageResponse.of("로그아웃되었습니다."));
 	}
 
 	/**

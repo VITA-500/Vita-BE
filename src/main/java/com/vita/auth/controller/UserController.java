@@ -50,7 +50,7 @@ public class UserController {
 			security = @SecurityRequirement(name = "bearerAuth"))
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "수정 성공"),
-			@ApiResponse(responseCode = "400", description = "입력값 검증 실패 · 소셜 전용 계정의 비밀번호 변경",
+			@ApiResponse(responseCode = "400", description = "입력값 검증 실패 · 비밀번호 규칙 위반(INVALID_PASSWORD_FORMAT) · 소셜 전용 계정의 비밀번호 변경",
 					content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
 			@ApiResponse(responseCode = "401", description = "토큰 없음 · 만료 · 위조",
 					content = @Content(schema = @Schema(implementation = ErrorResponse.class)))

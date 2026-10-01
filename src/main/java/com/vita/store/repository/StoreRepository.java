@@ -23,6 +23,7 @@ public interface StoreRepository extends JpaRepository<Store, Long>  {
                     power(sin(radians(s.lng - :lng) / 2), 2)
                     )) AS distance_km
             FROM stores s
+            WHERE s.store_type = 'PHONE'
             ORDER BY distance_km
             LIMIT 1
             """, nativeQuery = true)
@@ -39,6 +40,7 @@ public interface StoreRepository extends JpaRepository<Store, Long>  {
                     power(sin(radians(s.lng - :lng) / 2), 2)
                     )) AS distance_km
                 FROM stores s
+                WHERE s.store_type = 'PHONE'
             ) ranked
             WHERE distance_km <= :radiusKm
             ORDER BY distance_km

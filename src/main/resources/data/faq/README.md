@@ -1,7 +1,9 @@
 # FAQ 데이터 분류
 
 분류의 단일 기준은 `category/faq_generation_categories.json`이다.
-10개 메인카테고리와 43개 메인·서브카테고리 조합을 관리하며, 공용 초기 데이터는 `cleaned/faq_all_cleaned.jsonl` 1,000건이다.
+10개 메인카테고리와 43개 메인·서브카테고리 조합을 관리하며, 공용 초기 데이터는 `cleaned/faq_all_cleaned.jsonl` 1,529건이다.
+LG U+ FAQ에서 정리한 기존 43개 조합을 그대로 유지한다.
+검색 평가에서 확인된 공백 주제를 보완하되 단순 표현 변형은 제외하고, 서로 다른 사용자 의도와 상황을 가진 대표 FAQ를 관리한다.
 
 - `com.vita.faq.taxonomy.FaqTaxonomy`가 JSON을 읽어 공통 검증을 제공한다.
 - 배치는 메인·서브카테고리 모두 필수이며, 정확한 조합만 허용한다.

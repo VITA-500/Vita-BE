@@ -1,6 +1,7 @@
 package com.vita.store.dto.response;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public record StoreDetailResponse (
@@ -12,4 +13,7 @@ public record StoreDetailResponse (
         String businessHours,
         String phone,
         List<String> consultServices,
-        List<String> providedServices) { }
+        List<String> providedServices,
+        String storeType,
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt) { }
