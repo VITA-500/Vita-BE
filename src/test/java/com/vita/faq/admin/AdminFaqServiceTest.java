@@ -12,6 +12,7 @@ import com.vita.faq.service.AdminFaqService;
 import org.junit.jupiter.api.Test;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import org.springframework.data.domain.Sort;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -104,11 +105,15 @@ class AdminFaqServiceTest {
     }
     @Test void listNormalizesBlankFiltersAndRejectsInvalidPaging() {
         service.list(PageRequest.of(0,20," ",null),"", " ");
-        verify(repository).search(0,20,null,null,null);
+        verify(repository).search(0,20,null,null,null,"createdAt",Sort.Direction.DESC);
+        service.list(PageRequest.of(1,10,null,"updatedAt,asc"),null,null);
+        verify(repository).search(1,10,null,null,null,"updatedAt",Sort.Direction.ASC);
         for (int size : new int[]{0,101}) {
             assertThatThrownBy(() -> service.list(PageRequest.of(0,size,null,null),null,null)).isInstanceOf(BusinessException.class);
         }
         assertThatThrownBy(() -> service.list(PageRequest.of(-1,20,null,null),null,null)).isInstanceOf(BusinessException.class);
         assertThatThrownBy(() -> service.list(PageRequest.of(0,20,null,null),null,"OTHER")).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.list(PageRequest.of(0,20,null,"name,asc"),null,null)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.list(PageRequest.of(0,20,null,"updatedAt,sideways"),null,null)).isInstanceOf(BusinessException.class);
     }
 }
