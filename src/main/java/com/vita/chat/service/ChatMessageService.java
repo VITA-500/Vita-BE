@@ -73,14 +73,16 @@ public class ChatMessageService {
 		
 		try {
 			// 2) 조립 재료 준비
-			String context = buildContext(request.content());
+			ContextResult context = buildContext(request.content());
 			String conversationHistory = buildConversationHistory(sessionId);
 			
-			log.info("service context: " + context);
+			log.info("service context: " + context.text());
 			
 			// 3) 실제 LLM 호출 — 질문 + 참고자료 + 대화이력을 함께 전달
-			String answer = bedrockChatClient.ask(request.content(), context, conversationHistory);
-			persistence.markCompleted(assistantMessage.getId(), answer);
+			String answer = bedrockChatClient.ask(request.content(), context.text(), conversationHistory);
+			
+			List<Long> faqIds = context.faqs().stream().map(FaqReference::faqId).toList();
+			persistence.markCompleted(assistantId, answer, faqIds);
 			
 		} catch (ApiCallTimeoutException | ApiCallAttemptTimeoutException e) {
 		    log.error("Bedrock 응답 타임아웃 - sessionId: {}", sessionId, e);
@@ -99,11 +101,15 @@ public class ChatMessageService {
 		
 	}
 	
+	private record ContextResult(String text, List<FaqReference> faqs) {
+	    static ContextResult empty() { return new ContextResult("", List.of()); }
+	}
+	
 	/**
 	 * 질문과 관련된 FAQ/요금제 정보를 검색해서 LLM에게 줄 하나의 문자열(context)로 조립한다.
 	 * 순서: 극값 비교 결과 → 일반 요금제 → FAQ
 	 */
-	private String buildContext(String query) {
+	private ContextResult buildContext(String query) {
 		// BE3의 벡터 검색 호출 — FAQ와 요금제 양쪽 결과를 함께 담고 있는 객체를 받음
 		FaqRetrievalContext retrievalContext = faqRetrievalService.search(query, TOP_K);
 		
@@ -128,7 +134,7 @@ public class ChatMessageService {
 		
 		if (faqs.isEmpty() && plans.isEmpty() && extremePlans.isEmpty()) {
 			log.info("관련 FAQ/요금제 없음 (topSimilarity={}). query={}", retrievalContext.topSimilarity(), query);
-			return "";
+			return ContextResult.empty();
 		}
 
 		StringBuilder sb = new StringBuilder();
@@ -155,7 +161,7 @@ public class ChatMessageService {
 		        extremePlans.stream().map(PlanReference::name).toList(),
 		        generalPlans.stream().map(PlanReference::name).toList());
 		
-		return sb.toString();
+		return new ContextResult(sb.toString(), faqs);
 	}
 	
 	/** FAQ 한 건을 LLM이 읽기 좋은 XML 비슷한 텍스트 블록으로 변환 */
