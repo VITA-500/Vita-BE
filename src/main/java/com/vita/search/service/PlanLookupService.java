@@ -28,6 +28,20 @@ public interface PlanLookupService {
 	}
 
 	/**
+	 * 질문에서 대상 그룹을 읽어 조회 범위를 정하는 버전. "워치 요금제 중 제일 싼 거", "청년 요금제 중 가장
+	 * 저렴한 것"처럼 질문에 대상이 있으면 그 그룹 안에서, 없으면 범용(GENERAL) 요금제 안에서 조회한다.
+	 * 호출하는 쪽(BE4)이 그룹을 직접 판별하지 않고 원래 질문만 넘기면 된다.
+	 *
+	 * <p>"청년이랑 시니어 중 가장 싼 것"처럼 여러 그룹이 섞이면 어느 한 그룹으로 좁힐 수 없어 범용으로 본다.
+	 *
+	 * @param query 사용자 질문 원문
+	 */
+	default List<PlanReference> findExtremeForQuery(PlanSortKey sortKey, int limit, String query) {
+		String group = PlanQueryConditionExtractor.targetGroupOf(query);
+		return findExtreme(sortKey, limit, group != null ? group : GENERAL_GROUP);
+	}
+
+	/**
 	 * 조회 범위를 지정하는 버전. 질문에 "청년", "시니어", "워치"처럼 대상이 나오면 BE4가 그 그룹을 넘겨서
 	 * "청년 요금제 중 가장 저렴한 것"을 정확히 답할 수 있다.
 	 *

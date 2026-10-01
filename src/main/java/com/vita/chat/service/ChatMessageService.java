@@ -115,7 +115,7 @@ public class ChatMessageService {
 		if (!plans.isEmpty() || hasExtremeSignal(query)) {
 			PlanIntent intent = planIntentClassifier.classify(query);
 			if (intent.extreme()) {
-				extremePlans = planLookupService.findExtreme(intent.sortKey(), intent.limit());
+				extremePlans = planLookupService.findExtremeForQuery(intent.sortKey(), intent.limit(), query);
 			}
 		}
 		
