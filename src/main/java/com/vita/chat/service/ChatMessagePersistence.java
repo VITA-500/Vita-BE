@@ -1,18 +1,23 @@
 package com.vita.chat.service;
 
+import java.util.List;
+
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.vita.chat.ChatMessageRole;
 import com.vita.chat.ChatMessageStatus;
+import com.vita.chat.dto.ChatMessageResponse;
 import com.vita.chat.dto.ChatMessageSendRequest;
 import com.vita.chat.entity.ChatMessage;
+import com.vita.chat.entity.ChatMessageFaqRef;
 import com.vita.chat.entity.ChatSession;
+import com.vita.chat.repository.ChatMessageFaqRefRepository;
 import com.vita.chat.repository.ChatMessageRepository;
 import com.vita.chat.repository.ChatSessionRepository;
 import com.vita.common.exception.BusinessException;
 import com.vita.common.exception.ErrorCode;
 
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Component
@@ -21,6 +26,7 @@ class ChatMessagePersistence {
 	
 	private final ChatMessageRepository chatMessageRepository;
 	private final ChatSessionRepository chatSessionRepository;
+	private final ChatMessageFaqRefRepository chatMessageFaqRefRepository; 
 	
 	@Transactional
 	public ChatMessage saveUserAndPendingAssistant(Long sessionId, ChatMessageSendRequest request) {
@@ -50,11 +56,17 @@ class ChatMessagePersistence {
 	}
 	
 	@Transactional
-    public void markCompleted(Long messageId, String answer) {
+    public void markCompleted(Long messageId, String answer, List<Long> faqIds) {
         ChatMessage message = chatMessageRepository.findById(messageId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "메시지를 찾을 수 없습니다."));
         message.markCompleted(answer);
         message.getSession().update();
+        
+        List<ChatMessageFaqRef> refs = faqIds.stream()
+                .distinct()
+                .map(faqId -> ChatMessageFaqRef.of(message, faqId))
+                .toList();
+        chatMessageFaqRefRepository.saveAll(refs);
     }
 
     @Transactional
@@ -62,6 +74,13 @@ class ChatMessagePersistence {
         ChatMessage message = chatMessageRepository.findById(messageId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "메시지를 찾을 수 없습니다."));
         message.markFailed(errorMessage);
+    }
+    
+    @Transactional(readOnly = true)
+    public ChatMessageResponse getResponse(Long assistantId, long latencyMs) {
+        ChatMessage message = chatMessageRepository.findById(assistantId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "존재하지 않는 메시지입니다."));
+        return ChatMessageResponse.of(message, latencyMs);   // faqRefs 등 지연 로딩도 여기서 읽힘
     }
 
 }

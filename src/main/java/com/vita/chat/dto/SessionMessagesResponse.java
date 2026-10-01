@@ -6,11 +6,11 @@ import com.vita.chat.entity.ChatMessage;
 
 public record SessionMessagesResponse(
 		Long sessionId,
-		List<MessageResponse> messages
+		List<ChatMessageItemResponse> messages
 		) {
 	public static SessionMessagesResponse from(Long sessionId, List<ChatMessage> messages) {
-		List<MessageResponse> messageResponse = messages.stream()
-				.map(MessageResponse::from)
+		List<ChatMessageItemResponse> messageResponse = messages.stream()
+				.map(ChatMessageItemResponse::from)
 				.toList();
 		
 		return new SessionMessagesResponse(sessionId, messageResponse);

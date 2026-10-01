@@ -15,7 +15,7 @@ import com.vita.chat.dto.ChatMessageResponse;
 import com.vita.chat.dto.ChatMessageSendRequest;
 import com.vita.chat.dto.ChatSessionListResponse;
 import com.vita.chat.dto.ChatSessionSummaryResponse;
-import com.vita.chat.dto.MessageResponse;
+import com.vita.chat.dto.ChatMessageItemResponse;
 import com.vita.chat.dto.PlanIntent;
 import com.vita.chat.dto.SessionMessagesResponse;
 import com.vita.chat.entity.ChatMessage;
@@ -59,26 +59,30 @@ public class ChatMessageService {
 		return EXTREME_SIGNAL_KEYWORDS.stream().anyMatch(query::contains);
 	}
 	
-	
-	@Transactional
+
 	public ChatMessageResponse sendMessage(Long sessionId, Long userId, UUID guestId, ChatMessageSendRequest request) {
 		
 		// 1) 사용자 메시지 저장 + AI 답변 자리(PENDING 상태)를 먼저 DB에 만들어둠
 		//    아직 LLM 응답은 안 왔지만, "생성중"이라는 행을 미리 확보하는 것
 		ChatMessage assistantMessage = persistence.saveUserAndPendingAssistant(sessionId, request);
+		Long assistantId = assistantMessage.getId();
 		
-		// 2) 조립 재료 준비
-		String context = buildContext(request.content()); // 파라미터 수정 필요
-		String conversationHistory = buildConversationHistory(sessionId);
 		
-		log.info("service context: " + context);
 		
 		long startTime = System.currentTimeMillis();
 		
 		try {
+			// 2) 조립 재료 준비
+			ContextResult context = buildContext(request.content());
+			String conversationHistory = buildConversationHistory(sessionId);
+			
+			log.info("service context: " + context.text());
+			
 			// 3) 실제 LLM 호출 — 질문 + 참고자료 + 대화이력을 함께 전달
-			String answer = bedrockChatClient.ask(request.content(), context, conversationHistory);
-			persistence.markCompleted(assistantMessage.getId(), answer);
+			String answer = bedrockChatClient.ask(request.content(), context.text(), conversationHistory);
+			
+			List<Long> faqIds = context.faqs().stream().map(FaqReference::faqId).toList();
+			persistence.markCompleted(assistantId, answer, faqIds);
 			
 		} catch (ApiCallTimeoutException | ApiCallAttemptTimeoutException e) {
 		    log.error("Bedrock 응답 타임아웃 - sessionId: {}", sessionId, e);
@@ -92,16 +96,20 @@ public class ChatMessageService {
 		}
 		long latencyMs = System.currentTimeMillis() - startTime;
         
-		// 4) 성공/실패와 무관하게 현재 assistantMessage 상태를 응답으로 반환 (실패 시에도 예외를 던지지 않고 FAILED 상태로 정상 응답)
-		return ChatMessageResponse.of(assistantMessage, latencyMs);
+		// 커밋된 최신 상태를 트랜잭션 안에서 조회해 응답까지 만들어 반환
+	    return persistence.getResponse(assistantId, latencyMs);
 		
+	}
+	
+	private record ContextResult(String text, List<FaqReference> faqs) {
+	    static ContextResult empty() { return new ContextResult("", List.of()); }
 	}
 	
 	/**
 	 * 질문과 관련된 FAQ/요금제 정보를 검색해서 LLM에게 줄 하나의 문자열(context)로 조립한다.
 	 * 순서: 극값 비교 결과 → 일반 요금제 → FAQ
 	 */
-	private String buildContext(String query) {
+	private ContextResult buildContext(String query) {
 		// BE3의 벡터 검색 호출 — FAQ와 요금제 양쪽 결과를 함께 담고 있는 객체를 받음
 		FaqRetrievalContext retrievalContext = faqRetrievalService.search(query, TOP_K);
 		
@@ -126,7 +134,7 @@ public class ChatMessageService {
 		
 		if (faqs.isEmpty() && plans.isEmpty() && extremePlans.isEmpty()) {
 			log.info("관련 FAQ/요금제 없음 (topSimilarity={}). query={}", retrievalContext.topSimilarity(), query);
-			return "";
+			return ContextResult.empty();
 		}
 
 		StringBuilder sb = new StringBuilder();
@@ -153,7 +161,7 @@ public class ChatMessageService {
 		        extremePlans.stream().map(PlanReference::name).toList(),
 		        generalPlans.stream().map(PlanReference::name).toList());
 		
-		return sb.toString();
+		return new ContextResult(sb.toString(), faqs);
 	}
 	
 	/** FAQ 한 건을 LLM이 읽기 좋은 XML 비슷한 텍스트 블록으로 변환 */
@@ -215,10 +223,10 @@ public class ChatMessageService {
 		if(!isOwner){
 			throw new BusinessException(ErrorCode.FORBIDDEN, "타인의 세션에는 접근할 수 없습니다.");
 		}
-		List<MessageResponse> messages = chatMessageRepository
+		List<ChatMessageItemResponse> messages = chatMessageRepository
 				.findAllBySession_IdOrderByCreatedAtAsc(sessionId)
 				.stream()
-				.map(MessageResponse::from)
+				.map(ChatMessageItemResponse::from)
 				.toList();
 		
 		return new SessionMessagesResponse(sessionId, messages);
