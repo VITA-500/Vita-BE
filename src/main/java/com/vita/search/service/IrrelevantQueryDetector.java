@@ -41,7 +41,7 @@ public final class IrrelevantQueryDetector {
 	 * "확인하는 곳이 어디예요?"처럼 어디서 확인하는지 묻는 질문도 FAQ("…어디서 확인하나요?")가 답한다.
 	 */
 	private static final Pattern HOW_TO = Pattern.compile(
-			"방법|어떻게 (?:하|해|신청|변경|바꿔)|절차|하려면|하고 ?싶|할 ?수 ?있|어디");
+			"방법|어떻게 (?:하|해|신청|변경|바꿔|신고|처리|취소|등록)|신고|절차|하려면|하고 ?싶|할 ?수 ?있|어디");
 
 	/** 구체적인 타사 이름. 영문은 다른 단어의 일부(예: KTX)와 헷갈리지 않도록 앞뒤 알파벳을 제외한다. */
 	private static final Pattern BRAND = Pattern.compile(

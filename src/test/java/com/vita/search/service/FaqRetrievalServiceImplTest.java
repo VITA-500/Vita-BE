@@ -83,6 +83,59 @@ class FaqRetrievalServiceImplTest {
 		assertThat(context.topSimilarity()).isEqualTo(0.87);
 	}
 
+	private void stubFaqPool(FaqSimilarityResult... pool) {
+		when(faqRepository.searchBySimilarity(any(float[].class), eq(FaqStatus.ACTIVE), anyDouble(), anyInt()))
+				.thenReturn(List.of(pool));
+		when(planSearchService.search(any(), any(float[].class), anyInt()))
+				.thenReturn(new PlanSearchService.PlanSearchOutcome(List.of(), false));
+	}
+
+	private static FaqSimilarityResult faqOf(long id, String category, String subcategory, double similarity) {
+		return new FaqSimilarityResult(id, category, subcategory, "질문" + id, "답변" + id, similarity, null);
+	}
+
+	@Test
+	void promotesTheCategoryNamedInTheQueryButKeepsTheOriginalTopSimilarity() {
+		ReflectionTestUtils.setField(service, "categoryBoostBonus", 0.01);
+		stubFaqPool(
+				faqOf(1, "인터넷/IPTV", "IPTV 상품안내", 0.866),
+				faqOf(2, "소상공인", "IPTV", 0.863));
+
+		FaqRetrievalContext context = service.search("IPTV 설치가 안 되는 상가 지역도 있나요?", 3);
+
+		// 질문의 "IPTV", "상가"에 맞는 소상공인/IPTV가 1등이 된다.
+		assertThat(context.references()).extracting(r -> r.subcategory()).containsExactly("IPTV", "IPTV 상품안내");
+		// BE4에 전달하는 최고 유사도는 순위와 상관없이 원래 최고값이다.
+		assertThat(context.topSimilarity()).isEqualTo(0.866);
+		// 각 후보의 유사도 값도 바뀌지 않는다.
+		assertThat(context.references()).extracting(r -> r.similarity()).containsExactly(0.863, 0.866);
+	}
+
+	@Test
+	void keepsOriginalOrderWhenCategoryBoostIsDisabled() {
+		ReflectionTestUtils.setField(service, "categoryBoostBonus", 0.0);
+		stubFaqPool(
+				faqOf(1, "인터넷/IPTV", "IPTV 상품안내", 0.866),
+				faqOf(2, "소상공인", "IPTV", 0.863));
+
+		FaqRetrievalContext context = service.search("IPTV 설치가 안 되는 상가 지역도 있나요?", 3);
+
+		assertThat(context.references()).extracting(r -> r.subcategory()).containsExactly("IPTV 상품안내", "IPTV");
+	}
+
+	@Test
+	void stillAppliesTheSimilarityThresholdToTheOriginalSimilarityAfterReranking() {
+		ReflectionTestUtils.setField(service, "categoryBoostBonus", 0.01);
+		stubFaqPool(
+				faqOf(1, "인터넷/IPTV", "IPTV 상품안내", 0.832),
+				faqOf(2, "소상공인", "IPTV", 0.825));
+
+		FaqRetrievalContext context = service.search("소상공인 IPTV 설치", 3);
+
+		// 가산점으로 앞섰더라도 원래 유사도 0.825는 threshold(0.83) 미만이라 제외된다.
+		assertThat(context.references()).extracting(r -> r.subcategory()).containsExactly("IPTV 상품안내");
+	}
+
 	@Test
 	void keepsFirstPersonHowToQuestionResults() {
 		stubSearch(0.87, 0.70);
