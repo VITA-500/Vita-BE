@@ -59,23 +59,25 @@ public class ChatMessageService {
 		return EXTREME_SIGNAL_KEYWORDS.stream().anyMatch(query::contains);
 	}
 	
-	
-	@Transactional
+
 	public ChatMessageResponse sendMessage(Long sessionId, Long userId, UUID guestId, ChatMessageSendRequest request) {
 		
 		// 1) 사용자 메시지 저장 + AI 답변 자리(PENDING 상태)를 먼저 DB에 만들어둠
 		//    아직 LLM 응답은 안 왔지만, "생성중"이라는 행을 미리 확보하는 것
 		ChatMessage assistantMessage = persistence.saveUserAndPendingAssistant(sessionId, request);
+		Long assistantId = assistantMessage.getId();
 		
-		// 2) 조립 재료 준비
-		String context = buildContext(request.content()); // 파라미터 수정 필요
-		String conversationHistory = buildConversationHistory(sessionId);
 		
-		log.info("service context: " + context);
 		
 		long startTime = System.currentTimeMillis();
 		
 		try {
+			// 2) 조립 재료 준비
+			String context = buildContext(request.content());
+			String conversationHistory = buildConversationHistory(sessionId);
+			
+			log.info("service context: " + context);
+			
 			// 3) 실제 LLM 호출 — 질문 + 참고자료 + 대화이력을 함께 전달
 			String answer = bedrockChatClient.ask(request.content(), context, conversationHistory);
 			persistence.markCompleted(assistantMessage.getId(), answer);
@@ -92,8 +94,8 @@ public class ChatMessageService {
 		}
 		long latencyMs = System.currentTimeMillis() - startTime;
         
-		// 4) 성공/실패와 무관하게 현재 assistantMessage 상태를 응답으로 반환 (실패 시에도 예외를 던지지 않고 FAILED 상태로 정상 응답)
-		return ChatMessageResponse.of(assistantMessage, latencyMs);
+		// 커밋된 최신 상태를 트랜잭션 안에서 조회해 응답까지 만들어 반환
+	    return persistence.getResponse(assistantId, latencyMs);
 		
 	}
 	

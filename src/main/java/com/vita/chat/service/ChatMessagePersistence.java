@@ -1,9 +1,11 @@
 package com.vita.chat.service;
 
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.vita.chat.ChatMessageRole;
 import com.vita.chat.ChatMessageStatus;
+import com.vita.chat.dto.ChatMessageResponse;
 import com.vita.chat.dto.ChatMessageSendRequest;
 import com.vita.chat.entity.ChatMessage;
 import com.vita.chat.entity.ChatSession;
@@ -12,7 +14,6 @@ import com.vita.chat.repository.ChatSessionRepository;
 import com.vita.common.exception.BusinessException;
 import com.vita.common.exception.ErrorCode;
 
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Component
@@ -62,6 +63,13 @@ class ChatMessagePersistence {
         ChatMessage message = chatMessageRepository.findById(messageId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "메시지를 찾을 수 없습니다."));
         message.markFailed(errorMessage);
+    }
+    
+    @Transactional(readOnly = true)
+    public ChatMessageResponse getResponse(Long assistantId, long latencyMs) {
+        ChatMessage message = chatMessageRepository.findById(assistantId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "존재하지 않는 메시지입니다."));
+        return ChatMessageResponse.of(message, latencyMs);   // faqRefs 등 지연 로딩도 여기서 읽힘
     }
 
 }
