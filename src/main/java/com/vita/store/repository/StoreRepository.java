@@ -1,6 +1,7 @@
 package com.vita.store.repository;
 
 import com.vita.store.entity.Store;
+import com.vita.store.entity.StoreType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -54,4 +55,13 @@ public interface StoreRepository extends JpaRepository<Store, Long>  {
                         s.address LIKE CONCAT('%', :keyword, '%')
             """)
     Page<Store> search(@Param("keyword") String keyword, Pageable pageable);
+
+    @Query("""
+            SELECT s FROM Store s
+            WHERE s.storeType = :storeType
+                AND(s.name LIKE CONCAT('%', :keyword, '%') OR 
+                        s.address LIKE CONCAT('%', :keyword, '%'))
+            """)
+    Page<Store> searchByType(@Param("keyword") String keyword,
+                             @Param("storeType") StoreType storeType, Pageable pageable);
 }

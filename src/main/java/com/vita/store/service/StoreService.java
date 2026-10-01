@@ -8,6 +8,7 @@ import com.vita.store.dto.request.StoreCreateRequest;
 import com.vita.store.dto.request.StoreUpdateRequest;
 import com.vita.store.dto.response.*;
 import com.vita.store.entity.Store;
+import com.vita.store.entity.StoreType;
 import com.vita.store.exception.StoreNotFoundException;
 import com.vita.store.repository.StoreDistanceProjection;
 import com.vita.store.repository.StoreRepository;
@@ -55,12 +56,17 @@ public class StoreService {
                 Arrays.asList(joined.split("\\|\\|"));
     }
 
-    public PageResponse<StoreListItemResponse> search(PageRequest pageRequest){
-        var page = storeRepository.search(
-                pageRequest.keyword() != null ? pageRequest.keyword() : "",
-                pageRequest.toSpringPageRequest(ADMIN_LIST_SORT_FIELDS, ADMIN_LIST_DEFAULT_SORT));
-        return PageResponse.from(page, store -> new StoreListItemResponse(store.getId(), store.getName(),
-                store.getAddress(), store.getStoreType().name(), store.getCreatedAt(), store.getUpdatedAt()));
+    public PageResponse<StoreListItemResponse> search(PageRequest pageRequest, String storeType){
+        String keyword = pageRequest.keyword() != null ? pageRequest.keyword() : "";
+        var pageable = pageRequest.toSpringPageRequest(ADMIN_LIST_SORT_FIELDS, ADMIN_LIST_DEFAULT_SORT);
+        StoreType type = StoreType.fromNullable(storeType);
+        var page = type == null
+                ? storeRepository.search(keyword, pageable)
+                : storeRepository.searchByType(keyword, type, pageable);
+        return PageResponse.from(page, store -> new StoreListItemResponse(
+                store.getId(), store.getName(),
+                store.getAddress(), store.getStoreType().name(),
+                store.getCreatedAt(), store.getUpdatedAt()));
     }
 
     public StoreDetailResponse findById(Long storeId){
@@ -82,6 +88,7 @@ public class StoreService {
                 .phone(request.phone())
                 .consultServices(request.consultServices())
                 .providedServices(request.providedServices())
+                .storeType(StoreType.fromNullable(request.storeType()))
                 .build();
         storeRepository.save(store);
         return new StoreCreateResponse(store.getId(), store.getName(), store.getCreatedAt());
