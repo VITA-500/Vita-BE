@@ -7,6 +7,7 @@ import com.vita.search.entity.FaqStatus;
 import com.vita.search.repository.FaqVectorSearchRepository;
 import com.vita.search.repository.PlanVectorSearchRepository;
 import com.vita.search.service.FaqCandidateSelector;
+import com.vita.search.service.FaqCategoryTermBooster;
 import com.vita.search.service.IrrelevantQueryDetector;
 import com.vita.search.service.PlanSearchService;
 import java.io.IOException;
@@ -127,6 +128,9 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 		List<NegativeResultRow> negativeResults = negativeQueries.stream().map(this::evaluateNegativeQuery).toList();
 
 		printFaqSummary(faqResults);
+		printBoostExperiment(faqQueries, negativeQueries);
+		printBoostValidation(queryReader.read(
+				new ClassPathResource("data/regression/faq_boost_validation_queries.jsonl"), FaqRegressionQuery.class));
 		printPlanSummary(planResults);
 		printNegativeSummary(negativeResults);
 		printRuleDetectorSummary(negativeResults, faqQueries, planQueries);
@@ -199,6 +203,146 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 		double planTop1 = planResults.isEmpty() ? 0.0 : planResults.get(0).similarity();
 		PlanSimilarityResult planTop1Result = planResults.isEmpty() ? null : planResults.get(0);
 		return new NegativeResultRow(item.topic(), item.query(), faqTop1, planTop1, faqResults, planTop1Result);
+	}
+
+	/** 가산점 실험에서 쓰는, 질문 하나와 그 질문의 FAQ 후보 풀(유사도 내림차순). */
+	private record PooledQuery(FaqRegressionQuery item, List<FaqSimilarityResult> pool) {
+	}
+
+	/** 가산점 실험 한 번(bonus 하나)의 질문별 결과. */
+	private record BoostOutcome(boolean top1, boolean top3, boolean category1, List<FaqSimilarityResult> results) {
+	}
+
+	/**
+	 * 분류 이름 가산점({@link FaqCategoryTermBooster})의 효과 실험. 가산점 크기를 바꿔 가며 같은 후보 풀을 다시 정렬해
+	 * (1) 정확도가 얼마나 변하는지, (2) 새로 맞게 되는 질문(고침)과 맞다가 틀리게 되는 질문(망가짐)이 각각 몇 개인지,
+	 * (3) 무관 질문에서 threshold를 넘는 후보가 늘지 않는지를 센다. 이득이 확인된 값만 실제 검색에 적용한다.
+	 */
+	private void printBoostExperiment(List<FaqRegressionQuery> faqQueries, List<NegativeRegressionQuery> negativeQueries) {
+		List<PooledQuery> faqPools = faqQueries.stream().map(q -> new PooledQuery(q, fetchFaqPool(q.query()))).toList();
+		List<List<FaqSimilarityResult>> negativePools = negativeQueries.stream()
+				.map(q -> fetchFaqPool(q.query())).toList();
+
+		List<BoostOutcome> baseline = faqPools.stream().map(p -> evaluateWithBonus(p, 0.0)).toList();
+		log.info("=== 실험: 분류 이름 가산점 (FAQ {}문항 / 무관 {}문항) ===", faqQueries.size(), negativeQueries.size());
+
+		for (double bonus : new double[] {0.0, 0.005, 0.01, 0.02, 0.03, 0.05, 0.08, 0.12}) {
+			List<BoostOutcome> outcomes = faqPools.stream().map(p -> evaluateWithBonus(p, bonus)).toList();
+
+			int fixed = 0;
+			int broken = 0;
+			List<String> fixedQueries = new ArrayList<>();
+			List<String> brokenQueries = new ArrayList<>();
+			long clearTotal = 0;
+			long clearTop1 = 0;
+			for (int i = 0; i < faqPools.size(); i++) {
+				FaqRegressionQuery item = faqPools.get(i).item();
+				BoostOutcome before = baseline.get(i);
+				BoostOutcome after = outcomes.get(i);
+				if (!before.top1() && after.top1()) {
+					fixed++;
+					fixedQueries.add(describeChange(item, before, after));
+				}
+				if (before.top1() && !after.top1()) {
+					broken++;
+					brokenQueries.add(describeChange(item, before, after));
+				}
+				if (!item.isAmbiguous()) {
+					clearTotal++;
+					clearTop1 += after.top1() ? 1 : 0;
+				}
+			}
+
+			// 무관 질문: 다시 정렬한 뒤 1등의 원래 유사도가 threshold(0.83) 이상인 질문 수(늘면 오탐이 느는 것).
+			long negativeLeaks = 0;
+			for (int i = 0; i < negativePools.size(); i++) {
+				List<FaqSimilarityResult> top = FaqCandidateSelector.selectDistinct(
+						FaqCategoryTermBooster.rerank(negativeQueries.get(i).query(), negativePools.get(i), bonus), TOP_K);
+				if (!top.isEmpty() && top.get(0).similarity() >= 0.83) {
+					negativeLeaks++;
+				}
+			}
+
+			log.info("[가산점 {}] Top-1 {}%  Top-3 {}%  카테고리 Top-1 {}%  단서 있는 질문 Top-1 {}%  | 고침 {}  망가짐 {} | 무관 질문 1등이 0.83 이상 {}개",
+					String.format("%.3f", bonus),
+					String.format("%.1f", 100.0 * outcomes.stream().filter(BoostOutcome::top1).count() / outcomes.size()),
+					String.format("%.1f", 100.0 * outcomes.stream().filter(BoostOutcome::top3).count() / outcomes.size()),
+					String.format("%.1f", 100.0 * outcomes.stream().filter(BoostOutcome::category1).count() / outcomes.size()),
+					String.format("%.1f", clearTotal == 0 ? 0.0 : 100.0 * clearTop1 / clearTotal),
+					fixed, broken, negativeLeaks);
+			if (bonus == 0.01 || bonus == 0.02 || bonus == 0.05) {
+				fixedQueries.forEach(s -> log.info("    [가산점 {}] 고침: {}", String.format("%.3f", bonus), s));
+				brokenQueries.forEach(s -> log.info("    [가산점 {}] 망가짐: {}", String.format("%.3f", bonus), s));
+			}
+		}
+	}
+
+	/**
+	 * 가산점 규칙을 만들 때 보지 않은 검증 질문({@code faq_boost_validation_queries.jsonl})으로 일반화를 확인한다.
+	 * 상품 단어가 있는 질문(개선 기대), 상품 단어가 없는 질문(영향 없어야 함), 상품 단어가 있지만 정답이 다른 분류인 질문
+	 * (망가지면 안 됨)이 섞여 있다. 가산점마다 정확도와 고침/망가짐 목록을 출력한다.
+	 */
+	private void printBoostValidation(List<FaqRegressionQuery> validation) {
+		List<PooledQuery> pools = validation.stream().map(q -> new PooledQuery(q, fetchFaqPool(q.query()))).toList();
+		List<BoostOutcome> baseline = pools.stream().map(p -> evaluateWithBonus(p, 0.0)).toList();
+		log.info("=== 검증: 규칙 작성 때 보지 않은 질문 {}문항으로 분류 이름 가산점 확인 ===", validation.size());
+		for (int i = 0; i < pools.size(); i++) {
+			if (!baseline.get(i).top1()) {
+				FaqRegressionQuery item = pools.get(i).item();
+				FaqSimilarityResult top1 = baseline.get(i).results().get(0);
+				log.info("    [검증 기준선] Top-1 오답: [{}/{}] \"{}\" → 1등={}/{} ({})", item.category(), item.subcategory(), item.query(),
+						top1.category(), top1.subcategory(), String.format("%.4f", top1.similarity()));
+			}
+		}
+
+		for (double bonus : new double[] {0.0, 0.01, 0.02, 0.05}) {
+			List<BoostOutcome> outcomes = pools.stream().map(p -> evaluateWithBonus(p, bonus)).toList();
+			int fixed = 0;
+			int broken = 0;
+			for (int i = 0; i < pools.size(); i++) {
+				FaqRegressionQuery item = pools.get(i).item();
+				boolean before = baseline.get(i).top1();
+				boolean after = outcomes.get(i).top1();
+				if (!before && after) {
+					fixed++;
+					log.info("    [검증 가산점 {}] 고침: {}", String.format("%.3f", bonus), describeChange(item, baseline.get(i), outcomes.get(i)));
+				}
+				if (before && !after) {
+					broken++;
+					log.info("    [검증 가산점 {}] 망가짐: {}", String.format("%.3f", bonus), describeChange(item, baseline.get(i), outcomes.get(i)));
+				}
+			}
+			log.info("[검증 가산점 {}] Top-1 {}% ({}/{})  Top-3 {}%  카테고리 Top-1 {}%  | 고침 {}  망가짐 {}",
+					String.format("%.3f", bonus),
+					String.format("%.1f", 100.0 * outcomes.stream().filter(BoostOutcome::top1).count() / outcomes.size()),
+					outcomes.stream().filter(BoostOutcome::top1).count(), outcomes.size(),
+					String.format("%.1f", 100.0 * outcomes.stream().filter(BoostOutcome::top3).count() / outcomes.size()),
+					String.format("%.1f", 100.0 * outcomes.stream().filter(BoostOutcome::category1).count() / outcomes.size()),
+					fixed, broken);
+		}
+	}
+
+	/** 질문 하나의 FAQ 후보 풀을 가져온다(실제 검색과 같은 후보 수). */
+	private List<FaqSimilarityResult> fetchFaqPool(String query) {
+		float[] vector = embeddingProvider.embedQuery(query);
+		return faqVectorSearchRepository.searchBySimilarity(vector, FaqStatus.ACTIVE, 0.0, FaqCandidateSelector.poolSize(TOP_K));
+	}
+
+	private BoostOutcome evaluateWithBonus(PooledQuery pooled, double bonus) {
+		FaqRegressionQuery item = pooled.item();
+		List<FaqSimilarityResult> results = FaqCandidateSelector.selectDistinct(
+				FaqCategoryTermBooster.rerank(item.query(), pooled.pool(), bonus), TOP_K);
+		boolean top1 = !results.isEmpty() && matchesFaq(results.get(0), item);
+		boolean top3 = results.stream().anyMatch(r -> matchesFaq(r, item));
+		boolean category1 = !results.isEmpty() && results.get(0).category().equals(item.category());
+		return new BoostOutcome(top1, top3, category1, results);
+	}
+
+	private String describeChange(FaqRegressionQuery item, BoostOutcome before, BoostOutcome after) {
+		FaqSimilarityResult beforeTop = before.results().get(0);
+		FaqSimilarityResult afterTop = after.results().get(0);
+		return String.format("[%s/%s][%s] \"%s\" : %s/%s → %s/%s", item.category(), item.subcategory(), item.style(), item.query(),
+				beforeTop.category(), beforeTop.subcategory(), afterTop.category(), afterTop.subcategory());
 	}
 
 	/** rows 중 조건을 만족하는 비율(%). rows가 비어 있으면 0. */
