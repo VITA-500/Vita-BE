@@ -25,11 +25,11 @@ spring:
   ai:
     bedrock:
       aws:
-        region: ${AWS_REGION:ap-northeast-1}
+        region: ${AWS_REGION:ap-northeast-2}
       converse:
         chat:
           options:
-            model: ${BEDROCK_MODEL_ID:openai.gpt-oss-120b-1:0}
+            model: ${BEDROCK_MODEL_ID:apac.amazon.nova-lite-v1:0}
             temperature: 0.3
             max-tokens: 1024
 
