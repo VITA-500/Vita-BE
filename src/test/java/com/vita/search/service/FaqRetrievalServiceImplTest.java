@@ -45,7 +45,8 @@ class FaqRetrievalServiceImplTest {
 				.thenReturn(List.of(faq));
 
 		PlanSimilarityResult plan = new PlanSimilarityResult(
-				1L, "VITA-MAX", "비타 맥스", "무제한 요금제", 69000, "설명", planSimilarity, null);
+				1L, "VITA-MAX", "비타 맥스", "무제한 요금제", 69000, "설명", planSimilarity, null,
+					"5G", "GENERAL", null, null, "UNLIMITED", null, null, "UNLIMITED", null, "UNLIMITED", null);
 		when(planSearchService.search(any(), any(float[].class), anyInt()))
 				.thenReturn(new PlanSearchService.PlanSearchOutcome(List.of(plan), false));
 	}
@@ -81,6 +82,93 @@ class FaqRetrievalServiceImplTest {
 		assertThat(context.references()).hasSize(1);
 		assertThat(context.planReferences()).isEmpty();
 		assertThat(context.topSimilarity()).isEqualTo(0.87);
+	}
+
+	private void stubFaqPool(FaqSimilarityResult... pool) {
+		when(faqRepository.searchBySimilarity(any(float[].class), eq(FaqStatus.ACTIVE), anyDouble(), anyInt()))
+				.thenReturn(List.of(pool));
+		when(planSearchService.search(any(), any(float[].class), anyInt()))
+				.thenReturn(new PlanSearchService.PlanSearchOutcome(List.of(), false));
+	}
+
+	private static FaqSimilarityResult faqOf(long id, String category, String subcategory, double similarity) {
+		return new FaqSimilarityResult(id, category, subcategory, "질문" + id, "답변" + id, similarity, null);
+	}
+
+	@Test
+	void promotesTheCategoryNamedInTheQueryButKeepsTheOriginalTopSimilarity() {
+		ReflectionTestUtils.setField(service, "categoryBoostBonus", 0.01);
+		stubFaqPool(
+				faqOf(1, "인터넷/IPTV", "IPTV 상품안내", 0.866),
+				faqOf(2, "소상공인", "IPTV", 0.863));
+
+		FaqRetrievalContext context = service.search("IPTV 설치가 안 되는 상가 지역도 있나요?", 3);
+
+		// 질문의 "IPTV", "상가"에 맞는 소상공인/IPTV가 1등이 된다.
+		assertThat(context.references()).extracting(r -> r.subcategory()).containsExactly("IPTV", "IPTV 상품안내");
+		// BE4에 전달하는 최고 유사도는 순위와 상관없이 원래 최고값이다.
+		assertThat(context.topSimilarity()).isEqualTo(0.866);
+		// 각 후보의 유사도 값도 바뀌지 않는다.
+		assertThat(context.references()).extracting(r -> r.similarity()).containsExactly(0.863, 0.866);
+	}
+
+	@Test
+	void keepsOriginalOrderWhenCategoryBoostIsDisabled() {
+		ReflectionTestUtils.setField(service, "categoryBoostBonus", 0.0);
+		stubFaqPool(
+				faqOf(1, "인터넷/IPTV", "IPTV 상품안내", 0.866),
+				faqOf(2, "소상공인", "IPTV", 0.863));
+
+		FaqRetrievalContext context = service.search("IPTV 설치가 안 되는 상가 지역도 있나요?", 3);
+
+		assertThat(context.references()).extracting(r -> r.subcategory()).containsExactly("IPTV 상품안내", "IPTV");
+	}
+
+	@Test
+	void stillAppliesTheSimilarityThresholdToTheOriginalSimilarityAfterReranking() {
+		ReflectionTestUtils.setField(service, "categoryBoostBonus", 0.01);
+		stubFaqPool(
+				faqOf(1, "인터넷/IPTV", "IPTV 상품안내", 0.832),
+				faqOf(2, "소상공인", "IPTV", 0.825));
+
+		FaqRetrievalContext context = service.search("소상공인 IPTV 설치", 3);
+
+		// 가산점으로 앞섰더라도 원래 유사도 0.825는 threshold(0.83) 미만이라 제외된다.
+		assertThat(context.references()).extracting(r -> r.subcategory()).containsExactly("IPTV 상품안내");
+	}
+
+	@Test
+	void passesPlanDetailFieldsToPlanReferenceKeepingNulls() {
+		PlanSimilarityResult limited = new PlanSimilarityResult(
+				4L, "VITA-BALANCE-40", "비타 밸런스 40", "요약", 43000, "설명", 0.86, null,
+				"LTE_5G", "GENERAL", null, null, "LIMITED", 40960L, 1000, "UNLIMITED", null, "UNLIMITED", null);
+		PlanSimilarityResult youth = new PlanSimilarityResult(
+				5L, "VITA-YOUTH", "비타 유스", "요약", 33000, "설명", 0.85, null,
+				"5G", "YOUTH", 19, 34, "LIMITED", 20480L, null, "LIMITED", 300, "LIMITED", 100);
+		when(faqRepository.searchBySimilarity(any(float[].class), eq(FaqStatus.ACTIVE), anyDouble(), anyInt()))
+				.thenReturn(List.of());
+		when(planSearchService.search(any(), any(float[].class), anyInt()))
+				.thenReturn(new PlanSearchService.PlanSearchOutcome(List.of(limited, youth), false));
+
+		var plans = service.search("요금제 추천해줘", 3).planReferences();
+
+		var first = plans.get(0);
+		assertThat(first.networkType()).isEqualTo("LTE_5G");
+		assertThat(first.targetGroup()).isEqualTo("GENERAL");
+		assertThat(first.minAge()).isNull();
+		assertThat(first.baseDataMb()).isEqualTo(40960L);
+		assertThat(first.exhaustedSpeedKbps()).isEqualTo(1000);
+		assertThat(first.voicePolicy()).isEqualTo("UNLIMITED");
+		assertThat(first.voiceMinutes()).isNull();
+		assertThat(first.smsCount()).isNull();
+
+		var second = plans.get(1);
+		assertThat(second.targetGroup()).isEqualTo("YOUTH");
+		assertThat(second.minAge()).isEqualTo(19);
+		assertThat(second.maxAge()).isEqualTo(34);
+		assertThat(second.exhaustedSpeedKbps()).isNull();
+		assertThat(second.voiceMinutes()).isEqualTo(300);
+		assertThat(second.smsCount()).isEqualTo(100);
 	}
 
 	@Test

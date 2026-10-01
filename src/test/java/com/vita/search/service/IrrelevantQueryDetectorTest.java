@@ -94,6 +94,14 @@ class IrrelevantQueryDetectorTest {
 	}
 
 	@Test
+	void doesNotFlagReportOrProcessingHowToQuestionsThatMentionMyName() {
+		assertThat(detect("모르는 휴대폰이나 인터넷이 제 명의로 가입되어 있어요. 어떻게 신고하나요?")).isEmpty();
+		assertThat(detect("제 명의로 가입된 회선이 도용된 것 같아서 신고하고 싶어요")).isEmpty();
+		// 상태를 묻는 표현("어떻게 돼")은 여전히 조회로 본다.
+		assertThat(detect("내 유심 상태가 어떻게 돼?")).contains(Rule.PERSONAL_LOOKUP);
+	}
+
+	@Test
 	void doesNotFlagHowToQuestionsThatContainRequestWords() {
 		assertThat(detect("제 스마트폰에서 스팸 문자 차단하는 방법 알려주세요")).isEmpty();
 		assertThat(detect("제 데이터를 가족에게 나눠주는 방법이 궁금해요")).isEmpty();

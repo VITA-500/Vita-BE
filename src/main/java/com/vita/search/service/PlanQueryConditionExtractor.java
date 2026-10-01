@@ -204,6 +204,16 @@ public final class PlanQueryConditionExtractor {
 		};
 	}
 
+	/**
+	 * 질문이 가리키는 대상 그룹(plans.target_group 값)을 찾는다. {@link #extract}와 달리 "요금제" 같은 말이
+	 * 없어도 동작한다 — 극값 조회처럼 이미 요금제 질문이라고 확정된 뒤에 호출하는 용도다.
+	 *
+	 * @return GENERAL/YOUTH/SENIOR/KIDS/WATCH/TABLET 중 하나. 대상 표현이 없거나 여러 그룹이 섞이면 null
+	 */
+	public static String targetGroupOf(String query) {
+		return query == null ? null : extractTargetGroup(query);
+	}
+
 	/** 대상 그룹 키워드가 정확히 한 그룹만 가리킬 때만 채택한다(여러 그룹이 섞이면 null). */
 	private static String extractTargetGroup(String query) {
 		Set<String> groups = new LinkedHashSet<>();

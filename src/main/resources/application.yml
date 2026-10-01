@@ -125,6 +125,10 @@ retrieval:
   # RETRIEVAL_IRRELEVANT_RULE_ENABLED=false로 끌 수 있다.
   irrelevant-rule:
     enabled: ${RETRIEVAL_IRRELEVANT_RULE_ENABLED:true}
+  # 질문에 분류 이름 단어(IPTV, 유선, 소상공인, 유심 등)가 있으면 그 분류의 FAQ 후보를 약간 앞세우는 순위용 가산점.
+  # 유사도 값과 threshold 판단은 바뀌지 않는다. 0이면 꺼진다.
+  category-boost:
+    bonus: ${RETRIEVAL_CATEGORY_BOOST_BONUS:0.01}
 
 springdoc:
   swagger-ui:
