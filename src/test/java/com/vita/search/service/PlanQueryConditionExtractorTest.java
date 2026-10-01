@@ -178,4 +178,19 @@ class PlanQueryConditionExtractorTest {
 		assertThat(extract("요금제 변경은 어떻게 해?").isEmpty()).isTrue();
 		assertThat(extract("비타 라이트 5 요금제 설명해줘").isEmpty()).isTrue();
 	}
+
+	@Test
+	void targetGroupOfFindsTheGroupEvenWithoutThePlanWord() {
+		assertThat(PlanQueryConditionExtractor.targetGroupOf("워치 중에 제일 싼 거 알려줘")).isEqualTo("WATCH");
+		assertThat(PlanQueryConditionExtractor.targetGroupOf("태블릿 데이터 가장 많이 주는 건?")).isEqualTo("TABLET");
+		assertThat(PlanQueryConditionExtractor.targetGroupOf("청년 요금제 중에 가장 저렴한 거")).isEqualTo("YOUTH");
+		assertThat(PlanQueryConditionExtractor.targetGroupOf("시니어 요금제 중 제일 싼 요금제가 뭐예요?")).isEqualTo("SENIOR");
+	}
+
+	@Test
+	void targetGroupOfIsNullWhenNoGroupOrSeveralGroupsAreMentioned() {
+		assertThat(PlanQueryConditionExtractor.targetGroupOf("가장 저렴한 요금제 알려줘")).isNull();
+		assertThat(PlanQueryConditionExtractor.targetGroupOf("청년이랑 시니어 중 제일 싼 요금제")).isNull();
+		assertThat(PlanQueryConditionExtractor.targetGroupOf(null)).isNull();
+	}
 }
