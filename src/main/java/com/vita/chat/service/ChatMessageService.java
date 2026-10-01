@@ -119,16 +119,15 @@ public class ChatMessageService {
 			}
 		}
 		
+		List<PlanReference> generalPlans = extremePlans.isEmpty()
+		        ? plans
+		        : List.of();   // 극값 질문이면 일반 검색 결과 제외
+		
 		
 		if (faqs.isEmpty() && plans.isEmpty() && extremePlans.isEmpty()) {
 			log.info("관련 FAQ/요금제 없음 (topSimilarity={}). query={}", retrievalContext.topSimilarity(), query);
 			return "";
 		}
-
-		// 극값 결과에 포함된 요금제 ID만 따로 모아둠 — 아래에서 중복 출력을 막기 위함
-		Set<Long> extremeIds = extremePlans.stream()
-				.map(PlanReference::planId)
-				.collect(Collectors.toSet());
 
 		StringBuilder sb = new StringBuilder();
 
@@ -139,17 +138,21 @@ public class ChatMessageService {
 			  .append("\n</comparison_result>\n");
 		}
 
-		// 2) 일반 요금제 검색 결과 — 극값에 이미 나온 요금제(extremeIds)는 중복으로 또 넣지 않음
-		plans.stream()
-				.filter(p -> !extremeIds.contains(p.planId()))   // 중복 제거
-				.map(this::toPlanXml)
-				.forEach(xml -> sb.append(xml).append("\n"));
+		// 2) 일반 요금제 검색 결과 (극값 질문이면 비어 있음)
+		generalPlans.stream()
+		        .map(this::toPlanXml)
+		        .forEach(xml -> sb.append(xml).append("\n"));
 
 		// 3) FAQ 결과를 마지막에 추가
 		faqs.stream()
 				.map(this::toFaqXml)
 				.forEach(xml -> sb.append(xml).append("\n"));
 
+		log.info("context plan count: extreme={}, general={}, extremeNames={}, generalNames={}",
+		        extremePlans.size(), generalPlans.size(),
+		        extremePlans.stream().map(PlanReference::name).toList(),
+		        generalPlans.stream().map(PlanReference::name).toList());
+		
 		return sb.toString();
 	}
 	
