@@ -18,6 +18,8 @@ public enum ErrorCode {
 	LOCATION_REQUIRED(HttpStatus.BAD_REQUEST, "위치 정보가 필요합니다."),
 	INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
 	FAQ_EMBEDDING_FAILED(HttpStatus.BAD_GATEWAY, "FAQ 임베딩 생성에 실패했습니다. 잠시 후 다시 시도해 주세요."),
+	PLAN_EMBEDDING_FAILED(HttpStatus.BAD_GATEWAY, "요금제 임베딩 생성에 실패했습니다. 잠시 후 다시 시도해 주세요."),
+	PLAN_CODE_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 사용 중인 요금제 코드입니다."),
 
 	// 인증 (auth) — 04_API명세서 1절 기준
 	EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다."),
