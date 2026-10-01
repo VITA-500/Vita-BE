@@ -51,9 +51,20 @@ public class ChatMessageService {
 	private final PlanLookupService planLookupService;
 	private final PlanIntentClassifier planIntentClassifier;
 	
+	private static final Set<String> EXTREME_SIGNAL_KEYWORDS = Set.of(
+			"가장", "제일", "최고", "최저", "가성비", "제일싼", "가장싼"
+	);
+
+	private boolean hasExtremeSignal(String query) {
+		return EXTREME_SIGNAL_KEYWORDS.stream().anyMatch(query::contains);
+	}
+	
+	
 	@Transactional
 	public ChatMessageResponse sendMessage(Long sessionId, Long userId, UUID guestId, ChatMessageSendRequest request) {
 		
+		// 1) 사용자 메시지 저장 + AI 답변 자리(PENDING 상태)를 먼저 DB에 만들어둠
+		//    아직 LLM 응답은 안 왔지만, "생성중"이라는 행을 미리 확보하는 것
 		ChatMessage assistantMessage = persistence.saveUserAndPendingAssistant(sessionId, request);
 		
 		// 2) 조립 재료 준비
@@ -65,6 +76,7 @@ public class ChatMessageService {
 		long startTime = System.currentTimeMillis();
 		
 		try {
+			// 3) 실제 LLM 호출 — 질문 + 참고자료 + 대화이력을 함께 전달
 			String answer = bedrockChatClient.ask(request.content(), context, conversationHistory);
 			persistence.markCompleted(assistantMessage.getId(), answer);
 			
@@ -80,23 +92,28 @@ public class ChatMessageService {
 		}
 		long latencyMs = System.currentTimeMillis() - startTime;
         
+		// 4) 성공/실패와 무관하게 현재 assistantMessage 상태를 응답으로 반환 (실패 시에도 예외를 던지지 않고 FAILED 상태로 정상 응답)
 		return ChatMessageResponse.of(assistantMessage, latencyMs);
 		
 	}
 	
+	/**
+	 * 질문과 관련된 FAQ/요금제 정보를 검색해서 LLM에게 줄 하나의 문자열(context)로 조립한다.
+	 * 순서: 극값 비교 결과 → 일반 요금제 → FAQ
+	 */
 	private String buildContext(String query) {
+		// BE3의 벡터 검색 호출 — FAQ와 요금제 양쪽 결과를 함께 담고 있는 객체를 받음
 		FaqRetrievalContext retrievalContext = faqRetrievalService.search(query, TOP_K);
 		
+		// hasRelevantFaq(): FAQ 중 가장 유사한 것도 threshold 미만이면 false
+		// false인 경우 관련 없는 FAQ를 억지로 쓰지 않도록 빈 리스트 처리
 		List<FaqReference> faqs = retrievalContext.hasRelevantFaq() ? retrievalContext.references() : List.of();
 		List<PlanReference> plans = retrievalContext.planReferences();
 
 		// 요금제 검색이 히트했을 때만 극값 여부 판단
 		List<PlanReference> extremePlans = List.of();
-		log.info("plans={}, faqs={}, topSimilarity={}", plans.size(), faqs.size(), retrievalContext.topSimilarity());
-
-		if (!plans.isEmpty()) {
+		if (!plans.isEmpty() || hasExtremeSignal(query)) {
 			PlanIntent intent = planIntentClassifier.classify(query);
-			log.info("intent={}", intent);
 			if (intent.extreme()) {
 				extremePlans = planLookupService.findExtreme(intent.sortKey(), intent.limit());
 			}
@@ -108,23 +125,27 @@ public class ChatMessageService {
 			return "";
 		}
 
+		// 극값 결과에 포함된 요금제 ID만 따로 모아둠 — 아래에서 중복 출력을 막기 위함
 		Set<Long> extremeIds = extremePlans.stream()
 				.map(PlanReference::planId)
 				.collect(Collectors.toSet());
 
 		StringBuilder sb = new StringBuilder();
 
+		// 1) 극값 결과를 <comparison_result> 태그로 감싸서 가장 먼저 넣음 (모델이 "이게 비교 정답"이라고 알 수 있게)
 		if (!extremePlans.isEmpty()) {
 			sb.append("<comparison_result>\n")
 			  .append(extremePlans.stream().map(this::toPlanXml).collect(Collectors.joining("\n")))
 			  .append("\n</comparison_result>\n");
 		}
 
+		// 2) 일반 요금제 검색 결과 — 극값에 이미 나온 요금제(extremeIds)는 중복으로 또 넣지 않음
 		plans.stream()
 				.filter(p -> !extremeIds.contains(p.planId()))   // 중복 제거
 				.map(this::toPlanXml)
 				.forEach(xml -> sb.append(xml).append("\n"));
 
+		// 3) FAQ 결과를 마지막에 추가
 		faqs.stream()
 				.map(this::toFaqXml)
 				.forEach(xml -> sb.append(xml).append("\n"));
@@ -132,6 +153,7 @@ public class ChatMessageService {
 		return sb.toString();
 	}
 	
+	/** FAQ 한 건을 LLM이 읽기 좋은 XML 비슷한 텍스트 블록으로 변환 */
 	private String toFaqXml(FaqReference faq) {
 		return """
 				<document>
@@ -142,6 +164,7 @@ public class ChatMessageService {
 				""".formatted(faq.category(), faq.subcategory(), faq.question(), faq.answer());
 	}
 
+	/** 요금제 한 건을 LLM이 읽기 좋은 텍스트 블록으로 변환 (%,d는 숫자에 천 단위 콤마 표시) */
 	private String toPlanXml(PlanReference p) {
 		return """
 				<plan>
@@ -153,6 +176,10 @@ public class ChatMessageService {
 				""".formatted(p.name(), p.monthlyFee(), p.summary(), p.description());
 	}
 	
+	/**
+	 * 같은 세션의 이전 대화 내용을 "USER: ~~\nASSISTANT: ~~" 형태의 한 문자열로 이어붙인다.
+	 * LLM에게 이전 맥락을 알려주기 위한 용도.
+	 */
 	private String buildConversationHistory (Long sessionId) {
 		
 		List<ChatMessage> previousMessages =
@@ -165,6 +192,10 @@ public class ChatMessageService {
 		
 	}
 	
+	/**
+	 * 특정 세션의 메시지 목록을 조회하는 API용 메소드.
+	 * @Transactional(readOnly = true): 조회만 하는 트랜잭션이라고 명시 (DB 최적화 + 실수로 쓰기 방지)
+	 */
 	@Transactional(readOnly = true)
 	public SessionMessagesResponse getMessages(Long sessionId, Long userId, UUID guestId) {
 		
