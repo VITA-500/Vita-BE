@@ -15,7 +15,7 @@ import com.vita.chat.dto.ChatMessageResponse;
 import com.vita.chat.dto.ChatMessageSendRequest;
 import com.vita.chat.dto.ChatSessionListResponse;
 import com.vita.chat.dto.ChatSessionSummaryResponse;
-import com.vita.chat.dto.MessageResponse;
+import com.vita.chat.dto.ChatMessageItemResponse;
 import com.vita.chat.dto.PlanIntent;
 import com.vita.chat.dto.SessionMessagesResponse;
 import com.vita.chat.entity.ChatMessage;
@@ -223,10 +223,10 @@ public class ChatMessageService {
 		if(!isOwner){
 			throw new BusinessException(ErrorCode.FORBIDDEN, "타인의 세션에는 접근할 수 없습니다.");
 		}
-		List<MessageResponse> messages = chatMessageRepository
+		List<ChatMessageItemResponse> messages = chatMessageRepository
 				.findAllBySession_IdOrderByCreatedAtAsc(sessionId)
 				.stream()
-				.map(MessageResponse::from)
+				.map(ChatMessageItemResponse::from)
 				.toList();
 		
 		return new SessionMessagesResponse(sessionId, messages);

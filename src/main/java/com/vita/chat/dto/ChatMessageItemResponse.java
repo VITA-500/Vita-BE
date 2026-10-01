@@ -6,15 +6,15 @@ import com.vita.chat.ChatMessageRole;
 import com.vita.chat.ChatMessageStatus;
 import com.vita.chat.entity.ChatMessage;
 
-public record MessageResponse(
+public record ChatMessageItemResponse(
 		Long messageId,
 		ChatMessageRole role,
 		String content, 
 		LocalDateTime createdAt,
 		ChatMessageStatus status
 		) {
-	public static MessageResponse from(ChatMessage message) {
-		return new MessageResponse(
+	public static ChatMessageItemResponse from(ChatMessage message) {
+		return new ChatMessageItemResponse(
 				message.getId(),
 				message.getRole(),
 				message.getContent(),
