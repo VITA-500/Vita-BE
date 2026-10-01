@@ -45,7 +45,8 @@ class FaqRetrievalServiceImplTest {
 				.thenReturn(List.of(faq));
 
 		PlanSimilarityResult plan = new PlanSimilarityResult(
-				1L, "VITA-MAX", "비타 맥스", "무제한 요금제", 69000, "설명", planSimilarity, null);
+				1L, "VITA-MAX", "비타 맥스", "무제한 요금제", 69000, "설명", planSimilarity, null,
+					"5G", "GENERAL", null, null, "UNLIMITED", null, null, "UNLIMITED", null, "UNLIMITED", null);
 		when(planSearchService.search(any(), any(float[].class), anyInt()))
 				.thenReturn(new PlanSearchService.PlanSearchOutcome(List.of(plan), false));
 	}
@@ -134,6 +135,40 @@ class FaqRetrievalServiceImplTest {
 
 		// 가산점으로 앞섰더라도 원래 유사도 0.825는 threshold(0.83) 미만이라 제외된다.
 		assertThat(context.references()).extracting(r -> r.subcategory()).containsExactly("IPTV 상품안내");
+	}
+
+	@Test
+	void passesPlanDetailFieldsToPlanReferenceKeepingNulls() {
+		PlanSimilarityResult limited = new PlanSimilarityResult(
+				4L, "VITA-BALANCE-40", "비타 밸런스 40", "요약", 43000, "설명", 0.86, null,
+				"LTE_5G", "GENERAL", null, null, "LIMITED", 40960L, 1000, "UNLIMITED", null, "UNLIMITED", null);
+		PlanSimilarityResult youth = new PlanSimilarityResult(
+				5L, "VITA-YOUTH", "비타 유스", "요약", 33000, "설명", 0.85, null,
+				"5G", "YOUTH", 19, 34, "LIMITED", 20480L, null, "LIMITED", 300, "LIMITED", 100);
+		when(faqRepository.searchBySimilarity(any(float[].class), eq(FaqStatus.ACTIVE), anyDouble(), anyInt()))
+				.thenReturn(List.of());
+		when(planSearchService.search(any(), any(float[].class), anyInt()))
+				.thenReturn(new PlanSearchService.PlanSearchOutcome(List.of(limited, youth), false));
+
+		var plans = service.search("요금제 추천해줘", 3).planReferences();
+
+		var first = plans.get(0);
+		assertThat(first.networkType()).isEqualTo("LTE_5G");
+		assertThat(first.targetGroup()).isEqualTo("GENERAL");
+		assertThat(first.minAge()).isNull();
+		assertThat(first.baseDataMb()).isEqualTo(40960L);
+		assertThat(first.exhaustedSpeedKbps()).isEqualTo(1000);
+		assertThat(first.voicePolicy()).isEqualTo("UNLIMITED");
+		assertThat(first.voiceMinutes()).isNull();
+		assertThat(first.smsCount()).isNull();
+
+		var second = plans.get(1);
+		assertThat(second.targetGroup()).isEqualTo("YOUTH");
+		assertThat(second.minAge()).isEqualTo(19);
+		assertThat(second.maxAge()).isEqualTo(34);
+		assertThat(second.exhaustedSpeedKbps()).isNull();
+		assertThat(second.voiceMinutes()).isEqualTo(300);
+		assertThat(second.smsCount()).isEqualTo(100);
 	}
 
 	@Test
