@@ -66,7 +66,7 @@ public class ChatMessage {
 	@OneToMany(mappedBy = "chatMessage", cascade = CascadeType.ALL, orphanRemoval = true)
 	private List<ChatMessageFaqRef> faqRefs = new ArrayList<>();
 	
-	@Column(name = "error_message")
+	@Column(name = "error_message", columnDefinition = "TEXT")
 	private String errorMessage;
 	
 	@Builder
