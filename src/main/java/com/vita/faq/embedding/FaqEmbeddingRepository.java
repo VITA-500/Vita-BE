@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 import java.sql.PreparedStatement;
 import java.util.List;
 
+/** FAQ 벡터와 임베딩 메타데이터만 저장하며 FAQ 본문의 수정 시각은 변경하지 않는다. */
 @Repository
 public class FaqEmbeddingRepository {
 
@@ -26,8 +27,7 @@ public class FaqEmbeddingRepository {
 		SET embedding = ?,
 		    embedding_model = ?,
 		    embedding_version = ?,
-		    embedded_at = now(),
-		    updated_at = now()
+		    embedded_at = now()
 		WHERE id = ?
 		  AND status = 'ACTIVE'
 		  AND embedding IS NULL
