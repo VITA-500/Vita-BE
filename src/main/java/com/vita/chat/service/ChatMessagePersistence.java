@@ -74,6 +74,7 @@ class ChatMessagePersistence {
         ChatMessage message = chatMessageRepository.findById(messageId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "메시지를 찾을 수 없습니다."));
         message.markFailed(errorMessage);
+        message.getSession().update();
     }
     
     @Transactional(readOnly = true)

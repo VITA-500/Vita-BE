@@ -1,5 +1,7 @@
 package com.vita.chat.service;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -24,6 +26,7 @@ import com.vita.chat.repository.ChatMessageRepository;
 import com.vita.chat.repository.ChatSessionRepository;
 import com.vita.common.exception.BusinessException;
 import com.vita.common.exception.ErrorCode;
+import org.springframework.data.domain.PageRequest;
 import com.vita.search.dto.FaqReference;
 import com.vita.search.dto.FaqRetrievalContext;
 import com.vita.search.dto.PlanReference;
@@ -42,6 +45,7 @@ import software.amazon.awssdk.core.exception.SdkException;
 public class ChatMessageService {
 
 	private static final int TOP_K = 3; // 검색해올 FAQ 후보 개수 — threshold 필터는 BE3 쪽에서 처리됨
+	private static final int MAX_HISTORY_TURNS = 5;  // 1턴 = USER + ASSISTANT 2개
 	
 	private final BedrockChatClient bedrockChatClient;
 	private final FaqRetrievalService faqRetrievalService;
@@ -62,22 +66,39 @@ public class ChatMessageService {
 
 	public ChatMessageResponse sendMessage(Long sessionId, Long userId, UUID guestId, ChatMessageSendRequest request) {
 		
+		long startTime = System.currentTimeMillis();
+		
+		 // -1) 세션 소유자 검증 (try-catch 밖에 둬서 403/404가 그대로 응답되게 함)
+	    getOwnedSession(sessionId, userId, guestId);
+		
+		// 0) 이력을 먼저 조회 (현재 질문은 아직 DB에 없음)
+	    String conversationHistory;
+	    try {
+	        conversationHistory = buildConversationHistory(sessionId);
+	    } catch (Exception e) {
+	        log.warn("대화 이력 조회 실패, 이력 없이 진행 - sessionId: {}", sessionId, e);
+	        conversationHistory = "";
+	    }
+		
 		// 1) 사용자 메시지 저장 + AI 답변 자리(PENDING 상태)를 먼저 DB에 만들어둠
 		//    아직 LLM 응답은 안 왔지만, "생성중"이라는 행을 미리 확보하는 것
 		ChatMessage assistantMessage = persistence.saveUserAndPendingAssistant(sessionId, request);
 		Long assistantId = assistantMessage.getId();
 		
-		
-		
-		long startTime = System.currentTimeMillis();
+		// 2) 조립 재료 준비
+        ContextResult context;
+        try {
+            context = buildContext(request.content());
+        } catch (Exception e) {
+            log.warn("컨텍스트 조립 실패, 참고자료 없이 진행 - sessionId: {}", sessionId, e);
+            context = ContextResult.empty();
+        }
+
+        log.info("service context: " + context.text());
+        
+        long llmStartTime = System.currentTimeMillis();
 		
 		try {
-			// 2) 조립 재료 준비
-			ContextResult context = buildContext(request.content());
-			String conversationHistory = buildConversationHistory(sessionId);
-			
-			log.info("service context: " + context.text());
-			
 			// 3) 실제 LLM 호출 — 질문 + 참고자료 + 대화이력을 함께 전달
 			String answer = bedrockChatClient.ask(request.content(), context.text(), conversationHistory);
 			
@@ -95,6 +116,10 @@ public class ChatMessageService {
 			persistence.markFailed(assistantMessage.getId(), e.getMessage());
 		}
 		long latencyMs = System.currentTimeMillis() - startTime;
+		
+		long llmLatencyMs = System.currentTimeMillis() - llmStartTime;
+		
+		log.info("LLM Latency : {}ms", llmLatencyMs);
         
 		// 커밋된 최신 상태를 트랜잭션 안에서 조회해 응답까지 만들어 반환
 	    return persistence.getResponse(assistantId, latencyMs);
@@ -193,14 +218,33 @@ public class ChatMessageService {
 	 */
 	private String buildConversationHistory (Long sessionId) {
 		
-		List<ChatMessage> previousMessages =
-				chatMessageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
+		List<ChatMessage> recent = new ArrayList<>(
+		        chatMessageRepository.findBySession_IdAndStatusOrderByCreatedAtDescIdDesc(
+		                sessionId,
+		                ChatMessageStatus.COMPLETED,
+		                PageRequest.of(0, MAX_HISTORY_TURNS * 2)));
+
+	    Collections.reverse(recent);  // DESC로 가져왔으니 시간순(ASC)으로 복원
+
+	    return recent.stream()
+	            .map(m -> "%s: %s".formatted(m.getRole(), m.getContent()))
+	            .collect(Collectors.joining("\n"));
 		
-		return previousMessages.stream()
-				.filter(m -> m.getStatus() == ChatMessageStatus.COMPLETED)
-				.map(m -> "%s: %s".formatted(m.getRole(), m.getContent()))
-				.collect(Collectors.joining("\n"));
-		
+	}
+	
+	/** 세션 존재 여부와 소유자를 검증한다. 실패 시 BusinessException. */
+	private ChatSession getOwnedSession(Long sessionId, Long userId, UUID guestId) {
+	    ChatSession session = chatSessionRepository.findById(sessionId)
+	            .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "존재하지 않는 세션입니다."));
+
+	    boolean isOwner = (session.getUserId() != null)
+	            ? session.getUserId().equals(userId)
+	            : session.getGuestId() != null && session.getGuestId().equals(guestId);
+
+	    if (!isOwner) {
+	        throw new BusinessException(ErrorCode.FORBIDDEN, "타인의 세션에는 접근할 수 없습니다.");
+	    }
+	    return session;
 	}
 	
 	/**
@@ -210,19 +254,9 @@ public class ChatMessageService {
 	@Transactional(readOnly = true)
 	public SessionMessagesResponse getMessages(Long sessionId, Long userId, UUID guestId) {
 		
-		ChatSession session = chatSessionRepository.findById(sessionId)
-				.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "존재하지 않는 세션입니다."));
+		getOwnedSession(sessionId, userId, guestId);
 		
-		boolean isOwner;
-		if (session.getUserId() != null) {
-		    isOwner = session.getUserId().equals(userId);
-		} else {
-		    isOwner = session.getGuestId().equals(guestId);
-		}
 		
-		if(!isOwner){
-			throw new BusinessException(ErrorCode.FORBIDDEN, "타인의 세션에는 접근할 수 없습니다.");
-		}
 		List<ChatMessageItemResponse> messages = chatMessageRepository
 				.findAllBySession_IdOrderByCreatedAtAsc(sessionId)
 				.stream()
