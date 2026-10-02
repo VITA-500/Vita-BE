@@ -2,12 +2,10 @@ package com.vita.auth.oauth;
 
 import com.vita.auth.oauth.CustomOAuth2UserService.OAuth2UserAdapter;
 import com.vita.auth.entity.User;
-import com.vita.auth.security.CookieUtil;
-import com.vita.auth.security.JwtProvider;
+import com.vita.auth.security.TokenIssuer;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -29,13 +27,12 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
-	private final JwtProvider jwtProvider;
-	private final CookieUtil cookieUtil;
+	private final TokenIssuer tokenIssuer;
 
 	@Value("${app.oauth2.redirect-uri}")
 	private String redirectUri;
 
-	/** 우리 JWT를 발급해 HttpOnly 쿠키에 담고, 프론트 콜백 주소로 리다이렉트한다. */
+	/** accessToken·refreshToken을 발급해 HttpOnly 쿠키에 담고, 프론트 콜백 주소로 리다이렉트한다. */
 	@Override
 	public void onAuthenticationSuccess(
 			HttpServletRequest request,
@@ -43,11 +40,9 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 			Authentication authentication) throws IOException {
 
 		User user = ((OAuth2UserAdapter) authentication.getPrincipal()).user();
-		String accessToken = jwtProvider.createAccessToken(user.getId(), user.getRole());
-
-		ResponseCookie cookie = cookieUtil.create(
-				accessToken, Duration.ofMillis(jwtProvider.getAccessTokenExpireMillis()));
-		response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+		for (ResponseCookie cookie : tokenIssuer.toCookies(tokenIssuer.issue(user.getId(), user.getRole()))) {
+			response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+		}
 
 		getRedirectStrategy().sendRedirect(request, response, redirectUri);
 	}

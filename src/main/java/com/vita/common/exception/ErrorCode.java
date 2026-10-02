@@ -32,6 +32,11 @@ public enum ErrorCode {
 	INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다."),
 	USER_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."),
 	/**
+	 * refreshToken이 없거나, 만료됐거나, 이미 쓰였거나(교체됨), 로그아웃으로 폐기된 경우.
+	 * 원인을 구분하지 않는다 — FE가 할 일은 어느 경우든 재로그인 하나다.
+	 */
+	INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "인증이 만료되었습니다. 다시 로그인해주세요."),
+	/**
 	 * 소셜 전용 계정이 비밀번호 변경을 시도한 경우. 비밀번호가 애초에 없는 계정이라 "변경"이
 	 * 성립하지 않는다. FE는 hasPassword=false면 변경 UI를 숨기지만, API를 직접 부를 수 있어 막는다.
 	 */

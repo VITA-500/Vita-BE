@@ -6,7 +6,10 @@ import com.vita.auth.dto.LoginResponse;
 import com.vita.auth.dto.LoginResult;
 import com.vita.auth.dto.MessageResponse;
 import com.vita.auth.security.CookieUtil;
-import com.vita.auth.security.JwtProvider;
+import com.vita.auth.security.TokenIssuer;
+import com.vita.auth.security.TokenIssuer.IssuedTokens;
+import com.vita.common.exception.BusinessException;
+import com.vita.common.exception.ErrorCode;
 import com.vita.auth.dto.SignupRequest;
 import com.vita.auth.dto.SignupResponse;
 import com.vita.auth.service.AuthService;
@@ -21,7 +24,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import java.time.Duration;
+import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
@@ -41,7 +44,7 @@ public class AuthController {
 
 	private final AuthService authService;
 	private final CookieUtil cookieUtil;
-	private final JwtProvider jwtProvider;
+	private final TokenIssuer tokenIssuer;
 
 	@Operation(summary = "자체 회원가입",
 			description = "이메일과 비밀번호로 가입한다. 비밀번호는 bcrypt로 해싱해서 저장하며 평문은 보관하지 않는다.")
@@ -59,8 +62,8 @@ public class AuthController {
 	}
 
 	@Operation(summary = "자체 로그인",
-			description = "성공하면 accessToken을 HttpOnly 쿠키로 내려준다. 프론트는 토큰을 직접 다루지 않고, "
-					+ "이후 요청에 withCredentials 옵션만 켜면 브라우저가 자동으로 실어 보낸다.")
+			description = "성공하면 accessToken·refreshToken을 HttpOnly 쿠키로 내려준다. 프론트는 토큰을 직접 "
+					+ "다루지 않고, 이후 요청에 withCredentials 옵션만 켜면 브라우저가 자동으로 실어 보낸다.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "로그인 성공"),
 			@ApiResponse(responseCode = "401", description = "이메일 또는 비밀번호 불일치",
@@ -70,13 +73,37 @@ public class AuthController {
 	public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
 		LoginResult result = authService.login(request);
 
-		ResponseCookie cookie = cookieUtil.create(
-				result.accessToken(),
-				Duration.ofMillis(jwtProvider.getAccessTokenExpireMillis()));
+		return ResponseEntity.ok()
+				.header(HttpHeaders.SET_COOKIE, toHeaderValues(tokenIssuer.toCookies(result.tokens())))
+				.body(result.response());
+	}
+
+	/**
+	 * 토큰 재발급. accessToken이 만료되어 401을 받은 프론트가 호출한다.
+	 *
+	 * <p>인증 없이 열려 있다(/auth/**) — 만료된 accessToken으로는 인증을 통과할 수 없으니,
+	 * refreshToken 쿠키 자체가 인증 수단이다. CSRF 검사도 면제되는데, 공격자가 재발급을
+	 * 일으켜도 새 토큰은 피해자 브라우저의 쿠키로만 들어가 공격자가 얻는 것이 없다.
+	 */
+	@Operation(summary = "토큰 재발급",
+			description = "refreshToken 쿠키로 accessToken·refreshToken을 새로 발급한다(쿠키로 갱신). "
+					+ "쓴 refreshToken은 즉시 폐기되므로 같은 값으로 두 번 재발급할 수 없다. "
+					+ "401이면 재로그인이 필요하다.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "재발급 성공 (새 토큰은 Set-Cookie로 갱신)"),
+			@ApiResponse(responseCode = "401", description = "refreshToken 없음 · 만료 · 이미 사용됨 · 로그아웃됨",
+					content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+	})
+	@PostMapping("/refresh")
+	public ResponseEntity<MessageResponse> refresh(HttpServletRequest request) {
+		String refreshToken = cookieUtil.readRefresh(request)
+				.orElseThrow(() -> new BusinessException(ErrorCode.INVALID_TOKEN));
+
+		IssuedTokens tokens = authService.refresh(refreshToken);
 
 		return ResponseEntity.ok()
-				.header(HttpHeaders.SET_COOKIE, cookie.toString())
-				.body(result.response());
+				.header(HttpHeaders.SET_COOKIE, toHeaderValues(tokenIssuer.toCookies(tokens)))
+				.body(MessageResponse.of("토큰이 재발급되었습니다."));
 	}
 
 	/**
@@ -88,15 +115,21 @@ public class AuthController {
 	 * authorization request가 남은 세션에 얹혀 state 검증이 어긋난다 — 실제로 "첫 로그인은
 	 * 되는데 로그아웃 후 두 번째 로그인이 실패"하는 증상이 있었다.
 	 *
+	 * <p>refreshToken은 Redis에서 지워 더는 재발급받을 수 없게 한다. 인증을 요구하지 않는
+	 * 이유 — accessToken이 만료된 상태에서도 로그아웃은 되어야 하고, 그래야 refreshToken이
+	 * Redis와 쿠키에 남지 않는다.
+	 *
 	 * <p>세션 쿠키도 함께 만료시킨다. invalidate()만 하면 서버 쪽 세션은 없어지지만 브라우저는
 	 * 죽은 JSESSIONID를 계속 보내서, 서버가 그 값으로 빈 세션을 다시 만들게 된다.
 	 */
 	@Operation(summary = "로그아웃",
-			description = "인증 쿠키를 만료시키고 세션을 무효화한다. 세션은 소셜 로그인의 state 검증에만 쓰이며, "
-					+ "남아 있으면 다음 소셜 로그인의 state 검증이 어긋난다.")
+			description = "refreshToken을 폐기하고 인증 쿠키를 만료시키며 세션을 무효화한다. "
+					+ "로그인 상태가 아니거나 accessToken이 만료됐어도 호출할 수 있다.")
 	@ApiResponse(responseCode = "200", description = "로그아웃 성공 — 로그인 상태가 아니어도 항상 200")
 	@PostMapping("/logout")
 	public ResponseEntity<MessageResponse> logout(HttpServletRequest request) {
+		cookieUtil.readRefresh(request).ifPresent(authService::logout);
+
 		HttpSession session = request.getSession(false);
 		if (session != null) {
 			session.invalidate();
@@ -104,6 +137,7 @@ public class AuthController {
 
 		return ResponseEntity.ok()
 				.header(HttpHeaders.SET_COOKIE, cookieUtil.expire().toString())
+				.header(HttpHeaders.SET_COOKIE, cookieUtil.expireRefresh().toString())
 				.header(HttpHeaders.SET_COOKIE, cookieUtil.expireSession().toString())
 				.body(MessageResponse.of("로그아웃되었습니다."));
 	}
@@ -128,5 +162,9 @@ public class AuthController {
 	@GetMapping("/csrf")
 	public CsrfTokenResponse csrf(CsrfToken csrfToken) {
 		return CsrfTokenResponse.of(csrfToken.getToken(), csrfToken.getHeaderName());
+	}
+
+	private static String[] toHeaderValues(List<ResponseCookie> cookies) {
+		return cookies.stream().map(ResponseCookie::toString).toArray(String[]::new);
 	}
 }

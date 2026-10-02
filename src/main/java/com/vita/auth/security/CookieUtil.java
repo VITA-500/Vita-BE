@@ -10,7 +10,7 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
 
 /**
- * Access Token을 담는 쿠키를 만들고 읽는다.
+ * accessToken·refreshToken을 담는 쿠키를 만들고 읽는다.
  *
  * <p>HttpOnly로 내려보내 자바스크립트가 토큰을 읽지 못하게 한다 — XSS로 스크립트가 삽입돼도
  * 토큰을 훔쳐갈 수 없다. 대신 브라우저가 요청마다 자동으로 실어 보내므로 CSRF 방어가 필요해지고,
@@ -23,6 +23,13 @@ import org.springframework.stereotype.Component;
 public class CookieUtil {
 
 	public static final String ACCESS_TOKEN = "accessToken";
+	public static final String REFRESH_TOKEN = "refreshToken";
+
+	/**
+	 * refreshToken 쿠키는 재발급·로그아웃에만 필요하다. 경로를 /auth로 좁혀 다른 API 요청에는
+	 * 실려 가지 않게 한다 — 수명이 긴 토큰일수록 전송되는 범위가 작아야 노출될 기회가 줄어든다.
+	 */
+	private static final String REFRESH_TOKEN_PATH = "/auth";
 
 	/** 톰캣이 발급하는 세션 쿠키 이름. 우리 인증은 세션을 쓰지 않지만 OAuth2의 state 검증이 쓴다. */
 	private static final String SESSION_COOKIE = "JSESSIONID";
@@ -81,13 +88,42 @@ public class CookieUtil {
 		builder.secure(secure).sameSite(sameSite);
 	}
 
+	public ResponseCookie createRefresh(String token, Duration maxAge) {
+		return ResponseCookie.from(REFRESH_TOKEN, token)
+				.httpOnly(true)
+				.secure(secure)
+				.sameSite(sameSite)
+				.path(REFRESH_TOKEN_PATH)
+				.maxAge(maxAge)
+				.build();
+	}
+
+	/** 로그아웃용 — 발급 때와 같은 경로로 만료시켜야 브라우저가 실제로 지운다. */
+	public ResponseCookie expireRefresh() {
+		return ResponseCookie.from(REFRESH_TOKEN, "")
+				.httpOnly(true)
+				.secure(secure)
+				.sameSite(sameSite)
+				.path(REFRESH_TOKEN_PATH)
+				.maxAge(0)
+				.build();
+	}
+
 	public Optional<String> read(HttpServletRequest request) {
+		return read(request, ACCESS_TOKEN);
+	}
+
+	public Optional<String> readRefresh(HttpServletRequest request) {
+		return read(request, REFRESH_TOKEN);
+	}
+
+	private Optional<String> read(HttpServletRequest request, String name) {
 		Cookie[] cookies = request.getCookies();
 		if (cookies == null) {
 			return Optional.empty();
 		}
 		return Arrays.stream(cookies)
-				.filter(cookie -> ACCESS_TOKEN.equals(cookie.getName()))
+				.filter(cookie -> name.equals(cookie.getName()))
 				.map(Cookie::getValue)
 				.filter(value -> !value.isBlank())
 				.findFirst();
