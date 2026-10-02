@@ -1,18 +1,19 @@
 package com.vita.store.repository;
 
 import com.vita.store.entity.Store;
-import com.vita.store.entity.StoreType;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-public interface StoreRepository extends JpaRepository<Store, Long>  {
+// 관리자 목록 검색은 StoreSpecs 조건 조합으로 한다 (JpaSpecificationExecutor)
+public interface StoreRepository extends JpaRepository<Store, Long>, JpaSpecificationExecutor<Store> {
 
     @Query(value = """
             SELECT s.id, s.name, s.address, s.lat, s.lng, s.business_hours,
@@ -49,19 +50,8 @@ public interface StoreRepository extends JpaRepository<Store, Long>  {
     List<StoreDistanceProjection> findNearBy(
             @Param("lat") BigDecimal lat, @Param("lng") BigDecimal lng, @Param("radiusKm") double radiusKm);
 
-    @Query("""
-            SELECT s FROM Store s
-            WHERE s.name LIKE CONCAT('%', :keyword, '%') OR
-                        s.address LIKE CONCAT('%', :keyword, '%')
-            """)
-    Page<Store> search(@Param("keyword") String keyword, Pageable pageable);
-
-    @Query("""
-            SELECT s FROM Store s
-            WHERE s.storeType = :storeType
-                AND(s.name LIKE CONCAT('%', :keyword, '%') OR 
-                        s.address LIKE CONCAT('%', :keyword, '%'))
-            """)
-    Page<Store> searchByType(@Param("keyword") String keyword,
-                             @Param("storeType") StoreType storeType, Pageable pageable);
+    // 브랜드는 연결 테이블(store_benefits)에 있어서 브랜드만 바꾸면 매장 행이 바뀌지 않아 수정일이 자동 갱신되지 않는다
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE Store s SET s.updatedAt = :updatedAt WHERE s.id = :storeId")
+    void touchUpdatedAt(@Param("storeId") Long storeId, @Param("updatedAt") LocalDateTime updatedAt);
 }

@@ -18,4 +18,5 @@ public record StoreCreateRequest(
         List<@NotBlank String> consultServices,
         List<@NotBlank String> providedServices,
         @Pattern(regexp = "PHONE|PARTNER", message = "storeType은 PHONE 또는 PARTNER여야 합니다.")
-        String storeType) { }
+        String storeType,
+        Long benefitId) { }
