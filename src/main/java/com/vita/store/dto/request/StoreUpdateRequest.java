@@ -16,4 +16,5 @@ public record StoreUpdateRequest (
         String businessHours,
         String phone,
         List<@NotBlank String> consultServices,
-        List<@NotBlank String> providedServices) { }
+        List<@NotBlank String> providedServices,
+        Long benefitId) { }
