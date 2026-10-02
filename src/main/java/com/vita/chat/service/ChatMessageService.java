@@ -64,6 +64,9 @@ public class ChatMessageService {
 		
 		long startTime = System.currentTimeMillis();
 		
+		 // -1) 세션 소유자 검증 (try-catch 밖에 둬서 403/404가 그대로 응답되게 함)
+	    getOwnedSession(sessionId, userId, guestId);
+		
 		// 0) 이력을 먼저 조회 (현재 질문은 아직 DB에 없음)
 	    String conversationHistory;
 	    try {
@@ -221,6 +224,21 @@ public class ChatMessageService {
 		
 	}
 	
+	/** 세션 존재 여부와 소유자를 검증한다. 실패 시 BusinessException. */
+	private ChatSession getOwnedSession(Long sessionId, Long userId, UUID guestId) {
+	    ChatSession session = chatSessionRepository.findById(sessionId)
+	            .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "존재하지 않는 세션입니다."));
+
+	    boolean isOwner = (session.getUserId() != null)
+	            ? session.getUserId().equals(userId)
+	            : session.getGuestId() != null && session.getGuestId().equals(guestId);
+
+	    if (!isOwner) {
+	        throw new BusinessException(ErrorCode.FORBIDDEN, "타인의 세션에는 접근할 수 없습니다.");
+	    }
+	    return session;
+	}
+	
 	/**
 	 * 특정 세션의 메시지 목록을 조회하는 API용 메소드.
 	 * @Transactional(readOnly = true): 조회만 하는 트랜잭션이라고 명시 (DB 최적화 + 실수로 쓰기 방지)
@@ -228,19 +246,9 @@ public class ChatMessageService {
 	@Transactional(readOnly = true)
 	public SessionMessagesResponse getMessages(Long sessionId, Long userId, UUID guestId) {
 		
-		ChatSession session = chatSessionRepository.findById(sessionId)
-				.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "존재하지 않는 세션입니다."));
+		getOwnedSession(sessionId, userId, guestId);
 		
-		boolean isOwner;
-		if (session.getUserId() != null) {
-		    isOwner = session.getUserId().equals(userId);
-		} else {
-		    isOwner = session.getGuestId().equals(guestId);
-		}
 		
-		if(!isOwner){
-			throw new BusinessException(ErrorCode.FORBIDDEN, "타인의 세션에는 접근할 수 없습니다.");
-		}
 		List<ChatMessageItemResponse> messages = chatMessageRepository
 				.findAllBySession_IdOrderByCreatedAtAsc(sessionId)
 				.stream()
