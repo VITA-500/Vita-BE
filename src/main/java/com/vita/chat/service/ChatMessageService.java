@@ -62,22 +62,36 @@ public class ChatMessageService {
 
 	public ChatMessageResponse sendMessage(Long sessionId, Long userId, UUID guestId, ChatMessageSendRequest request) {
 		
+		long startTime = System.currentTimeMillis();
+		
+		// 0) 이력을 먼저 조회 (현재 질문은 아직 DB에 없음)
+	    String conversationHistory;
+	    try {
+	        conversationHistory = buildConversationHistory(sessionId);
+	    } catch (Exception e) {
+	        log.warn("대화 이력 조회 실패, 이력 없이 진행 - sessionId: {}", sessionId, e);
+	        conversationHistory = "";
+	    }
+		
 		// 1) 사용자 메시지 저장 + AI 답변 자리(PENDING 상태)를 먼저 DB에 만들어둠
 		//    아직 LLM 응답은 안 왔지만, "생성중"이라는 행을 미리 확보하는 것
 		ChatMessage assistantMessage = persistence.saveUserAndPendingAssistant(sessionId, request);
 		Long assistantId = assistantMessage.getId();
 		
-		
-		
-		long startTime = System.currentTimeMillis();
+		// 2) 조립 재료 준비
+        ContextResult context;
+        try {
+            context = buildContext(request.content());
+        } catch (Exception e) {
+            log.warn("컨텍스트 조립 실패, 참고자료 없이 진행 - sessionId: {}", sessionId, e);
+            context = ContextResult.empty();
+        }
+
+        log.info("service context: " + context.text());
+        
+        long llmStartTime = System.currentTimeMillis();
 		
 		try {
-			// 2) 조립 재료 준비
-			ContextResult context = buildContext(request.content());
-			String conversationHistory = buildConversationHistory(sessionId);
-			
-			log.info("service context: " + context.text());
-			
 			// 3) 실제 LLM 호출 — 질문 + 참고자료 + 대화이력을 함께 전달
 			String answer = bedrockChatClient.ask(request.content(), context.text(), conversationHistory);
 			
@@ -95,6 +109,10 @@ public class ChatMessageService {
 			persistence.markFailed(assistantMessage.getId(), e.getMessage());
 		}
 		long latencyMs = System.currentTimeMillis() - startTime;
+		
+		long llmLatencyMs = System.currentTimeMillis() - llmStartTime;
+		
+		log.info("LLM Latency : {}ms", llmLatencyMs);
         
 		// 커밋된 최신 상태를 트랜잭션 안에서 조회해 응답까지 만들어 반환
 	    return persistence.getResponse(assistantId, latencyMs);
