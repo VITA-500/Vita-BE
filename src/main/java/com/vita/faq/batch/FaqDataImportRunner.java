@@ -41,7 +41,8 @@ public class FaqDataImportRunner implements ApplicationRunner {
 	public void run(ApplicationArguments args) {
 		Resource resource = resourceLoader.getResource(resourceLocation);
 		List<FaqJsonlRecord> faqs = reader.read(resource);
-		int count = importer.importFaqs(faqs);
-		log.info("FAQ JSONL 적재 완료: resource={}, count={}", resourceLocation, count);
+		int changedCount = importer.importFaqs(faqs);
+		log.info("FAQ JSONL 적재 완료: resource={}, requestedCount={}, changedCount={}",
+			resourceLocation, faqs.size(), changedCount);
 	}
 }
