@@ -1,5 +1,7 @@
 package com.vita.chat.service;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -24,6 +26,7 @@ import com.vita.chat.repository.ChatMessageRepository;
 import com.vita.chat.repository.ChatSessionRepository;
 import com.vita.common.exception.BusinessException;
 import com.vita.common.exception.ErrorCode;
+import org.springframework.data.domain.PageRequest;
 import com.vita.search.dto.FaqReference;
 import com.vita.search.dto.FaqRetrievalContext;
 import com.vita.search.dto.PlanReference;
@@ -42,6 +45,7 @@ import software.amazon.awssdk.core.exception.SdkException;
 public class ChatMessageService {
 
 	private static final int TOP_K = 3; // 검색해올 FAQ 후보 개수 — threshold 필터는 BE3 쪽에서 처리됨
+	private static final int MAX_HISTORY_TURNS = 5;  // 1턴 = USER + ASSISTANT 2개
 	
 	private final BedrockChatClient bedrockChatClient;
 	private final FaqRetrievalService faqRetrievalService;
@@ -214,13 +218,17 @@ public class ChatMessageService {
 	 */
 	private String buildConversationHistory (Long sessionId) {
 		
-		List<ChatMessage> previousMessages =
-				chatMessageRepository.findAllBySession_IdOrderByCreatedAtAsc(sessionId);
-		
-		return previousMessages.stream()
-				.filter(m -> m.getStatus() == ChatMessageStatus.COMPLETED)
-				.map(m -> "%s: %s".formatted(m.getRole(), m.getContent()))
-				.collect(Collectors.joining("\n"));
+		List<ChatMessage> recent = new ArrayList<>(
+		        chatMessageRepository.findBySession_IdAndStatusOrderByCreatedAtDescIdDesc(
+		                sessionId,
+		                ChatMessageStatus.COMPLETED,
+		                PageRequest.of(0, MAX_HISTORY_TURNS * 2)));
+
+	    Collections.reverse(recent);  // DESC로 가져왔으니 시간순(ASC)으로 복원
+
+	    return recent.stream()
+	            .map(m -> "%s: %s".formatted(m.getRole(), m.getContent()))
+	            .collect(Collectors.joining("\n"));
 		
 	}
 	
