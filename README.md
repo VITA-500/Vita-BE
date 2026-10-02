@@ -388,7 +388,7 @@ API 명세서 기준으로 미해결 질문은 `reason` 필드로 `NO_MATCH`(완
 
 ### LLM 연동
 
-- **모델**: AWS Bedrock, 기본 모델 `apac.amazon.nova-lite-v1:0`(아시아·태평양 추론 프로필), 리전 `ap-northeast-2`(서울) — EC2·RDS와 같은 리전이라 호출 경로가 짧다. 리전과 모델 ID는 환경변수(`AWS_REGION`, `BEDROCK_MODEL_ID`)로 바꿀 수 있다. Spring AI `ChatClient`(Bedrock Converse API)로 래핑해 향후 다른 LLM 제공자로 교체 가능한 구조 유지(NFR-EXT01). 생성 옵션은 `temperature 0.3`, `max-tokens 1024`로 사실 기반 답변 위주의 낮은 무작위성을 택함
+- **모델**: AWS Bedrock, 기본 모델 `openai.gpt-oss-120b-1:0`, 리전 `ap-northeast-1`(도쿄) — 해당 모델이 서울 리전에서는 제공되지 않아 도쿄 리전을 사용한다. 리전과 모델 ID는 환경변수(`AWS_REGION`, `BEDROCK_MODEL_ID`)로 바꿀 수 있다. Spring AI `ChatClient`(Bedrock Converse API)로 래핑해 향후 다른 LLM 제공자로 교체 가능한 구조 유지(NFR-EXT01). 생성 옵션은 `temperature 0.3`, `max-tokens 1024`로 사실 기반 답변 위주의 낮은 무작위성을 택함
 
 - **Context 직렬화**: 검색 결과를 사람이 읽는 문장이 아니라, LLM이 근거와 잡담을 구분하기 쉽도록 태그로 감싼 블록으로 바꾼다. 종류는 세 가지이고 이 순서로 이어 붙인다.
 
