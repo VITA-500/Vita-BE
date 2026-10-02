@@ -215,7 +215,7 @@ public class ChatMessageService {
 	private String buildConversationHistory (Long sessionId) {
 		
 		List<ChatMessage> previousMessages =
-				chatMessageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
+				chatMessageRepository.findAllBySession_IdOrderByCreatedAtAsc(sessionId);
 		
 		return previousMessages.stream()
 				.filter(m -> m.getStatus() == ChatMessageStatus.COMPLETED)
