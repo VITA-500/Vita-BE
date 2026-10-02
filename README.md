@@ -245,7 +245,7 @@ flowchart TD
 RAG 파이프라인은 임베딩 → 벡터 검색·threshold → Context 조립·LLM 호출 3단계로 역할이 나뉘고, 각 경계는 인터페이스(`EmbeddingProvider`, `FaqRetrievalService`)로 분리되어 있다.
 
 - **모델**: `intfloat/multilingual-e5-base`, 768차원, MIT 라이선스 — 한국어 검색 성능·다국어 지원(영문 통신 용어 혼용 대응)·상대적으로 가벼운 크기를 기준으로 초기 선정. 성능 부족 시 `BAAI/bge-m3`(1024차원)로 고도화 후보
-- **인터페이스 추상화**: `EmbeddingProvider`(`embedQuery`/`embedDocument`) 뒤에 `E5EmbeddingProvider` 구현체가 있고, 모델명·차원·prefix 등 세부 사항은 전부 구현체 내부에 캡슐화 — 검색·LLM 코드는 어떤 모델이 쓰이는지 전혀 참조하지 않아 모델 교체가 검색 로직에 영향을 주지 않음(NFR-EXT01과 동일한 원칙)
+- **인터페이스 추상화**: `EmbeddingProvider`(`embedQuery`/`embedDocument`) 뒤에 `E5EmbeddingProvider` 구현체가 있고, 모델명·차원·prefix 등 세부 사항은 전부 구현체 내부에 캡슐화 — 검색·LLM 코드는 어떤 모델이 쓰이는지 전혀 참조하지 않아 모델 교체가 검색 로직에 영향을 주지 않음
 - **서버 구성**: HuggingFace TEI(text-embeddings-inference) 컨테이너를 별도로 띄우고 `EMBEDDING_BASE_URL` + `/embed`로 REST 호출. 로컬은 `docker-compose.embedding.yml`로 직접 기동, dev는 `docker-compose.dev.yml`에 백엔드와 함께 포함되어 자동 기동됨
 - **TEI 요청 방식**: 텍스트를 그대로 보내지 않고 역할에 따라 prefix를 붙인 뒤 REST로 호출한다.
 
