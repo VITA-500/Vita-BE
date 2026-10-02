@@ -15,5 +15,9 @@ public record StoreDetailResponse (
         List<String> consultServices,
         List<String> providedServices,
         String storeType,
+        Long benefitId,
+        String brand,
+        String category,
+        String benefitName,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) { }
