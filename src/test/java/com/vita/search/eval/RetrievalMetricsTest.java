@@ -90,4 +90,15 @@ class RetrievalMetricsTest {
 	private static double log2(double value) {
 		return Math.log(value) / Math.log(2);
 	}
+
+	@Test
+	void percentileUsesTheNearestRankAndIgnoresInputOrder() {
+		double[] values = {50, 10, 40, 20, 30, 60, 90, 80, 70, 100};
+		assertThat(RetrievalMetrics.percentile(values, 0.95)).isEqualTo(100.0);
+		assertThat(RetrievalMetrics.percentile(values, 0.5)).isEqualTo(50.0);
+		assertThat(RetrievalMetrics.percentile(values, 0.1)).isEqualTo(10.0);
+		assertThat(RetrievalMetrics.percentile(new double[] {}, 0.95)).isZero();
+		// 입력 배열은 바뀌지 않는다.
+		assertThat(values[0]).isEqualTo(50.0);
+	}
 }

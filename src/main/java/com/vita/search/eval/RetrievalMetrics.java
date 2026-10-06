@@ -140,6 +140,22 @@ public final class RetrievalMetrics {
 		return stdDev(means);
 	}
 
+	/**
+	 * 값들의 백분위수(가장 가까운 순위 방식). 예를 들어 fraction 0.95는 "95%의 값이 이 값 이하"인 값이다.
+	 * 응답 시간 p95처럼 느린 쪽 꼬리를 볼 때 쓴다. 값이 없으면 0.
+	 *
+	 * @param fraction 0 초과 1 이하의 비율
+	 */
+	public static double percentile(double[] values, double fraction) {
+		if (values.length == 0) {
+			return 0.0;
+		}
+		double[] sorted = values.clone();
+		java.util.Arrays.sort(sorted);
+		int rank = (int) Math.ceil(fraction * sorted.length);
+		return sorted[Math.max(rank, 1) - 1];
+	}
+
 	/** 표본 표준편차(n-1로 나눔). 값이 2개 미만이면 0. */
 	public static double stdDev(double[] values) {
 		if (values.length < 2) {
