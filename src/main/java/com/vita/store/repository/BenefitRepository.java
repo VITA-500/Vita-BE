@@ -22,10 +22,10 @@ public interface BenefitRepository extends JpaRepository<Benefit, Long> {
     @Query("""
             SELECT new com.vita.store.dto.response.AdminBenefitResponse(
                         b.id, b.brand, b.name, b.category, b.description, COUNT(sb.id),
-                        b.updatedBy, b.createdAt, b.updatedAt)
+                        b.createdAt, b.updatedAt)
             FROM Benefit b
             LEFT JOIN StoreBenefit sb ON sb.benefit = b
-            GROUP BY b.id, b.brand, b.name, b.category, b.description, b.updatedBy,
+            GROUP BY b.id, b.brand, b.name, b.category, b.description,
                     b.createdAt, b.updatedAt
             """)
     List<AdminBenefitResponse> findAllForAdmin();

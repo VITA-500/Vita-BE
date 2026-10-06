@@ -109,7 +109,7 @@ public class BenefitService {
     }
 
     @Transactional
-    public AdminBenefitResponse create(BenefitRequest request, Long adminId){
+    public AdminBenefitResponse create(BenefitRequest request){
         String brand = request.brand().trim();
         String category = validateCategory(request.category());
         if(benefitRepository.existsByBrand(brand)){
@@ -120,21 +120,20 @@ public class BenefitService {
                 .name(request.name().trim())
                 .category(category)
                 .description(request.description())
-                .updatedBy(adminId)
                 .build());
         return toAdminResponse(benefit, 0);
     }
 
     /** 브랜드명을 바꿔도 매장 연결은 id 기준이라 그대로 유지 */
     @Transactional
-    public AdminBenefitResponse update(Long benefitId, BenefitRequest request, Long adminId){
+    public AdminBenefitResponse update(Long benefitId, BenefitRequest request){
         Benefit benefit = findBenefitOrThrow(benefitId);
         String brand = request.brand().trim();
         String category = validateCategory(request.category());
         if(benefitRepository.existsByBrandAndIdNot(brand, benefitId)){
             throw new BusinessException(ErrorCode.BENEFIT_BRAND_ALREADY_EXISTS);
         }
-        benefit.update(brand, request.name().trim(), category, request.description(), adminId);
+        benefit.update(brand, request.name().trim(), category, request.description());
         benefitRepository.flush();
         return toAdminResponse(benefit, storeBenefitRepository.countByBenefitId(benefitId));
     }
@@ -168,7 +167,6 @@ public class BenefitService {
 
     private static AdminBenefitResponse toAdminResponse(Benefit benefit, long storeCount) {
         return new AdminBenefitResponse(benefit.getId(), benefit.getBrand(), benefit.getName(),
-                benefit.getCategory(), benefit.getDescription(), storeCount, benefit.getUpdatedBy(),
-                benefit.getCreatedAt(), benefit.getUpdatedAt());
+                benefit.getCategory(), benefit.getDescription(), storeCount, benefit.getCreatedAt(), benefit.getUpdatedAt());
     }
 }

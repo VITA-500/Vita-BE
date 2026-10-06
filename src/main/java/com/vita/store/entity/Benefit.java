@@ -47,11 +47,10 @@ public class Benefit extends BaseTimeEntity {
         this.updatedBy = updatedBy;
     }
 
-    public void update(String brand, String name, String category, String description, Long updatedBy){
+    public void update(String brand, String name, String category, String description){
         this.brand = brand;
         this.name = name;
         this.category = category;
         this.description = description;
-        this.updatedBy = updatedBy;
     }
 }

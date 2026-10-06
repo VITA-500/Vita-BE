@@ -9,6 +9,5 @@ public record AdminBenefitResponse(
         String category,
         String description,
         long storeCount,
-        Long updatedBy,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) { }
