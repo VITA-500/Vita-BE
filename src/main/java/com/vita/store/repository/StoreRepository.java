@@ -51,12 +51,14 @@ public interface StoreRepository extends JpaRepository<Store, Long>, JpaSpecific
     List<StoreDistanceProjection> findNearBy(
             @Param("lat") BigDecimal lat, @Param("lng") BigDecimal lng, @Param("radiusKm") double radiusKm);
 
-    // 업종별 제휴 매장 거리순, 업종 및 브랜드는 연결을 따라 조인한다.
+    /** 업종별 제휴 매장 거리순, 업종 및 브랜드는 연결을 따라 조인한다.
+     * category·benefitId·radiusKm는 선택이라 null이면 조건을 건너뛴다
+     */
     @Query(value = """
             SELECT *
             FROM(
-                SELECT s.id, s.name, s.address, s.lat, s.lng,
-                   b.id AS benefit_id, b.brand, b.category, b.name AS benefit_name,
+                SELECT s.id, s.name, s.address, s.phone, s.lat, s.lng,
+                   b.id AS benefit_id, b.brand, b.category, b.name AS benefit_name, b.description AS benefit_description,
                    2 * 6371 * asin(sqrt(
                        power(sin(radians(s.lat - :lat) / 2), 2)
                        + cos(radians(:lat)) * cos(radians(s.lat)) *
@@ -66,14 +68,14 @@ public interface StoreRepository extends JpaRepository<Store, Long>, JpaSpecific
                 JOIN store_benefits sb ON sb.store_id = s.id
                 JOIN benefits b ON b.id = sb.benefit_id
                 WHERE s.store_type = 'PARTNER'
-                    AND b.category = :category
+                    AND (CAST(:category AS VARCHAR) IS NULL OR b.category = :category)
                     AND (CAST(:benefitId AS BIGINT) IS NULL OR b.id = :benefitId)
             ) ranked
             WHERE CAST(:radiusKm AS DOUBLE PRECISION) IS NULL OR distance_km <= :radiusKm
             ORDER BY distance_km
             LIMIT :limit
             """, nativeQuery = true)
-    List<PartnerStoreDistanceProjection> findPartnersByCategory(
+    List<PartnerStoreDistanceProjection> findPartnersNearby(
             @Param("lat") BigDecimal lat,
             @Param("lng") BigDecimal lng,
             @Param("category") String category,
