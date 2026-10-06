@@ -22,7 +22,7 @@ import org.springframework.stereotype.Service;
  * "가장 싼 요금제"로 스마트워치 전용(11,000원)이 나오는 것을 막기 위해서다. 다만 그렇게 하면 결과가 하나도
  * 안 남는 경우("1만1천원짜리 요금제": 그 가격은 워치 요금제뿐)에는 뺀 것을 되돌려서 답을 준다.
  *
- * <p>FaqRetrievalServiceImpl(실서비스)과 회귀 테스트 러너가 같은 로직을 쓰도록 한곳에 모았다.
+ * <p>검색 파이프라인(RetrievalPipeline, 실서비스)과 회귀 테스트 러너가 같은 로직을 쓰도록 한곳에 모았다.
  */
 @Service
 public class PlanSearchService {

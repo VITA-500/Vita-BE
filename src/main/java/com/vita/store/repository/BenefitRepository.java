@@ -1,5 +1,6 @@
 package com.vita.store.repository;
 
+import com.vita.store.dto.response.AdminBenefitResponse;
 import com.vita.store.dto.response.BenefitResponse;
 import com.vita.store.entity.Benefit;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -17,4 +18,19 @@ public interface BenefitRepository extends JpaRepository<Benefit, Long> {
             ORDER BY b.id
         """)
     List<BenefitResponse> findAllWithStoreCount();
+
+    @Query("""
+            SELECT new com.vita.store.dto.response.AdminBenefitResponse(
+                        b.id, b.brand, b.name, b.category, b.description, COUNT(sb.id),
+                        b.createdAt, b.updatedAt)
+            FROM Benefit b
+            LEFT JOIN StoreBenefit sb ON sb.benefit = b
+            GROUP BY b.id, b.brand, b.name, b.category, b.description,
+                    b.createdAt, b.updatedAt
+            """)
+    List<AdminBenefitResponse> findAllForAdmin();
+
+    boolean existsByBrand(String brand);
+
+    boolean existsByBrandAndIdNot(String brand, Long id);
 }

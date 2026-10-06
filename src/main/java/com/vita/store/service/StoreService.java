@@ -42,6 +42,7 @@ public class StoreService {
 
     private static final Set<String> ADMIN_LIST_SORT_FIELDS = Set.of("createdAt", "updatedAt", "name");
     private static final String ADMIN_LIST_DEFAULT_SORT = "createdAt, desc";
+    private static final int PARTNER_NEARBY_LIMIT = 100;
 
     private final StoreRepository storeRepository;
     private final StoreBenefitRepository storeBenefitRepository;
@@ -55,11 +56,36 @@ public class StoreService {
                 nearest.getPhone(), splitServices(nearest.getConsultServices()), splitServices(nearest.getProvidedServices()));
     }
 
-    public StoreNearbyListResponse findNearby(BigDecimal lat, BigDecimal lng, double radiusKm){
-        List<StoreNearbyItemResponse> stores = storeRepository.findNearBy(lat, lng, radiusKm).stream()
-                .map(p -> new StoreNearbyItemResponse(p.getId(), p.getName(), p.getLat(),
-                        p.getLng(), round2(p.getDistanceKm()), splitServices(p.getConsultServices()),
-                        splitServices(p.getProvidedServices()))).toList();
+    /**
+     * 지도 주변 매장. storeType 생략 시 통신 매장만 돌려줌
+     * PARTNER일 경우 제휴 매장을 혜택 정보와 돌려줌
+     * 업종 및 브랜드로 필터 가능
+     * 제휴 매장 반경이 클 때를 대비해 개수 상한 100개
+     */
+    public StoreNearbyListResponse findNearby(BigDecimal lat, BigDecimal lng, double radiusKm,
+                                              String storeType, String category, Long benefitId) {
+        StoreType type = StoreType.fromNullable(storeType);
+        String targetCategory = (category == null || category.isBlank()) ? null : category.trim();
+
+        if (type != StoreType.PARTNER) {
+            if (targetCategory != null || benefitId != null) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                        "업종(category) 및 브랜드(benefitId) 필터는 storeType=PARTNER에서만 사용할 수 있습니다.");
+            }
+            List<StoreNearbyItemResponse> stores = storeRepository.findNearBy(lat, lng, radiusKm).stream()
+                .map(p -> new StoreNearbyItemResponse(p.getId(), p.getName(), StoreType.PHONE.name(), p.getAddress(),
+                        p.getPhone(), p.getLat(), p.getLng(), round2(p.getDistanceKm()), splitServices(p.getConsultServices()),
+                        splitServices(p.getProvidedServices()), null, null, null, null, null))
+                    .toList();
+        return new StoreNearbyListResponse(stores);
+        }
+
+        List<StoreNearbyItemResponse> stores = storeRepository.findPartnersNearby(
+                lat, lng, targetCategory, benefitId, radiusKm, PARTNER_NEARBY_LIMIT).stream()
+                .map(p -> new StoreNearbyItemResponse(p.getId(), p.getName(), StoreType.PARTNER.name(),
+                        p.getAddress(), p.getPhone(), p.getLat(), p.getLng(), round2(p.getDistanceKm()), List.of(), List.of(),
+                        p.getBenefitId(), p.getBrand(), p.getCategory(), p.getBenefitName(), p.getBenefitDescription()))
+                .toList();
         return new StoreNearbyListResponse(stores);
     }
 
