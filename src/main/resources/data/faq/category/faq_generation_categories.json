@@ -1,7 +1,7 @@
 {
-  "description": "기업명은 제거해 일반화하고 기업 전용 서비스는 제외한 합성 FAQ 분류",
-  "categoryCount": 10,
-  "subcategoryCount": 43,
+  "description": "일반 통신 업무와 VITA 서비스 이용 안내를 위한 공통 FAQ 분류",
+  "categoryCount": 11,
+  "subcategoryCount": 47,
   "categories": [
     {
       "category": "유심(USIM) 업데이트 · 교체",
@@ -42,6 +42,10 @@
     {
       "category": "서비스안내",
       "subcategories": ["통화품질", "정보변경"]
+    },
+    {
+      "category": "VITA 이용 안내",
+      "subcategories": ["계정·로그인", "챗봇 상담", "매장 찾기·예약", "제휴 혜택"]
     }
   ],
   "excludedMainCategories": [
@@ -66,6 +70,7 @@
   "generationRules": [
     "LG U+, 유플러스 등 기업명만 포함된 경우 기업명을 제거하고 일반 통신사 표현으로 바꾼다.",
     "기업명을 제거해도 의미가 유지되는 일반 통신 업무 FAQ는 생성 대상에 포함한다.",
-    "특정 기업의 독립 앱, 구독, 스토어, 멤버십, 브랜드 상품 자체에 관한 FAQ는 생성하지 않는다."
+    "원본 통신사의 독립 앱, 구독, 스토어, 멤버십, 브랜드 상품 자체에 관한 FAQ는 생성하지 않는다.",
+    "VITA 자체 서비스의 계정·로그인, 챗봇 상담, 매장 찾기·예약, 제휴 혜택 FAQ는 VITA 이용 안내 분류로 관리한다."
   ]
 }
