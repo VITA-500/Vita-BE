@@ -1,15 +1,19 @@
 package com.vita.store.controller;
 
+import com.vita.auth.security.UserPrincipal;
 import com.vita.common.exception.BusinessException;
 import com.vita.common.exception.ErrorCode;
+import com.vita.common.util.PrincipalUtils;
+import com.vita.store.dto.request.ReservationRequest;
 import com.vita.store.dto.response.*;
 import com.vita.store.service.DirectionService;
+import com.vita.store.service.ReservationService;
 import com.vita.store.service.StoreService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 
@@ -19,6 +23,7 @@ public class StoreController {
 
     private final StoreService storeService;
     private final DirectionService directionService;
+    private final ReservationService reservationService;
 
     @GetMapping("/stores/nearest")
     public StoreNearestResponse nearest(
@@ -60,6 +65,14 @@ public class StoreController {
         }
         StoreDetailResponse store = storeService.findById(storeId);
         return directionService.findRoute(mode, fromLat, fromLng, store.lat(), store.lng());
+    }
+
+    @PostMapping("/stores/{storeId}/reservations")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ReservationResponse reserve(@PathVariable Long storeId,
+                                       @Valid @RequestBody ReservationRequest request,
+                                       @AuthenticationPrincipal UserPrincipal user){
+        return reservationService.reserve(storeId, PrincipalUtils.userIdOf(user), request);
     }
 
     private void requireLocation(BigDecimal lat, BigDecimal lng){

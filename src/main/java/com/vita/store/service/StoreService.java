@@ -13,11 +13,7 @@ import com.vita.store.entity.StoreBenefit;
 import com.vita.store.entity.StoreType;
 import com.vita.store.exception.BenefitNotFoundException;
 import com.vita.store.exception.StoreNotFoundException;
-import com.vita.store.repository.BenefitRepository;
-import com.vita.store.repository.StoreBenefitRepository;
-import com.vita.store.repository.StoreDistanceProjection;
-import com.vita.store.repository.StoreRepository;
-import com.vita.store.repository.StoreSpecs;
+import com.vita.store.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.domain.Specification;
@@ -47,6 +43,7 @@ public class StoreService {
     private final StoreRepository storeRepository;
     private final StoreBenefitRepository storeBenefitRepository;
     private final BenefitRepository benefitRepository;
+    private final StoreReservationRepository storeReservationRepository;
 
     public StoreNearestResponse findNearest(BigDecimal lat, BigDecimal lng) {
         StoreDistanceProjection nearest = storeRepository.findNearest(lat, lng)
@@ -214,6 +211,8 @@ public class StoreService {
     @Transactional
     public StoreDeleteResponse delete(Long storeId){
         Store store = findStoreOrThrow(storeId);
+        // 예약은 목업 데이터이기 때문에 매장과 함께 지움
+        storeReservationRepository.deleteByStoreId(storeId);
         storeRepository.delete(store);
         return new StoreDeleteResponse(store.getId(), true);
     }
