@@ -61,7 +61,7 @@ public class BenefitService {
 
         String target = category.trim();
         List<BenefitStoreListResponse.Item> stores = storeRepository
-                .findPartnersByCategory(lat, lng, target, benefitId, radiusKm, size).stream()
+                .findPartnersNearby(lat, lng, target, benefitId, radiusKm, size).stream()
                 .map(p -> new BenefitStoreListResponse.Item(p.getId(), p.getName(),
                         p.getAddress(), p.getLat(), p.getLng(), Math.round(p.getDistanceKm() * 100) / 100.0,
                         p.getBenefitId(), p.getBrand(), p.getCategory(), p.getBenefitName())).toList();
