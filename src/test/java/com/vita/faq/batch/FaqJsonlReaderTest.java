@@ -39,14 +39,14 @@ class FaqJsonlReaderTest {
 	}
 
 	@Test
-	void bundledSyntheticFaqsCoverExactlyTheAllowedCategoryPairs() throws IOException {
+	void bundledSyntheticFaqsCoverExactlyTheLegacyCategoryPairs() throws IOException {
 		List<FaqJsonlRecord> faqs = reader.read(
 			new ClassPathResource("data/faq/cleaned/faq_all_cleaned.jsonl")
 		);
 		Set<List<String>> allowedPairs = new HashSet<>();
 		try (var input = new ClassPathResource("data/faq/category/faq_generation_categories.json").getInputStream()) {
 			var taxonomy = new ObjectMapper().readTree(input);
-			assertThat(taxonomy.path("categories").size()).isEqualTo(10);
+			assertThat(taxonomy.path("categories").size()).isEqualTo(11);
 			for (var category : taxonomy.path("categories")) {
 				for (var subcategory : category.path("subcategories")) {
 					allowedPairs.add(List.of(category.path("category").asText(), subcategory.asText()));
@@ -55,8 +55,11 @@ class FaqJsonlReaderTest {
 		}
 		Set<List<String>> actualPairs = new HashSet<>();
 		faqs.forEach(faq -> actualPairs.add(List.of(faq.category(), faq.subcategory())));
-		assertThat(allowedPairs).hasSize(43);
-		assertThat(actualPairs).containsExactlyInAnyOrderElementsOf(allowedPairs);
+		assertThat(allowedPairs).hasSize(47);
+		Set<List<String>> legacyPairs = new HashSet<>(allowedPairs);
+		legacyPairs.removeIf(pair -> pair.get(0).equals("VITA 이용 안내"));
+		assertThat(legacyPairs).hasSize(43);
+		assertThat(actualPairs).containsExactlyInAnyOrderElementsOf(legacyPairs);
 	}
 
 	@Test
@@ -111,6 +114,33 @@ class FaqJsonlReaderTest {
 			""";
 
 		assertThat(reader.read(resource(jsonl))).hasSize(1);
+	}
+
+	@Test
+	void acceptsAllVitaUsageGuidanceSubcategoriesWithTraceableSources() {
+		for (String subcategory : List.of("계정·로그인", "챗봇 상담", "매장 찾기·예약", "제휴 혜택")) {
+			String jsonl = """
+				{"faq_id":"APP-TEST-001","category":"VITA 이용 안내","subcategory":"%s","question":"이용 방법을 알려주세요.","answer":"상담 화면에서 확인할 수 있습니다.","source_policy_ids":["APP:VITA"]}
+				""".formatted(subcategory);
+			assertThat(reader.read(resource(jsonl))).singleElement().satisfies(faq -> {
+				assertThat(faq.stableId()).isEqualTo("APP-TEST-001");
+				assertThat(faq.category()).isEqualTo("VITA 이용 안내");
+				assertThat(faq.subcategory()).isEqualTo(subcategory);
+				assertThat(faq.sourcePolicyIds()).containsExactly("APP:VITA");
+			});
+		}
+	}
+
+	@Test
+	void rejectsVitaSubcategoryUnderWrongParentAndUnrelatedSubcategoryUnderVita() {
+		for (List<String> pair : List.of(List.of("모바일", "계정·로그인"), List.of("VITA 이용 안내", "요금제"))) {
+			String jsonl = """
+				{"faq_id":"APP-TEST-001","category":"%s","subcategory":"%s","question":"질문","answer":"답변","source_policy_ids":["APP:VITA"]}
+				""".formatted(pair.get(0), pair.get(1));
+			assertThatThrownBy(() -> reader.read(resource(jsonl)))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessageContaining("category에 속하지 않는 subcategory");
+		}
 	}
 
 	@Test
