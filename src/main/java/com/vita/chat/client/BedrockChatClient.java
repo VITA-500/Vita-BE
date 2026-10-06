@@ -6,7 +6,9 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.stereotype.Component;
-
+import java.time.Duration;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 @Component
 public class BedrockChatClient {
@@ -83,5 +85,32 @@ public class BedrockChatClient {
             %3$s
             </question>
             """;
-;
+    
+
+	/** 스트리밍 호출. 답변 텍스트 조각이 올 때마다 onDelta를 호출하고, 스트림이 끝나면 리턴한다. */
+	public void askStream(String question, String context, String conversationHistory, Consumer<String> onDelta) {
+	    String userPrompt = USER_TURN_TEMPLATE.formatted(context, conversationHistory, question);
+	    AtomicInteger chunkCount = new AtomicInteger();
+	
+	    chatClient.prompt()
+	            .system(SYSTEM_PROMPT)
+	            .user(userPrompt)
+	            .stream()
+	            .chatResponse()
+	            .doOnNext(response -> {
+	                if (response.getResult() == null) {
+	                    return; // 메타데이터만 있는 마지막 chunk 등
+	                }
+	                String text = response.getResult().getOutput().getText();
+	                if (text != null && !text.isEmpty()) {
+	                    chunkCount.incrementAndGet();
+	                    onDelta.accept(text);
+	                }
+	            })
+	            .blockLast(Duration.ofSeconds(90));
+	
+	    if (chunkCount.get() == 0) {
+	        throw new IllegalStateException("LLM 응답 내용이 없습니다.");
+	    }
+	}
 }
