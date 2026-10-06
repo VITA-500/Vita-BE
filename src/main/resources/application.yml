@@ -113,11 +113,23 @@ embedding:
 search:
   regression:
     enabled: ${SEARCH_REGRESSION_ENABLED:false}
+  # 서비스 검색 파이프라인에서 쓸 질문 변환기·FAQ 후보 검색기의 빈 이름. 기본은 변환 없음 + 한국어 벡터 검색이다.
+  # 다른 팀이 만든 구현(영어 번역, 질문 재작성, 영어 컬럼·Hybrid 검색)을 서비스에 적용할 때만 바꾼다.
+  pipeline:
+    query-transformer: ${SEARCH_PIPELINE_QUERY_TRANSFORMER:identityQueryTransformer}
+    faq-retriever: ${SEARCH_PIPELINE_FAQ_RETRIEVER:vectorFaqRetriever}
   # 검색 평가셋(v2)으로 Recall·Precision·nDCG·MRR을 재는 수동 도구. 로컬 도커(DB+임베딩 서버)가 떠 있고
   # 평가셋의 정답 FAQ가 DB에 적재돼 있을 때만 켠다(데이터가 다르면 바로 중단한다).
   eval:
     enabled: ${SEARCH_EVAL_ENABLED:false}
     resource: ${SEARCH_EVAL_RESOURCE:classpath:data/regression/eval_v2/retrieval_eval_v2.jsonl}
+    # 평가에 쓸 질문 변환기·FAQ 후보 검색기의 빈 이름. 기본은 변환 없음 + 한국어 벡터 검색(Baseline).
+    # 영어 번역·질문 재작성·영어 컬럼·Hybrid 실험은 해당 구현 빈의 이름을 적는다(docs/search-evaluation.md 참고).
+    query-transformer: ${SEARCH_EVAL_QUERY_TRANSFORMER:identityQueryTransformer}
+    faq-retriever: ${SEARCH_EVAL_FAQ_RETRIEVER:vectorFaqRetriever}
+    # 단계별 응답 시간을 질문마다 몇 번 반복해 잴지(0이면 건너뜀)와, 결과를 버리고 먼저 돌려 둘 예열 횟수.
+    timing-repeats: ${SEARCH_EVAL_TIMING_REPEATS:3}
+    timing-warmup: ${SEARCH_EVAL_TIMING_WARMUP:5}
     # 최종 결과로 보는 상위 개수. 실제 검색(BE4 호출)의 topK와 같게 둔다.
     top-k: ${SEARCH_EVAL_TOP_K:10}
     # 후보 풀 크기를 바꿔 가며 비교한다(실제 검색은 topK와 상관없이 30).
