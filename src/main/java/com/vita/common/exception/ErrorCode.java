@@ -41,7 +41,12 @@ public enum ErrorCode {
 	/** 소셜 계정의 이메일이 이미 자체 가입된 계정과 겹칠 때. 자동 연결은 계정 탈취 경로가 되므로 거부한다. */
 	OAUTH_EMAIL_CONFLICT(HttpStatus.CONFLICT, "이미 가입된 이메일입니다. 일반 로그인을 이용해주세요."),
 	/** 사용자가 동의 화면에서 취소했거나 제공자 인증이 실패한 경우. */
-	OAUTH_AUTHENTICATION_FAILED(HttpStatus.UNAUTHORIZED, "소셜 로그인에 실패했습니다.");
+	OAUTH_AUTHENTICATION_FAILED(HttpStatus.UNAUTHORIZED, "소셜 로그인에 실패했습니다."),
+
+	/** 관리자 브랜드 등록할 때 동일한 브랜드명이 있을 경우. */
+	BENEFIT_BRAND_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 사용 중인 브랜드명입니다."),
+	/** 관리자 브랜드 삭제할 때 연결된 매장이 있을 경우. */
+	BENEFIT_IN_USE(HttpStatus.CONFLICT, "연결된 제휴 매장이 있어 삭제할 수 없습니다.");
 
 	private final HttpStatus httpStatus;
 	private final String message;

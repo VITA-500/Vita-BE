@@ -7,11 +7,16 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Entity
 @Table(name = "benefits")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Benefit extends BaseTimeEntity {
+
+    public static final List<String> CATEGORIES = List.of("카페", "아이스크림", "영화",
+            "외식", "자동차", "쇼핑", "여가");
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -35,6 +40,14 @@ public class Benefit extends BaseTimeEntity {
 
     @Builder
     public Benefit(String brand, String name, String category, String description, Long updatedBy){
+        this.brand = brand;
+        this.name = name;
+        this.category = category;
+        this.description = description;
+        this.updatedBy = updatedBy;
+    }
+
+    public void update(String brand, String name, String category, String description, Long updatedBy){
         this.brand = brand;
         this.name = name;
         this.category = category;
