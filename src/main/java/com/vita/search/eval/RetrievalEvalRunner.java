@@ -42,9 +42,9 @@ import org.springframework.stereotype.Component;
  * <p>측정하는 것은 두 단계다.
  * <ol>
  *   <li>풀(후보 N개) 단계 — 유사도 상위 N개 안에 정답이 얼마나 들어왔는지(Recall, 정답 판정은 관련도 1점 이상).
- *       N은 {@code search.eval.pool-sizes}(기본 10,20,30,50)로 바꿔 가며 비교한다. 실제 검색은 topK의 10배(=30)를 가져온다.</li>
- *   <li>상위 3개 단계 — 풀에 분류 이름 가산점 재정렬과 답변 중복 제거를 적용해 뽑은 상위 3개가 정답인지
- *       (Precision@3, nDCG@3, MRR, Hit@1/@3, 정답 판정은 관련도 2점 이상). 실제 검색 로직({@code FaqRetrievalServiceImpl})과
+ *       N은 {@code search.eval.pool-sizes}(기본 10,20,30,50)로 바꿔 가며 비교한다. 실제 검색은 topK와 상관없이 기본 30개를 가져온다.</li>
+ *   <li>상위 K개 단계 — 풀에 분류 이름 가산점 재정렬과 답변 중복 제거를 적용해 뽑은 상위 K개(기본 10, {@code search.eval.top-k})가 정답인지
+ *       (최종 Recall@K, Precision@K, nDCG@K, MRR, Hit@1/@K, 정답 판정은 관련도 2점 이상; 최종 Recall@K는 정답 답변 묶음 단위로 세고 1점 이상·2점 이상 둘 다 낸다). 실제 검색 로직({@code FaqRetrievalServiceImpl})과
  *       같은 부품을 같은 순서로 쓰고, threshold는 마지막에 따로 적용해 "threshold 통과 후" 지표를 함께 낸다.</li>
  * </ol>
  *
@@ -58,13 +58,10 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class RetrievalEvalRunner implements CommandLineRunner {
 
-	/** 상위 몇 개를 최종 결과로 볼지. 실제 검색(BE4 호출)의 topK와 같다. */
-	private static final int TOP_K = 3;
-
 	/** 풀 단계 Recall에서 정답으로 보는 최소 관련도. */
 	private static final int POOL_MIN_GRADE = 1;
 
-	/** 상위 3개 단계 지표에서 정답으로 보는 최소 관련도. */
+	/** 상위 K개 단계 지표에서 정답으로 보는 최소 관련도. */
 	private static final int TOP_MIN_GRADE = 2;
 
 	/** 부트스트랩 반복에 쓰는 고정 시드(실행마다 같은 값이 나오게 한다). */
@@ -81,6 +78,10 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 	/** 평가셋 위치. classpath: 또는 file: 형식. */
 	@Value("${search.eval.resource:classpath:data/regression/eval_v2/retrieval_eval_v2.jsonl}")
 	private String resourceLocation;
+
+	/** 상위 몇 개를 최종 결과로 볼지. 실제 검색(BE4 호출)의 topK와 같게 둔다. */
+	@Value("${search.eval.top-k:10}")
+	private int topK;
 
 	/** 비교할 풀 크기 목록. */
 	@Value("${search.eval.pool-sizes:10,20,30,50}")
@@ -108,10 +109,10 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 
 	/** 질문 하나를 풀 크기 하나로 평가한 결과. */
 	private record EvalRow(RetrievalEvalQuestion question, int poolSize, int relevantCount,
-			double recallPool1, double recallPool2, int distinctInPool, int maxDuplicates,
+			double recallPool1, double recallPool2, double recallTop1, double recallTop2, int distinctInPool, int maxDuplicates,
 			List<FaqSimilarityResult> top, List<String> topIds, Map<String, Integer> grades,
-			double precision3, double ndcg3, double mrr, double hit1, double hit3,
-			int passedThreshold, double e2ePrecision3, double e2eHit3, boolean ruleBlocked) {
+			double precisionK, double ndcgK, double mrr, double hit1, double hitK,
+			int passedThreshold, double e2ePrecisionK, double e2eHitK, boolean ruleBlocked) {
 
 		double top1Similarity() {
 			return top.isEmpty() ? 0.0 : top.get(0).similarity();
@@ -126,7 +127,7 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 		verifyGroundTruthLoaded(questions, new HashSet<>(sourceIds.values()));
 
 		List<Integer> sizes = effectivePoolSizes();
-		log.info("평가셋 {}문항, 풀 크기 {}, 상위 {}개, threshold {}, 가산점 {}", questions.size(), sizes, TOP_K,
+		log.info("평가셋 {}문항, 풀 크기 {}, 상위 {}개, threshold {}, 가산점 {}", questions.size(), sizes, topK,
 				similarityThreshold, categoryBoostBonus);
 
 		List<EvalRow> rows = new ArrayList<>();
@@ -204,9 +205,9 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 		}
 		int maxDuplicates = answerCounts.values().stream().mapToInt(Integer::intValue).max().orElse(0);
 
-		// 실제 검색과 같은 순서: 분류 이름 가산점 재정렬 → 답변 중복 제거 → 상위 TOP_K → threshold.
+		// 실제 검색과 같은 순서: 분류 이름 가산점 재정렬 → 답변 중복 제거 → 상위 topK → threshold.
 		List<FaqSimilarityResult> ranked = FaqCategoryTermBooster.rerank(question.query(), pool, categoryBoostBonus);
-		List<FaqSimilarityResult> top = FaqCandidateSelector.selectDistinct(ranked, TOP_K);
+		List<FaqSimilarityResult> top = FaqCandidateSelector.selectDistinct(ranked, topK);
 		List<String> topIds = top.stream().map(result -> idOf(result, sourceIds)).toList();
 		List<String> passedIds = top.stream()
 				.filter(result -> result.similarity() >= similarityThreshold)
@@ -214,15 +215,17 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 				.toList();
 
 		return new EvalRow(question, poolSize, question.relevantIds(POOL_MIN_GRADE).size(), recallPool1, recallPool2,
+				RetrievalMetrics.groupRecall(question.relevantGroups(POOL_MIN_GRADE), topIds),
+				RetrievalMetrics.groupRecall(question.relevantGroups(TOP_MIN_GRADE), topIds),
 				answerCounts.size(), maxDuplicates, top, topIds, grades,
-				RetrievalMetrics.precisionAtK(topIds, grades, TOP_K, TOP_MIN_GRADE),
-				RetrievalMetrics.ndcgAtK(topIds, grades, question.groupGradesDescending(), TOP_K),
+				RetrievalMetrics.precisionAtK(topIds, grades, topK, TOP_MIN_GRADE),
+				RetrievalMetrics.ndcgAtK(topIds, grades, question.groupGradesDescending(), topK),
 				RetrievalMetrics.reciprocalRank(topIds, grades, TOP_MIN_GRADE),
 				RetrievalMetrics.hitAtK(topIds, grades, 1, TOP_MIN_GRADE),
-				RetrievalMetrics.hitAtK(topIds, grades, TOP_K, TOP_MIN_GRADE),
+				RetrievalMetrics.hitAtK(topIds, grades, topK, TOP_MIN_GRADE),
 				passedIds.size(),
-				RetrievalMetrics.precisionAtK(passedIds, grades, TOP_K, TOP_MIN_GRADE),
-				RetrievalMetrics.hitAtK(passedIds, grades, TOP_K, TOP_MIN_GRADE),
+				RetrievalMetrics.precisionAtK(passedIds, grades, topK, TOP_MIN_GRADE),
+				RetrievalMetrics.hitAtK(passedIds, grades, topK, TOP_MIN_GRADE),
 				ruleBlocked);
 	}
 
@@ -235,21 +238,22 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 	/** 풀 크기별 요약. 후보 풀 크기(10/20/30/50) 비교 근거로 쓴다. */
 	private void printPoolSizeSummary(List<EvalRow> rows, List<Integer> sizes) {
 		log.info("===== 풀 크기별 지표 (질문 {}개) =====", rows.stream().filter(r -> r.poolSize() == sizes.get(0)).count());
-		log.info("Recall은 관련도 1점 이상, 상위 3개 지표는 관련도 2점 이상을 정답으로 본다. 'threshold 후'는 유사도 {} 이상만 남긴 결과.",
-				similarityThreshold);
+		log.info("Recall은 관련도 1점 이상, 상위 {}개 지표는 관련도 2점 이상을 정답으로 본다. 'threshold 후'는 유사도 {} 이상만 남긴 결과. 풀 Recall은 FAQ ID 기준, 최종 Recall@{}는 정답 답변 묶음 기준(원문·변형 중 하나만 가져와도 찾은 것).",
+				topK, similarityThreshold, topK);
 		for (int size : sizes) {
 			List<EvalRow> group = rows.stream().filter(r -> r.poolSize() == size).toList();
-			long fewer = group.stream().filter(r -> r.distinctInPool() < TOP_K).count();
-			log.info("풀 {}: Recall(1점↑) {} | Recall(2점↑) {} | P@3 {} | nDCG@3 {} | MRR {} | Hit@1 {} | Hit@3 {}",
+			long fewer = group.stream().filter(r -> r.distinctInPool() < topK).count();
+			log.info("풀 {}: Recall(1점↑) {} | Recall(2점↑) {} | 최종 Recall@{}(1점↑) {} | 최종 Recall@{}(2점↑) {} | P@{} {} | nDCG@{} {} | MRR {} | Hit@1 {} | Hit@{} {}",
 					size, pct(avg(group, EvalRow::recallPool1)), pct(avg(group, EvalRow::recallPool2)),
-					pct(avg(group, EvalRow::precision3)), pct(avg(group, EvalRow::ndcg3)), pct(avg(group, EvalRow::mrr)),
-					pct(avg(group, EvalRow::hit1)), pct(avg(group, EvalRow::hit3)));
-			log.info("      풀 안 서로 다른 답변 평균 {}개(최소 {}), 같은 답변 최대 반복 {}회, 서로 다른 답변이 3개 미만인 질문 {}개 | "
-							+ "threshold 후: 남은 결과 평균 {}개, P@3 {}, Hit@3 {}, 규칙으로 막힌 질문 {}개",
+					topK, pct(avg(group, EvalRow::recallTop1)), topK, pct(avg(group, EvalRow::recallTop2)),
+					topK, pct(avg(group, EvalRow::precisionK)), topK, pct(avg(group, EvalRow::ndcgK)), pct(avg(group, EvalRow::mrr)),
+					pct(avg(group, EvalRow::hit1)), topK, pct(avg(group, EvalRow::hitK)));
+			log.info("      풀 안 서로 다른 답변 평균 {}개(최소 {}), 같은 답변 최대 반복 {}회, 서로 다른 답변이 {}개 미만인 질문 {}개 | "
+							+ "threshold 후: 남은 결과 평균 {}개, P@{} {}, Hit@{} {}, 규칙으로 막힌 질문 {}개",
 					fmt(avg(group, r -> r.distinctInPool())), group.stream().mapToInt(EvalRow::distinctInPool).min().orElse(0),
-					group.stream().mapToInt(EvalRow::maxDuplicates).max().orElse(0), fewer,
-					fmt(avg(group, r -> r.passedThreshold())), pct(avg(group, EvalRow::e2ePrecision3)),
-					pct(avg(group, EvalRow::e2eHit3)), group.stream().filter(EvalRow::ruleBlocked).count());
+					group.stream().mapToInt(EvalRow::maxDuplicates).max().orElse(0), topK, fewer,
+					fmt(avg(group, r -> r.passedThreshold())), topK, pct(avg(group, EvalRow::e2ePrecisionK)),
+					topK, pct(avg(group, EvalRow::e2eHitK)), group.stream().filter(EvalRow::ruleBlocked).count());
 		}
 	}
 
@@ -259,9 +263,9 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 		for (EvalRow row : mainRows) {
 			byStyle.computeIfAbsent(row.question().style(), key -> new ArrayList<>()).add(row);
 		}
-		byStyle.forEach((style, group) -> log.info("{} ({}개): Recall {} | P@3 {} | nDCG@3 {} | MRR {} | Hit@3 {}",
-				style, group.size(), pct(avg(group, EvalRow::recallPool1)), pct(avg(group, EvalRow::precision3)),
-				pct(avg(group, EvalRow::ndcg3)), pct(avg(group, EvalRow::mrr)), pct(avg(group, EvalRow::hit3))));
+		byStyle.forEach((style, group) -> log.info("{} ({}개): 풀 Recall {} | Recall@{} {} | P@{} {} | nDCG@{} {} | MRR {} | Hit@{} {}",
+				style, group.size(), pct(avg(group, EvalRow::recallPool1)), topK, pct(avg(group, EvalRow::recallTop1)), topK, pct(avg(group, EvalRow::precisionK)),
+				topK, pct(avg(group, EvalRow::ndcgK)), pct(avg(group, EvalRow::mrr)), topK, pct(avg(group, EvalRow::hitK))));
 	}
 
 	/**
@@ -269,8 +273,8 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 	 * 표준편차를 보여 준다. 값이 전체(마지막 행)와 거의 같고 표준편차가 충분히 작아지는 가장 작은 N이 안정적인 질문 수다.
 	 */
 	private void printSubsetStability(List<EvalRow> mainRows) {
-		String[] names = {"Recall", "P@3", "nDCG@3", "MRR"};
-		List<ToDoubleFunction<EvalRow>> getters = List.of(EvalRow::recallPool1, EvalRow::precision3, EvalRow::ndcg3, EvalRow::mrr);
+		String[] names = {"Recall", "P@" + topK, "nDCG@" + topK, "MRR"};
+		List<ToDoubleFunction<EvalRow>> getters = List.of(EvalRow::recallPool1, EvalRow::precisionK, EvalRow::ndcgK, EvalRow::mrr);
 		double[][] values = new double[getters.size()][];
 		for (int m = 0; m < getters.size(); m++) {
 			values[m] = mainRows.stream().mapToDouble(getters.get(m)).toArray();
@@ -309,15 +313,15 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 		return sb.toString().trim();
 	}
 
-	/** 정답을 거의 못 가져온 질문(상위 3개에 정답이 없거나 풀에 정답이 절반도 안 들어옴)을 나열한다. */
+	/** 정답을 거의 못 가져온 질문(상위 K개에 정답이 없거나 풀에 정답이 절반도 안 들어옴)을 나열한다. */
 	private void printWeakQuestions(List<EvalRow> mainRows) {
 		List<EvalRow> weak = mainRows.stream()
-				.filter(row -> row.hit3() == 0.0 || row.recallPool1() < 0.5)
+				.filter(row -> row.hitK() == 0.0 || row.recallPool1() < 0.5)
 				.sorted(Comparator.comparingDouble(EvalRow::recallPool1))
 				.toList();
-		log.info("===== 약한 질문 (상위 3개에 정답 없음 또는 풀 Recall 50% 미만): {}개 =====", weak.size());
-		weak.stream().limit(20).forEach(row -> log.info("{} [{}] Recall {} Hit@3 {} | {} | 1위: {}",
-				row.question().qid(), row.question().style(), pct(row.recallPool1()), pct(row.hit3()),
+		log.info("===== 약한 질문 (상위 {}개에 정답 없음 또는 풀 Recall 50% 미만): {}개 =====", topK, weak.size());
+		weak.stream().limit(20).forEach(row -> log.info("{} [{}] Recall {} Hit@{} {} | {} | 1위: {}",
+				row.question().qid(), row.question().style(), pct(row.recallPool1()), topK, pct(row.hitK()),
 				row.question().query(), row.top().isEmpty() ? "-" : row.top().get(0).question()));
 	}
 
@@ -331,10 +335,9 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 			try (Writer writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
 				// 엑셀이 한글을 깨뜨리지 않도록 UTF-8 BOM을 붙인다.
 				writer.write('﻿');
-				writer.write("qid,subsetOrder,style,query,poolSize,relevantCount,recallPool1,recallPool2,distinctInPool,maxDuplicates,"
-						+ "precision3,ndcg3,mrr,hit1,hit3,passedThreshold,e2ePrecision3,e2eHit3,ruleBlocked,"
-						+ "top1_id,top1_grade,top1_sim,top1_question,top2_id,top2_grade,top2_sim,top2_question,"
-						+ "top3_id,top3_grade,top3_sim,top3_question\n");
+				writer.write("qid,subsetOrder,style,query,poolSize,relevantCount,recallPool1,recallPool2,recallTop1,recallTop2,distinctInPool,maxDuplicates,"
+						+ "precisionK,ndcgK,mrr,hit1,hitK,passedThreshold,e2ePrecisionK,e2eHitK,ruleBlocked,"
+						+ topColumnNames() + "\n");
 				for (EvalRow row : rows) {
 					writeRow(writer, row);
 				}
@@ -345,19 +348,33 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 		}
 	}
 
+	/** 상위 K개 각각의 CSV 열 이름(top1_id,top1_grade,top1_sim,top1_question,top2_id,...). */
+	private String topColumnNames() {
+		StringBuilder sb = new StringBuilder();
+		for (int i = 1; i <= topK; i++) {
+			if (i > 1) {
+				sb.append(',');
+			}
+			sb.append("top").append(i).append("_id,top").append(i).append("_grade,top").append(i)
+					.append("_sim,top").append(i).append("_question");
+		}
+		return sb.toString();
+	}
+
 	private void writeRow(Writer writer, EvalRow row) throws IOException {
 		RetrievalEvalQuestion q = row.question();
 		StringBuilder sb = new StringBuilder();
 		sb.append(q.qid()).append(',').append(q.subsetOrder()).append(',').append(q.style()).append(',')
 				.append(csv(q.query())).append(',').append(row.poolSize()).append(',').append(row.relevantCount()).append(',')
 				.append(num(row.recallPool1())).append(',').append(num(row.recallPool2())).append(',')
+				.append(num(row.recallTop1())).append(',').append(num(row.recallTop2())).append(',')
 				.append(row.distinctInPool()).append(',').append(row.maxDuplicates()).append(',')
-				.append(num(row.precision3())).append(',')
-				.append(num(row.ndcg3())).append(',').append(num(row.mrr())).append(',').append(num(row.hit1())).append(',')
-				.append(num(row.hit3())).append(',').append(row.passedThreshold()).append(',')
-				.append(num(row.e2ePrecision3())).append(',').append(num(row.e2eHit3())).append(',')
+				.append(num(row.precisionK())).append(',')
+				.append(num(row.ndcgK())).append(',').append(num(row.mrr())).append(',').append(num(row.hit1())).append(',')
+				.append(num(row.hitK())).append(',').append(row.passedThreshold()).append(',')
+				.append(num(row.e2ePrecisionK())).append(',').append(num(row.e2eHitK())).append(',')
 				.append(row.ruleBlocked() ? "Y" : "N");
-		for (int i = 0; i < TOP_K; i++) {
+		for (int i = 0; i < topK; i++) {
 			if (i < row.top().size()) {
 				FaqSimilarityResult result = row.top().get(i);
 				String id = row.topIds().get(i);

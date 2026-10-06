@@ -73,7 +73,13 @@ class FaqCandidateSelectorTest {
 	}
 
 	@Test
-	void poolSizeIsMultipleOfTopK() {
-		assertThat(FaqCandidateSelector.poolSize(3)).isEqualTo(3 * FaqCandidateSelector.POOL_MULTIPLIER);
+	void poolStaysAtThirtyWhetherTopKIsThreeOrTen() {
+		assertThat(FaqCandidateSelector.poolSize(3)).isEqualTo(30);
+		assertThat(FaqCandidateSelector.poolSize(10)).isEqualTo(30);
+	}
+
+	@Test
+	void poolGrowsOnlyWhenTopKIsTooLargeForThirtyCandidates() {
+		assertThat(FaqCandidateSelector.poolSize(15)).isEqualTo(45);
 	}
 }

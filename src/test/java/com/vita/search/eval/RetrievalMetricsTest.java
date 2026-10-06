@@ -20,6 +20,15 @@ class RetrievalMetricsTest {
 	}
 
 	@Test
+	void groupRecallCountsAnAnswerGroupAsFoundWhenAnyOfItsFaqsIsRetrieved() {
+		List<List<String>> groups = List.of(List.of("a", "a-P1"), List.of("b", "b-P1"), List.of("c"));
+		// a 묶음은 변형(a-P1)만 가져와도 찾은 것이고, c는 못 찾았다.
+		assertThat(RetrievalMetrics.groupRecall(groups, List.of("a-P1", "b", "x"))).isCloseTo(2.0 / 3, within(1e-9));
+		assertThat(RetrievalMetrics.groupRecall(groups, List.of("x"))).isZero();
+		assertThat(RetrievalMetrics.groupRecall(List.of(), List.of("a"))).isZero();
+	}
+
+	@Test
 	void precisionCountsOnlyResultsAtOrAboveTheMinimumGradeAndKeepsKAsTheDenominator() {
 		assertThat(RetrievalMetrics.precisionAtK(List.of("a", "d", "x"), GRADES, 3, 2)).isCloseTo(1.0 / 3, within(1e-9));
 		assertThat(RetrievalMetrics.precisionAtK(List.of("a", "b", "c"), GRADES, 3, 2)).isEqualTo(1.0);

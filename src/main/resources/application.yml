@@ -118,7 +118,9 @@ search:
   eval:
     enabled: ${SEARCH_EVAL_ENABLED:false}
     resource: ${SEARCH_EVAL_RESOURCE:classpath:data/regression/eval_v2/retrieval_eval_v2.jsonl}
-    # 후보 풀 크기를 바꿔 가며 비교한다(실제 검색은 topK 3의 10배인 30).
+    # 최종 결과로 보는 상위 개수. 실제 검색(BE4 호출)의 topK와 같게 둔다.
+    top-k: ${SEARCH_EVAL_TOP_K:10}
+    # 후보 풀 크기를 바꿔 가며 비교한다(실제 검색은 topK와 상관없이 30).
     pool-sizes: ${SEARCH_EVAL_POOL_SIZES:10,20,30,50}
     main-pool-size: ${SEARCH_EVAL_MAIN_POOL_SIZE:30}
     # 질문을 앞에서부터 N개로 잘라 지표가 안정적인 질문 수를 고른다.

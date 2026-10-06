@@ -61,6 +61,17 @@ public record RetrievalEvalQuestion(
 		return ids;
 	}
 
+	/** 관련도가 minGrade 이상인 답변 묶음 목록(각 묶음은 같은 답변을 가진 FAQ ID 목록). 묶음 단위 Recall 계산에 쓴다. */
+	public List<List<String>> relevantGroups(int minGrade) {
+		List<List<String>> result = new ArrayList<>();
+		for (int grade : GRADES) {
+			if (grade >= minGrade) {
+				result.addAll(groups(grade));
+			}
+		}
+		return result;
+	}
+
 	/** 모든 정답 묶음의 관련도를 높은 순으로 나열한다. nDCG의 이상적인 순서(IDCG) 계산에 쓴다. */
 	public List<Integer> groupGradesDescending() {
 		List<Integer> grades = new ArrayList<>();

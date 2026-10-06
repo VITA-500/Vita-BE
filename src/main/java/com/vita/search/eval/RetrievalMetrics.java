@@ -33,6 +33,23 @@ public final class RetrievalMetrics {
 	}
 
 	/**
+	 * 정답 답변 묶음 중 몇 개를 가져왔는지의 비율. 묶음 안의 FAQ(원문과 변형) 중 하나라도 가져오면 그 묶음은 찾은 것으로 센다.
+	 * 검색이 같은 답변의 후보를 하나로 합치기 때문에, 최종 상위 K개의 Recall은 FAQ ID가 아니라 묶음 단위로 재야 공정하다.
+	 *
+	 * @param relevantGroups 정답 답변 묶음 목록(각 묶음은 같은 답변을 가진 FAQ ID 목록)
+	 * @param retrievedIds   검색으로 가져온 FAQ ID
+	 * @return 정답 묶음이 하나도 없으면 0
+	 */
+	public static double groupRecall(List<List<String>> relevantGroups, Collection<String> retrievedIds) {
+		if (relevantGroups.isEmpty()) {
+			return 0.0;
+		}
+		Set<String> retrieved = Set.copyOf(retrievedIds);
+		long found = relevantGroups.stream().filter(group -> group.stream().anyMatch(retrieved::contains)).count();
+		return (double) found / relevantGroups.size();
+	}
+
+	/**
 	 * 상위 k개 중 관련도가 minGrade 이상인 결과의 비율. 결과가 k개보다 적어도 분모는 k로 고정한다
 	 * (적게 가져온 것도 못 맞힌 것으로 본다).
 	 */
