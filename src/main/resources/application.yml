@@ -113,6 +113,17 @@ embedding:
 search:
   regression:
     enabled: ${SEARCH_REGRESSION_ENABLED:false}
+  # 검색 평가셋(v2)으로 Recall·Precision·nDCG·MRR을 재는 수동 도구. 로컬 도커(DB+임베딩 서버)가 떠 있고
+  # 평가셋의 정답 FAQ가 DB에 적재돼 있을 때만 켠다(데이터가 다르면 바로 중단한다).
+  eval:
+    enabled: ${SEARCH_EVAL_ENABLED:false}
+    resource: ${SEARCH_EVAL_RESOURCE:classpath:data/regression/eval_v2/retrieval_eval_v2.jsonl}
+    # 후보 풀 크기를 바꿔 가며 비교한다(실제 검색은 topK 3의 10배인 30).
+    pool-sizes: ${SEARCH_EVAL_POOL_SIZES:10,20,30,50}
+    main-pool-size: ${SEARCH_EVAL_MAIN_POOL_SIZE:30}
+    # 질문을 앞에서부터 N개로 잘라 지표가 안정적인 질문 수를 고른다.
+    subset-sizes: ${SEARCH_EVAL_SUBSET_SIZES:50,100,150,200}
+    bootstrap-draws: ${SEARCH_EVAL_BOOTSTRAP_DRAWS:1000}
 
 retrieval:
   # "관련 FAQ 없음" 판단 기준(0~1). 로밍/요금·납부/유심-eSIM 3개 카테고리 데이터로
