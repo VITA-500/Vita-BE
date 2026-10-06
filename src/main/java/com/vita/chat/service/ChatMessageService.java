@@ -47,7 +47,7 @@ public class ChatMessageService {
 	private static final int TOP_K = 3; // 검색해올 FAQ 후보 개수 — threshold 필터는 BE3 쪽에서 처리됨
 	private static final int MAX_HISTORY_TURNS = 5;  // 1턴 = USER + ASSISTANT 2개
 	
-	private final BedrockChatClient bedrockChatClient;
+	private final ChatAnswerStreamer answerStreamer;
 	private final FaqRetrievalService faqRetrievalService;
 	private final ChatMessagePersistence persistence;
 	private final ChatMessageRepository chatMessageRepository;
@@ -85,36 +85,45 @@ public class ChatMessageService {
 		ChatMessage assistantMessage = persistence.saveUserAndPendingAssistant(sessionId, request);
 		Long assistantId = assistantMessage.getId();
 		
-		// 2) 조립 재료 준비
-        ContextResult context;
-        try {
-            context = buildContext(request.content());
-        } catch (Exception e) {
-            log.warn("컨텍스트 조립 실패, 참고자료 없이 진행 - sessionId: {}", sessionId, e);
-            context = ContextResult.empty();
-        }
-
-        log.info("service context: " + context.text());
-        
-        long llmStartTime = System.currentTimeMillis();
+//		// 2) 조립 재료 준비
+//        ContextResult context;
+//        try {
+//            context = buildContext(request.content());
+//        } catch (Exception e) {
+//            log.warn("컨텍스트 조립 실패, 참고자료 없이 진행 - sessionId: {}", sessionId, e);
+//            context = ContextResult.empty();
+//        }
+//
+//        log.info("service context: " + context.text());
+//        
+//        long llmStartTime = System.currentTimeMillis();
+//		
+//		try {
+//			// 3) 실제 LLM 호출 — 질문 + 참고자료 + 대화이력을 함께 전달
+//			String answer = bedrockChatClient.ask(request.content(), context.text(), conversationHistory);
+//			
+//			List<Long> faqIds = context.faqs().stream().map(FaqReference::faqId).toList();
+//			persistence.markCompleted(assistantId, answer, faqIds);
+//			
+//		} catch (ApiCallTimeoutException | ApiCallAttemptTimeoutException e) {
+//		    log.error("Bedrock 응답 타임아웃 - sessionId: {}", sessionId, e);
+//		    persistence.markFailed(assistantMessage.getId(), e.getMessage());
+//		} catch (SdkException e) {
+//		    log.error("Bedrock 호출 실패 - sessionId: {}", sessionId, e);
+//		    persistence.markFailed(assistantMessage.getId(), e.getMessage());
+//		} catch(Exception e) {
+//			log.error("AI 응답 생성 실패 - sessionId: {}", sessionId, e);  // 마지막 인자로 e를 넘기면 SLF4J가 스택 트레이스 전체를 출력해줌
+//			persistence.markFailed(assistantMessage.getId(), e.getMessage());
+//		}
 		
-		try {
-			// 3) 실제 LLM 호출 — 질문 + 참고자료 + 대화이력을 함께 전달
-			String answer = bedrockChatClient.ask(request.content(), context.text(), conversationHistory);
-			
-			List<Long> faqIds = context.faqs().stream().map(FaqReference::faqId).toList();
-			persistence.markCompleted(assistantId, answer, faqIds);
-			
-		} catch (ApiCallTimeoutException | ApiCallAttemptTimeoutException e) {
-		    log.error("Bedrock 응답 타임아웃 - sessionId: {}", sessionId, e);
-		    persistence.markFailed(assistantMessage.getId(), e.getMessage());
-		} catch (SdkException e) {
-		    log.error("Bedrock 호출 실패 - sessionId: {}", sessionId, e);
-		    persistence.markFailed(assistantMessage.getId(), e.getMessage());
-		} catch(Exception e) {
-			log.error("AI 응답 생성 실패 - sessionId: {}", sessionId, e);  // 마지막 인자로 e를 넘기면 SLF4J가 스택 트레이스 전체를 출력해줌
-			persistence.markFailed(assistantMessage.getId(), e.getMessage());
-		}
+		// 3) 실제 AI 작업은 비동기로 실행
+		long llmStartTime = System.currentTimeMillis();
+	    answerStreamer.startAsync(
+	            sessionId,
+	            assistantId,
+	            request.content()
+	    );
+
 		long latencyMs = System.currentTimeMillis() - startTime;
 		
 		long llmLatencyMs = System.currentTimeMillis() - llmStartTime;
@@ -233,7 +242,7 @@ public class ChatMessageService {
 	}
 	
 	/** 세션 존재 여부와 소유자를 검증한다. 실패 시 BusinessException. */
-	private ChatSession getOwnedSession(Long sessionId, Long userId, UUID guestId) {
+	public ChatSession getOwnedSession(Long sessionId, Long userId, UUID guestId) {
 	    ChatSession session = chatSessionRepository.findById(sessionId)
 	            .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "존재하지 않는 세션입니다."));
 
