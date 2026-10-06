@@ -32,12 +32,15 @@ public class StoreController {
     public StoreNearbyListResponse nearby(
             @RequestParam(required = false) BigDecimal lat,
             @RequestParam(required = false) BigDecimal lng,
-            @RequestParam(required = false) Double radius){
+            @RequestParam(required = false) Double radius,
+            @RequestParam(required = false) String storeType,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) Long benefitId){
         requireLocation(lat, lng);
         if(radius == null){
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "반경(radius)은 필수입니다.");
         }
-        return storeService.findNearby(lat, lng, radius);
+        return storeService.findNearby(lat, lng, radius, storeType, category, benefitId);
     }
 
     @GetMapping("/stores/{storeId}")

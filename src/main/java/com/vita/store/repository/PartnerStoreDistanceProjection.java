@@ -6,6 +6,7 @@ public interface PartnerStoreDistanceProjection {
     Long getId();
     String getName();
     String getAddress();
+    String getPhone();
     BigDecimal getLat();
     BigDecimal getLng();
     Double getDistanceKm();
@@ -13,4 +14,5 @@ public interface PartnerStoreDistanceProjection {
     String getBrand();
     String getCategory();
     String getBenefitName();
+    String getBenefitDescription();
 }

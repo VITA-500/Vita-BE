@@ -17,4 +17,7 @@ public interface StoreBenefitRepository extends JpaRepository<StoreBenefit, Long
     @Modifying(flushAutomatically = true)
     @Query("DELETE FROM StoreBenefit sb WHERE sb.store.id = :storeId")
     void deleteByStoreId(@Param("storeId") Long storeId);
+
+    @Query("SELECT COUNT(sb) FROM StoreBenefit sb WHERE sb.benefit.id = :benefitId")
+    long countByBenefitId(@Param("benefitId") Long benefitId);
 }
