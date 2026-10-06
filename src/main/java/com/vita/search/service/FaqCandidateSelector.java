@@ -15,15 +15,24 @@ import java.util.Map;
  */
 public final class FaqCandidateSelector {
 
-	/** 중복을 걷어내고도 topK개를 채울 수 있도록, DB에서 topK의 몇 배를 넉넉히 가져올지. */
-	public static final int POOL_MULTIPLIER = 10;
+	/**
+	 * 후보 풀의 기본 크기. 상위 개수(topK)를 3에서 10으로 늘려도 풀은 30개로 유지하기로 정했다(2차 멘토링).
+	 * 현재 데이터에서 풀 30개 안의 서로 다른 답변은 질문당 평균 18.9개(최소 15개)라 상위 10개를 채울 수 있다.
+	 */
+	public static final int DEFAULT_POOL_SIZE = 30;
+
+	/** topK가 커져도 중복을 걷어낸 뒤 topK개를 채울 수 있도록, 풀은 최소 topK의 이 배수 이상으로 잡는다. */
+	public static final int MIN_POOL_MULTIPLIER = 3;
 
 	private FaqCandidateSelector() {
 	}
 
-	/** topK개의 서로 다른 답변을 얻기 위해 DB에서 가져와야 할 후보 개수. */
+	/**
+	 * topK개의 서로 다른 답변을 얻기 위해 DB에서 가져와야 할 후보 개수. 기본은 {@link #DEFAULT_POOL_SIZE}(30)로 고정하고,
+	 * topK가 아주 커서 30개로는 부족할 때만 topK의 {@link #MIN_POOL_MULTIPLIER}배로 늘린다.
+	 */
 	public static int poolSize(int topK) {
-		return topK * POOL_MULTIPLIER;
+		return Math.max(DEFAULT_POOL_SIZE, topK * MIN_POOL_MULTIPLIER);
 	}
 
 	/**

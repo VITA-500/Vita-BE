@@ -89,7 +89,7 @@ public class FaqRetrievalServiceImpl implements FaqRetrievalService {
 
 		// threshold 미달 후보의 최고 점수도 topSimilarity로 알려야 해서, DB에서는 threshold 없이
 		// 가까운 순으로 가져오고 threshold는 아래에서 적용한다(정렬이 유사도 순이라 결과 집합은 동일).
-		// 같은 답변의 변형이 topK를 다 차지하지 않도록, topK보다 넉넉히 가져와 중복을 걷어낸 뒤 자른다.
+		// 같은 답변의 변형이 topK를 다 차지하지 않도록, topK와 상관없이 후보를 30개(기본)까지 가져와 중복을 걷어낸 뒤 topK개로 자른다.
 		List<FaqSimilarityResult> faqPool = faqVectorSearchRepository.searchBySimilarity(
 				queryVector, FaqStatus.ACTIVE, 0.0, FaqCandidateSelector.poolSize(topK));
 		// 질문에 분류 이름 단어가 있으면 그 분류를 약간 앞세워 순위를 다시 매긴다(유사도 값은 그대로).
