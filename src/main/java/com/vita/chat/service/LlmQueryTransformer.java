@@ -18,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.vita.chat.dto.PlanIntent;
 import com.vita.search.service.PlanSortKey;
+import com.vita.chat.dto.DataRange;
 
 /** 사용자 질문을 FAQ 검색용 / 요금제 검색용 쿼리로 변환한다. 실패하면 원문으로 폴백한다. */
 @Slf4j
@@ -27,6 +28,9 @@ public class LlmQueryTransformer implements QueryTransformer {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     
     private static final int MAX_LIMIT = 3;
+    
+    /** GB -> MB 환산. BE3가 DB에 저장한 값과 같은 기준이어야 한다 (아래 "확인할 것" 참고) */
+    private static final int MB_PER_GB = 1024;
 
     private final BedrockChatClient bedrockChatClient;
     private final String systemPrompt;
@@ -100,6 +104,7 @@ public class LlmQueryTransformer implements QueryTransformer {
         PlanIntent intent = parseIntent(node);
         boolean structured = node.path("is_structured").asBoolean(false);
         PriceRange priceRange = parsePriceRange(node);
+        DataRange dataRange = parseDataRange(node);
 
         // 둘 다 null이면 "무관"이 아니라 변환 실패일 수 있으니 원문으로 검색 (단, 극값 질문이면 그대로 진행)
         if (faqQuery == null && planQuery == null && !intent.extreme()) {
@@ -109,7 +114,7 @@ public class LlmQueryTransformer implements QueryTransformer {
                 ? TransformInfo.partialNull(faqQuery == null, planQuery == null)
                 : TransformInfo.changed();
         return new TransformOutcome(
-                new QueryTransformResult(faqQuery, planQuery, intent, structured, priceRange), info);
+                new QueryTransformResult(faqQuery, planQuery, intent, structured, priceRange, dataRange), info);
     }
     
     private static String textOrNull(JsonNode node, String field) {
@@ -150,6 +155,22 @@ public class LlmQueryTransformer implements QueryTransformer {
         return new PriceRange(min, max);
     }
     
+    private static Double doubleOrNull(JsonNode node, String field) {
+        return node.hasNonNull(field) && node.get(field).isNumber() ? node.get(field).asDouble() : null;
+    }
+
+    /** 데이터량 범위 파싱(GB -> MB). min이 max보다 크면 범위 없음으로 처리한다. */
+    private static DataRange parseDataRange(JsonNode node) {
+        Double minGb = doubleOrNull(node, "min_data_gb");
+        Double maxGb = doubleOrNull(node, "max_data_gb");
+        Long min = minGb == null ? null : Math.round(minGb * MB_PER_GB);
+        Long max = maxGb == null ? null : Math.round(maxGb * MB_PER_GB);
+        if (min != null && max != null && min > max) {
+            log.warn("데이터량 범위 파싱 실패, 범위 없음으로 처리 - node={}", node);
+            return DataRange.none();
+        }
+        return new DataRange(min, max);
+    }
 
     private static String blankToNull(String s) {
         return (s == null || s.isBlank()) ? null : s;

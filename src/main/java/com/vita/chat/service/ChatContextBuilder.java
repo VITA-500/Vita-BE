@@ -13,6 +13,7 @@ import com.vita.chat.dto.PriceRange;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.vita.chat.dto.DataRange;
 
 @Component
 @RequiredArgsConstructor
@@ -35,25 +36,27 @@ public class ChatContextBuilder {
 	 * @param question 사용자 원문 질문 (극값 판단과 극값 조회에 사용)
 	 */
 	public ChatContext build(String question, List<FaqReference> faqs, List<PlanReference> plans,
-	        PlanIntent intent) {
-	    return build(question, faqs, plans, intent, PriceRange.none());
+	        PlanIntent intent, PriceRange priceRange) {
+	    return build(question, faqs, plans, intent, priceRange, DataRange.none());
 	}
 
 	public ChatContext build(String question, List<FaqReference> faqs, List<PlanReference> plans,
-	        PlanIntent intent, PriceRange priceRange) {
+	        PlanIntent intent, PriceRange priceRange, DataRange dataRange) {
 
-	    List<PlanReference> extremePlans = List.of();
-	    if (intent.extreme()) {
-	        // 범위 조건이 있으면 정렬된 후보를 넉넉히 가져와 범위로 거른 뒤 limit만큼 사용
-	        int fetch = priceRange.isEmpty() ? intent.limit() : EXTREME_FETCH_LIMIT;
-	        extremePlans = planLookupService.findExtremeForQuery(intent.sortKey(), fetch, question).stream()
-	                .filter(p -> priceRange.contains(p.monthlyFee()))
-	                .limit(intent.limit())
-	                .toList();
-	    }
+		List<PlanReference> extremePlans = List.of();
+		if (intent.extreme()) {
+		    boolean hasRange = !priceRange.isEmpty() || !dataRange.isEmpty();
+		    int fetch = hasRange ? EXTREME_FETCH_LIMIT : intent.limit();
+		    extremePlans = planLookupService.findExtremeForQuery(intent.sortKey(), fetch, question).stream()
+		            .filter(p -> priceRange.contains(p.monthlyFee()))
+		            .filter(p -> dataRange.contains(isUnlimited(p), p.baseDataMb()))
+		            .limit(intent.limit())
+		            .toList();
+		}
 
 	 // 범위 조건이 있는 극값 질문인데 조건에 맞는 요금제가 없는 경우
-	    boolean noMatch = intent.extreme() && !priceRange.isEmpty() && extremePlans.isEmpty();
+		boolean noMatch = intent.extreme() && (!priceRange.isEmpty() || !dataRange.isEmpty())
+		        && extremePlans.isEmpty();
 	    List<PlanReference> generalPlans = (extremePlans.isEmpty() && !noMatch) ? plans : List.of();
 
 	    if (faqs.isEmpty() && plans.isEmpty() && extremePlans.isEmpty() && !noMatch) {
@@ -80,6 +83,10 @@ public class ChatContextBuilder {
 				generalPlans.stream().map(PlanReference::name).toList());
 
 		return new ChatContext(sb.toString(), faqs);
+	}
+	
+	private static boolean isUnlimited(PlanReference p) {
+	    return "UNLIMITED".equals(String.valueOf(p.dataPolicy()));
 	}
 
 	private String toFaqXml(FaqReference faq) {

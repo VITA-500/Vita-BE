@@ -5,11 +5,16 @@ public record QueryTransformResult(
         String planQuery,
         PlanIntent planIntent,
         boolean structured,
-        PriceRange priceRange) {
+        PriceRange priceRange,
+        DataRange dataRange) {
 
-    // 기존 호출부(인자 4개) 호환
+    public QueryTransformResult(String faqQuery, String planQuery, PlanIntent planIntent,
+            boolean structured, PriceRange priceRange) {
+        this(faqQuery, planQuery, planIntent, structured, priceRange, DataRange.none());
+    }
+
     public QueryTransformResult(String faqQuery, String planQuery, PlanIntent planIntent, boolean structured) {
-        this(faqQuery, planQuery, planIntent, structured, PriceRange.none());
+        this(faqQuery, planQuery, planIntent, structured, PriceRange.none(), DataRange.none());
     }
 
     public static QueryTransformResult original(String question) {
