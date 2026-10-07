@@ -30,7 +30,7 @@ public class ChatAnswerStreamer {
 
     private final ChatSseRegistry registry;
     private final FaqRetrievalService faqRetrievalService;
-    private final QueryTransformer queryTransformer;
+    private final LlmQueryTransformer queryTransformer;
     private final ChatContextBuilder chatContextBuilder;
     private final LlmStreamClient llmStreamClient;
     private final ChatMessagePersistence chatMessagePersistence;
@@ -39,7 +39,7 @@ public class ChatAnswerStreamer {
     public ChatAnswerStreamer(
             ChatSseRegistry registry,
             FaqRetrievalService faqRetrievalService,
-            QueryTransformer queryTransformer,
+            LlmQueryTransformer queryTransformer,
             ChatContextBuilder chatContextBuilder,
             LlmStreamClient llmStreamClient,
             ChatMessagePersistence chatMessagePersistence,
