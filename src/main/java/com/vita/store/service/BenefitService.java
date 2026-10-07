@@ -7,6 +7,7 @@ import com.vita.common.page.PageResponse;
 import com.vita.store.dto.request.BenefitRequest;
 import com.vita.store.dto.response.*;
 import com.vita.store.entity.Benefit;
+import com.vita.store.entity.BusinessHours;
 import com.vita.store.exception.BenefitNotFoundException;
 import com.vita.store.repository.BenefitRepository;
 import com.vita.store.repository.StoreBenefitRepository;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -47,9 +49,12 @@ public class BenefitService {
 
     /**
      * 업종(카테고리)별 제휴 매장을 가까운 순으로 돌려준다.
+     * openNow=true면 지금 영업 중인 매장만
+     * openAt("HH:mm")이면 그 시각에 영업 중인 매장만
      */
     public BenefitStoreListResponse findStores(String category, BigDecimal lat, BigDecimal lng,
-                                               Double radiusKm, Integer limit, Long benefitId){
+                                               Double radiusKm, Integer limit, Long benefitId,
+                                               Boolean openNow, String openAt){
         if(radiusKm != null && radiusKm <= 0){
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "반경(radius)은 0보다 커야합니다.");
         }
@@ -59,11 +64,15 @@ public class BenefitService {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "limit은 1~" + MAX_LIMIT + " 사이여야 합니다.");
         }
 
+        LocalTime filterTime = BusinessHours.filterTime(openNow, openAt);
+        LocalTime now = BusinessHours.nowInKorea();
+
         String target = category.trim();
         List<BenefitStoreListResponse.Item> stores = storeRepository
-                .findPartnersNearby(lat, lng, target, benefitId, radiusKm, size).stream()
+                .findPartnersNearby(lat, lng, target, benefitId, radiusKm, filterTime, size).stream()
                 .map(p -> new BenefitStoreListResponse.Item(p.getId(), p.getName(),
                         p.getAddress(), p.getLat(), p.getLng(), Math.round(p.getDistanceKm() * 100) / 100.0,
+                        p.getBusinessHours(), BusinessHours.openAt(p.getBusinessHours(), now),
                         p.getBenefitId(), p.getBrand(), p.getCategory(), p.getBenefitName())).toList();
         return new BenefitStoreListResponse(target, stores);
     }

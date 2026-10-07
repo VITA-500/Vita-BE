@@ -11,6 +11,7 @@ public record StoreDetailResponse (
         BigDecimal lat,
         BigDecimal lng,
         String businessHours,
+        Boolean openNow,
         String phone,
         List<String> consultServices,
         List<String> providedServices,

@@ -4,6 +4,7 @@ import com.vita.common.exception.BusinessException;
 import com.vita.common.exception.ErrorCode;
 
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.regex.Pattern;
 
@@ -21,6 +22,8 @@ public record BusinessHours(LocalTime open, LocalTime close) {
     /** 마지막 예약은 닫기 30분 전까지 */
     private static final int LAST_RESERVATION_BEFORE_CLOSE_MINUTES = 30;
     private static final int MINUTES_PER_DAY = 24 * 60;
+    private static final ZoneId KOREA = ZoneId.of("Asia/Seoul");
+    private static final Pattern TIME_PATTERN = Pattern.compile("^([01][0-9]|2[0-3]):[0-5][0-9]$");
 
     private static final Pattern PATTERN = Pattern.compile(FORMAT);
     private static final DateTimeFormatter HH_MM = DateTimeFormatter.ofPattern("HH:mm");
@@ -48,6 +51,46 @@ public record BusinessHours(LocalTime open, LocalTime close) {
     /** 여는 시각 ~ 닫기 30분 전 사이에만 예약 가능 */
     public boolean isReservableAt(LocalTime time){
         return minutesFromOpen(time) <= openMinutes() - LAST_RESERVATION_BEFORE_CLOSE_MINUTES;
+    }
+
+    /** time에 영업 중인지 확인 */
+    public boolean isOpenAt(LocalTime time){
+        return minutesFromOpen(time) < openMinutes();
+    }
+
+    /** 응답용 영업 중 여부, 영업시간이 없으면 null */
+    public static Boolean openAt(String businessHours, LocalTime time){
+        BusinessHours hours = parse(businessHours);
+        return hours == null ? null : hours.isOpenAt(time);
+    }
+
+    /** 한국 시간 기준 지금 시각 */
+    public static LocalTime nowInKorea(){
+        return LocalTime.now(KOREA);
+    }
+
+    /**
+     * 조회 조건의 영업 시각
+     * openNow=true면 지금, openAt("HH:mm")이면 그 시각
+     */
+    public static LocalTime filterTime(Boolean openNow, String openAt){
+        boolean hasOpenAt = openAt != null && !openAt.isBlank();
+        if(Boolean.TRUE.equals(openNow) && hasOpenAt){
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "openNow와 openAt은 함께 사용할 수 없습니다.");
+        }
+        if(Boolean.TRUE.equals(openNow)){
+            return nowInKorea();
+        }
+        if(!hasOpenAt){
+            return null;
+        }
+        String value = openAt.trim();
+        if(!TIME_PATTERN.matcher(value).matches()){
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "openAt은 HH:mm 형식이어야 합니다. (예: 18:00)");
+        }
+        return LocalTime.parse(value, HH_MM);
     }
 
     public LocalTime lastReservationTime(){

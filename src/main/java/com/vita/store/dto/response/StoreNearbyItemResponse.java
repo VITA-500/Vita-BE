@@ -13,6 +13,7 @@ public record StoreNearbyItemResponse(
         BigDecimal lng,
         Double distanceKm,
         String businessHours,
+        Boolean openNow,
         List<String> consultServices,
         List<String> providedServices,
         Long benefitId,
