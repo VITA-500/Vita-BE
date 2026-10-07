@@ -1,0 +1,51 @@
+package com.vita.store.entity;
+
+import com.vita.common.exception.BusinessException;
+import com.vita.common.exception.ErrorCode;
+
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.regex.Pattern;
+
+/**
+ * 영업시간
+ * API에서는 글자로 주고받고 Db에는 두 시각으로 저장
+ * 닫는 시각이 여는 시각보다 이르면 자정을 넘겨 다음 날까지 영업
+ */
+public record BusinessHours(LocalTime open, LocalTime close) {
+
+    /** "HH:mm-HH:mm". 요청 DTO의 @Pattern에서도 같은 형식 사용 */
+    public static final String FORMAT = "^([01][0-9]|2[0-3]):[0-5][0-9]-" +
+            "([01][0-9]|2[0-3]):[0-5][0-9]$";
+
+    private static final Pattern PATTERN = Pattern.compile(FORMAT);
+    private static final DateTimeFormatter HH_MM = DateTimeFormatter.ofPattern("HH:mm");
+
+    /** 비어 있으면 null. 형식이 틀리거나 여닫는 시간이 같으면 400 */
+    public static BusinessHours parse(String text){
+        if(text == null || text.isBlank()){
+            return null;
+        }
+        String value = text.trim();
+        if(!PATTERN.matcher(value).matches()){
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "영업시간은 HH:mm-HH:mm 형식이어야 합니다. (예: 10:00-20:00)");
+        }
+        String[] parts = value.split("-");
+        LocalTime open = LocalTime.parse(parts[0], HH_MM);
+        LocalTime close = LocalTime.parse(parts[1], HH_MM);
+        if(open.equals(close)){
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "영업시간의 여는 시각과 닫는 시각이 같을 수 없습니다.");
+        }
+        return new BusinessHours(open, close);
+    }
+
+    /** 두 시각 중 하나라도 없으면 null */
+    public static String format(LocalTime open, LocalTime close){
+        if(open == null || close == null){
+            return null;
+        }
+        return open.format(HH_MM) + "-" + close.format(HH_MM);
+    }
+}
