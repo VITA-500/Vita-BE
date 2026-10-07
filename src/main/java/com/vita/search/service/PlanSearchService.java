@@ -34,7 +34,7 @@ public class PlanSearchService {
 	 * 조건에 매칭된 요금제를 돌려줄 최대 개수. "3만원대", "5만원 이하"처럼 범위 질문은 조건을 만족하는 요금제가
 	 * topK(보통 3)보다 많은데, 3개만 주면 LLM이 그것이 전부라고 답해서 사용자가 오해한다.
 	 */
-	private static final int MATCHED_RESULT_LIMIT = 10;
+	public static final int MATCHED_RESULT_LIMIT = 10;
 
 	/** 워치·태블릿처럼 특정 기기에서만 쓸 수 있는 요금제의 대상 그룹(plans.target_group). */
 	private static final Set<String> DEVICE_ONLY_GROUPS = Set.of("WATCH", "TABLET");
