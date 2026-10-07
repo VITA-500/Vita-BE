@@ -117,18 +117,15 @@ public class ChatMessageService {
 //		}
 		
 		// 3) 실제 AI 작업은 비동기로 실행
-		long llmStartTime = System.currentTimeMillis();
-	    answerStreamer.startAsync(
-	            sessionId,
-	            assistantId,
-	            request.content()
-	    );
+		answerStreamer.startAsync(
+		        sessionId,
+		        assistantId,
+		        request.content(),
+		        conversationHistory   // 위에서 현재 질문 저장 전에 조회해 둔 이력
+		);
 
 		long latencyMs = System.currentTimeMillis() - startTime;
 		
-		long llmLatencyMs = System.currentTimeMillis() - llmStartTime;
-		
-		log.info("LLM Latency : {}ms", llmLatencyMs);
         
 		// 커밋된 최신 상태를 트랜잭션 안에서 조회해 응답까지 만들어 반환
 	    return persistence.getResponse(assistantId, latencyMs);
