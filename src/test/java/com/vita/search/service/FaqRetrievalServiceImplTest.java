@@ -29,4 +29,17 @@ class FaqRetrievalServiceImplTest {
 
 		assertThat(actual).isSameAs(context);
 	}
+
+	@Test
+	void passesTheOriginalAndBothPresetQueriesToThePipelineWithoutRunningTheTransformer() {
+		RetrievalPipeline pipeline = mock(RetrievalPipeline.class);
+		FaqRetrievalContext context = new FaqRetrievalContext(List.of(), List.of(), 0.5);
+		RetrievalResult result = mock(RetrievalResult.class);
+		when(result.context()).thenReturn(context);
+		when(pipeline.run(eq("원문"), eq("FAQ용"), eq("요금제용"), any(RetrievalOptions.class))).thenReturn(result);
+
+		FaqRetrievalContext actual = new FaqRetrievalServiceImpl(pipeline).search("원문", "FAQ용", "요금제용", 10);
+
+		assertThat(actual).isSameAs(context);
+	}
 }

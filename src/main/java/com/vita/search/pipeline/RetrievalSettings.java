@@ -11,10 +11,16 @@ package com.vita.search.pipeline;
  *                             ({@code retrieval.irrelevant-rule.enabled}). 오탐이 보이면 false로 즉시 끌 수 있다.
  * @param categoryBoostBonus   질문에 분류 이름 단어가 있을 때 그 분류 후보에 더하는 순위용 가산점
  *                             ({@code retrieval.category-boost.bonus}). 순위에만 쓰이고 유사도 값은 바뀌지 않는다. 0이면 꺼진다.
+ * @param planTopK             조건 매칭이 안 될 때(벡터 유사도) 돌려줄 요금제 개수({@code plan.retrieval.top-k}). FAQ의 topK와
+ *                             따로 둔다 — BE4가 FAQ topK를 키워도 요금제에 불필요한 후보가 늘지 않게 하기 위해서다.
+ * @param planMatchedLimit     질문 조건에 매칭된 요금제를 돌려줄 최대 개수({@code plan.retrieval.matched-limit}).
+ *                             요금제가 15종 규모라 기본값은 전부를 줄 수 있는 20이다.
  */
 public record RetrievalSettings(
 		double faqThreshold,
 		double planThreshold,
 		boolean irrelevantRuleEnabled,
-		double categoryBoostBonus) {
+		double categoryBoostBonus,
+		int planTopK,
+		int planMatchedLimit) {
 }

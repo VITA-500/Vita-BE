@@ -23,8 +23,11 @@ public class RetrievalPipelineConfig {
 			@Value("${retrieval.similarity-threshold:0.83}") double faqThreshold,
 			@Value("${plan.retrieval.similarity-threshold:0.81}") double planThreshold,
 			@Value("${retrieval.irrelevant-rule.enabled:true}") boolean irrelevantRuleEnabled,
-			@Value("${retrieval.category-boost.bonus:0.01}") double categoryBoostBonus) {
-		return new RetrievalSettings(faqThreshold, planThreshold, irrelevantRuleEnabled, categoryBoostBonus);
+			@Value("${retrieval.category-boost.bonus:0.01}") double categoryBoostBonus,
+			@Value("${plan.retrieval.top-k:5}") int planTopK,
+			@Value("${plan.retrieval.matched-limit:20}") int planMatchedLimit) {
+		return new RetrievalSettings(faqThreshold, planThreshold, irrelevantRuleEnabled, categoryBoostBonus, planTopK,
+				planMatchedLimit);
 	}
 
 	@Bean
