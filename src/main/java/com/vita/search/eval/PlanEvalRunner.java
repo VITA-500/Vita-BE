@@ -8,6 +8,7 @@ import com.vita.search.pipeline.RetrievalOptions;
 import com.vita.search.pipeline.RetrievalPipeline;
 import com.vita.search.pipeline.RetrievalPipelineConfig;
 import com.vita.search.pipeline.RetrievalResult;
+import com.vita.search.pipeline.StageTimings;
 import com.vita.search.pipeline.TransformInfo;
 import com.vita.search.pipeline.TransformedQuery;
 import com.vita.search.pipeline.VectorFaqRetriever;
@@ -83,6 +84,9 @@ public class PlanEvalRunner implements CommandLineRunner {
 	/** 요금제 평가에서 고정해 두는 FAQ의 topK. 요금제 점수에는 영향이 없다. */
 	private static final int FAQ_TOP_K = 3;
 
+	/** 응답 시간을 잴 때 쓰는 FAQ 상위 개수. 실제 서비스(BE4 호출)와 FAQ 평가의 시간 측정과 같은 값이다. */
+	private static final int TIMING_FAQ_TOP_K = 10;
+
 	private static final DateTimeFormatter FILE_TIMESTAMP = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
 	private final RetrievalPipeline servicePipeline;
@@ -121,6 +125,14 @@ public class PlanEvalRunner implements CommandLineRunner {
 	@Value("${search.plan-eval.extreme-limit:1}")
 	private int extremeLimit;
 
+	/** 단계별 응답 시간을 질문마다 몇 번 반복해 잴지. 0이면 건너뛴다. */
+	@Value("${search.plan-eval.timing-repeats:3}")
+	private int timingRepeats;
+
+	/** 응답 시간을 재기 전에 결과를 버리고 먼저 돌려 둘 예열 횟수. */
+	@Value("${search.plan-eval.timing-warmup:5}")
+	private int timingWarmup;
+
 	/** 질문 하나를 상위 개수 하나로 평가한 결과. */
 	private record EvalRow(PlanEvalQuestion question, int topK, String path, boolean conditionMatched,
 			List<String> delivered, Set<String> required, PlanEvalMetrics.Score score, boolean leaked,
@@ -143,6 +155,8 @@ public class PlanEvalRunner implements CommandLineRunner {
 		CachedQueryTransformer cachedTransformer = transformCachePath.isBlank()
 				? null : new CachedQueryTransformer(rawTransformer, Path.of(transformCachePath));
 		RetrievalPipeline pipeline = servicePipeline.with(cachedTransformer != null ? cachedTransformer : rawTransformer, retriever);
+		// 응답 시간 측정용은 항상 실제 변환기를 쓴다(저장된 결과를 쓰면 변환 시간이 0에 가깝게 나온다).
+		RetrievalPipeline timingPipeline = servicePipeline.with(rawTransformer, retriever);
 		log.info("요금제 평가셋 {}문항, 상위 개수 {}, 요금제 threshold {}, 질문 변환기 {}, 후보 검색기 {}", questions.size(), topKs,
 				pipeline.settings().planThreshold(), queryTransformerName, faqRetrieverName);
 		if (cachedTransformer != null) {
@@ -164,6 +178,7 @@ public class PlanEvalRunner implements CommandLineRunner {
 					cachedTransformer.hits(), cachedTransformer.misses(), cachedTransformer.skippedTransient(), cachedTransformer.size());
 		}
 		writeCsvReport(all);
+		measureStageTimings(timingPipeline, questions);
 		log.info("PLAN EVAL DONE");
 	}
 
@@ -222,6 +237,94 @@ public class PlanEvalRunner implements CommandLineRunner {
 		boolean truncated = conditionMatched && delivered.size() >= Math.max(topK, pipeline.settings().planMatchedLimit())
 				&& !new LinkedHashSet<>(delivered).containsAll(required);
 		return new EvalRow(question, topK, path, conditionMatched, delivered, required, score, false, false, truncated, transformed);
+	}
+
+	// ---- 단계별 응답 시간 ----
+
+	/**
+	 * 질문마다 요금제 검색을 {@code timingRepeats}번 반복하며 단계별 소요 시간을 잰다. 처음 {@code timingWarmup}번은 결과를 버린다
+	 * (첫 요청은 서버·연결 준비로 느려서 평균을 왜곡한다).
+	 *
+	 * <p>검색 경로 질문은 FAQ 평가의 시간 측정과 같은 옵션(서비스와 같은 설정, FAQ 상위 {@value #TIMING_FAQ_TOP_K}개, 요금제 개수 기본값)으로
+	 * 파이프라인 전체를 돌려 단계별로 나눠 잰다. 평가셋 질문 중 요금제 질문이라 FAQ 검색 단계도 함께 돌므로, 요금제 검색 시간은 "요금제 검색" 단계 줄을 본다.
+	 * 최상급 질문은 평가와 같이 질문 변환 없이 정형 조회만 부르는 경로라 조회 한 번의 시간을 따로 잰다.
+	 */
+	private void measureStageTimings(RetrievalPipeline pipeline, List<PlanEvalQuestion> questions) {
+		if (timingRepeats <= 0 || questions.isEmpty()) {
+			return;
+		}
+		List<PlanEvalQuestion> searchQuestions = questions.stream().filter(q -> !TYPE_EXTREME.equals(q.type())).toList();
+		List<PlanEvalQuestion> extremeQuestions = questions.stream().filter(q -> TYPE_EXTREME.equals(q.type())).toList();
+		RetrievalOptions options = RetrievalOptions.forEval(TIMING_FAQ_TOP_K, FaqCandidateSelector.poolSize(TIMING_FAQ_TOP_K), true);
+
+		for (int i = 0; i < timingWarmup && !searchQuestions.isEmpty(); i++) {
+			pipeline.run(searchQuestions.get(i % searchQuestions.size()).query(), options);
+		}
+
+		StageTimings.Stage[] stages = StageTimings.Stage.values();
+		int samples = searchQuestions.size() * timingRepeats;
+		// 단계별 소요 시간(ms) 표본. 마지막 칸은 전체 시간이다.
+		double[][] perStage = new double[stages.length + 1][samples];
+		int index = 0;
+		for (int repeat = 0; repeat < timingRepeats; repeat++) {
+			for (PlanEvalQuestion question : searchQuestions) {
+				StageTimings timings = pipeline.run(question.query(), options).timings();
+				for (int s = 0; s < stages.length; s++) {
+					perStage[s][index] = StageTimings.toMillis(timings.nanosOf(stages[s]));
+				}
+				perStage[stages.length][index] = StageTimings.toMillis(timings.totalNanos());
+				index++;
+			}
+		}
+
+		log.info("===== 요금제 평가 단계별 응답 시간 (검색 경로 질문 {}개 x {}회, 예열 {}회 제외, FAQ 상위 {}개 / FAQ 검색 단계도 함께 도는 서비스 설정) =====",
+				searchQuestions.size(), timingRepeats, timingWarmup, TIMING_FAQ_TOP_K);
+		List<String> csvLines = new ArrayList<>();
+		for (int s = 0; s <= stages.length; s++) {
+			String label = s < stages.length ? stages[s].label() : "전체";
+			addTimingLine(csvLines, label, perStage[s]);
+		}
+
+		if (!extremeQuestions.isEmpty()) {
+			double[] lookupMillis = new double[extremeQuestions.size() * timingRepeats];
+			int lookupIndex = 0;
+			for (int repeat = 0; repeat < timingRepeats; repeat++) {
+				for (PlanEvalQuestion question : extremeQuestions) {
+					long start = System.nanoTime();
+					planLookupService.findExtremeForQuery(PlanSortKey.valueOf(question.sortKey()), extremeLimit, question.query());
+					lookupMillis[lookupIndex++] = StageTimings.toMillis(System.nanoTime() - start);
+				}
+			}
+			addTimingLine(csvLines, "정형 조회(최상급)", lookupMillis);
+		}
+		writeTimingCsv(csvLines);
+	}
+
+	/** 표본의 평균·p95를 로그로 남기고 CSV 줄을 추가한다. */
+	private void addTimingLine(List<String> csvLines, String label, double[] millis) {
+		double mean = RetrievalMetrics.mean(millis);
+		double p95 = RetrievalMetrics.percentile(millis, 0.95);
+		log.info("{}: 평균 {} ms, p95 {} ms, 측정 {}건", label, fmt(mean), fmt(p95), millis.length);
+		csvLines.add(label + "," + num(mean) + "," + num(p95) + "," + millis.length);
+	}
+
+	private void writeTimingCsv(List<String> lines) {
+		Path dir = Path.of("build", "regression-report");
+		Path file = dir.resolve("plan-eval-timing-" + LocalDateTime.now().format(FILE_TIMESTAMP) + ".csv");
+		try {
+			Files.createDirectories(dir);
+			try (Writer writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
+				// 엑셀이 한글을 깨뜨리지 않도록 UTF-8 BOM을 붙인다.
+				writer.write('﻿');
+				writer.write("stage,mean_ms,p95_ms,samples\n");
+				for (String line : lines) {
+					writer.write(line + "\n");
+				}
+			}
+			log.info("요금제 단계별 응답 시간 리포트 저장: {}", file.toAbsolutePath());
+		} catch (IOException exception) {
+			log.warn("요금제 단계별 응답 시간 리포트 저장 실패: {}", exception.getMessage());
+		}
 	}
 
 	// ---- 출력 ----

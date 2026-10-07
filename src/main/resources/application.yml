@@ -139,6 +139,9 @@ search:
     transform-cache: ${SEARCH_PLAN_EVAL_TRANSFORM_CACHE:}
     # 최상급 질문에서 정형 조회가 돌려줄 요금제 개수. BE4는 개수를 따로 말하지 않은 질문에 1을 쓴다.
     extreme-limit: ${SEARCH_PLAN_EVAL_EXTREME_LIMIT:1}
+    # 단계별 응답 시간을 질문마다 몇 번 반복해 잴지(0이면 건너뜀)와, 결과를 버리고 먼저 돌려 둘 예열 횟수. 변환기가 LLM이면 반복 횟수만큼 호출한다.
+    timing-repeats: ${SEARCH_PLAN_EVAL_TIMING_REPEATS:3}
+    timing-warmup: ${SEARCH_PLAN_EVAL_TIMING_WARMUP:5}
   # 검색 평가셋(v2)으로 Recall·Precision·nDCG·MRR을 재는 수동 도구. 로컬 도커(DB+임베딩 서버)가 떠 있고
   # 평가셋의 정답 FAQ가 DB에 적재돼 있을 때만 켠다(데이터가 다르면 바로 중단한다).
   eval:
