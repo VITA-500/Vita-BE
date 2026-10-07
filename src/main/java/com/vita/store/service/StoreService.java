@@ -36,6 +36,8 @@ public class StoreService {
     private static final Set<String> ADMIN_LIST_SORT_FIELDS = Set.of("createdAt", "updatedAt", "name");
     private static final String ADMIN_LIST_DEFAULT_SORT = "createdAt, desc";
     private static final int PARTNER_NEARBY_LIMIT = 100;
+    private static final int CHAT_DEFAULT_LIMIT = 4;
+    private static final int CHAT_MAX_LIMIT = 20;
 
     private final StoreRepository storeRepository;
     private final StoreBenefitRepository storeBenefitRepository;
@@ -68,7 +70,7 @@ public class StoreService {
             }
             List<StoreNearbyItemResponse> stores = storeRepository.findNearBy(lat, lng, radiusKm).stream()
                 .map(p -> new StoreNearbyItemResponse(p.getId(), p.getName(), StoreType.PHONE.name(), p.getAddress(),
-                        p.getPhone(), p.getLat(), p.getLng(), round2(p.getDistanceKm()), splitServices(p.getConsultServices()),
+                        p.getPhone(), p.getLat(), p.getLng(), round2(p.getDistanceKm()), p.getBusinessHours(), splitServices(p.getConsultServices()),
                         splitServices(p.getProvidedServices()),null, null, null, null, null))
                     .toList();
         return new StoreNearbyListResponse(stores);
@@ -77,10 +79,39 @@ public class StoreService {
         List<StoreNearbyItemResponse> stores = storeRepository.findPartnersNearby(
                 lat, lng, targetCategory, benefitId, radiusKm, PARTNER_NEARBY_LIMIT).stream()
                 .map(p -> new StoreNearbyItemResponse(p.getId(), p.getName(), StoreType.PARTNER.name(),
-                        p.getAddress(), p.getPhone(), p.getLat(), p.getLng(), round2(p.getDistanceKm()), List.of(), List.of(),
+                        p.getAddress(), p.getPhone(), p.getLat(), p.getLng(), round2(p.getDistanceKm()), p.getBusinessHours(), List.of(), List.of(),
                         p.getBenefitId(), p.getBrand(), p.getCategory(), p.getBenefitName(), p.getBenefitDescription()))
                 .toList();
         return new StoreNearbyListResponse(stores);
+    }
+
+    /**
+     * 채팅용 주변 통신 매장
+     * services를 주면 그 서비스를 많이 제공하는 매장 먼저, 같으면 가까운 순
+     * limit 생략 시 4개, 최대 20개
+     */
+    public List<StoreChatItemResponse> findNearbyForChat(BigDecimal lat, BigDecimal lng, double radiusKm, Integer limit, List<String> services){
+        if(lat == null || lng == null){
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "위치(lat, lng)는 필수입니다.");
+        }
+        if(radiusKm <= 0){
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "반경(radiusKm)은 0보다 커야 합니다.");
+        }
+        int size = limit == null ? CHAT_DEFAULT_LIMIT : limit;
+        if(size < 1 || size > CHAT_MAX_LIMIT){
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "limit은 1~" + CHAT_MAX_LIMIT + " 사이여야 합니다.");
+        }
+        String joinedServices = services == null ? null : services.stream()
+                .filter(Objects::nonNull).map(String::trim).filter(s -> !s.isEmpty())
+                .distinct().reduce((a, b) -> a + "||" + b).orElse(null);
+
+        return storeRepository.findNearbyForChat(lat, lng, radiusKm, joinedServices, size).stream()
+                .map(p -> new StoreChatItemResponse(p.getId(), p.getName(), p.getAddress(),
+                        p.getPhone(), p.getLat(), p.getLng(), round2(p.getDistanceKm()), p.getBusinessHours(),
+                        splitServices(p.getConsultServices()), splitServices(p.getProvidedServices()))).toList();
     }
 
     private static double round2(double value) {

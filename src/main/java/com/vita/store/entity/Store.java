@@ -92,6 +92,11 @@ public class Store extends BaseTimeEntity {
         return BusinessHours.format(openTime, closeTime);
     }
 
+    /** 영업시간이 없으면 null */
+    public BusinessHours toBusinessHours(){
+        return openTime != null && closeTime != null ? new BusinessHours(openTime, closeTime) : null;
+    }
+
     private void changeBusinessHours(BusinessHours businessHours){
         this.openTime = businessHours != null ? businessHours.open() : null;
         this.closeTime = businessHours != null ? businessHours.close() : null;
