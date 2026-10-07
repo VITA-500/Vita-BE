@@ -66,13 +66,13 @@ public class RetrievalPipeline {
 		return new RetrievalPipeline(embeddingProvider, transformer, retriever, planSearchService, settings);
 	}
 
-	/** 실제 서비스와 같은 옵션으로 검색한다. */
+	/** 실제 서비스와 같은 옵션으로 검색한다. 질문 변환기로 질문을 변환한 뒤 검색한다. */
 	public RetrievalResult run(String query, int topK) {
 		return run(query, RetrievalOptions.forService(topK));
 	}
 
 	/**
-	 * 검색 한 번을 실행한다.
+	 * 질문 변환기로 질문을 변환한 뒤 검색 한 번을 실행한다.
 	 *
 	 * @param query   사용자 질문 원문
 	 * @param options topK, 후보 풀 크기, 요금제 검색 여부, 로그 여부
@@ -84,28 +84,63 @@ public class RetrievalPipeline {
 		TransformedQuery transformed = queryTransformer.transform(query);
 		long transformNanos = clock.lap();
 
-		// 2. 임베딩. FAQ와 요금제는 같은 임베딩 모델·차원이라, 두 질문이 같으면 벡터 변환을 한 번만 한다.
-		float[] faqVector = embeddingProvider.embedQuery(transformed.faqQuery());
-		float[] planVector = faqVector;
-		if (options.includePlans() && !transformed.sameForFaqAndPlan()) {
-			planVector = embeddingProvider.embedQuery(transformed.planQuery());
+		return execute(transformed, transformNanos, clock, options);
+	}
+
+	/**
+	 * 이미 변환된 질문으로 검색 한 번을 실행한다(질문 변환기를 거치지 않는다). 호출하는 쪽(BE4)이 질문을 FAQ용·요금제용으로
+	 * 직접 나눠서 넘길 때 쓴다. 한 번 호출로 FAQ와 요금제를 각자의 질문으로 검색하므로, 같은 질문으로 두 번 부를 필요가 없다.
+	 *
+	 * <p>{@code faqQuery}가 null이면 "이 질문은 FAQ와 무관"으로 보고 FAQ 임베딩과 검색을 건너뛴다(FAQ 결과는 빈 목록).
+	 * {@code planQuery}가 null이면 요금제를 건너뛴다. 둘 다 null이면 아무것도 검색하지 않고 빈 결과를 돌려준다.
+	 * 무관 질문 규칙과 분류 이름 가산점은 항상 원문으로 판정한다.
+	 *
+	 * @param originalQuery 사용자 질문 원문
+	 * @param faqQuery      FAQ 검색에 쓸 질문. null이면 FAQ 검색을 건너뛴다.
+	 * @param planQuery     요금제 검색에 쓸 질문. null이면 요금제 검색을 건너뛴다.
+	 * @param options       topK, 후보 풀 크기, 요금제 검색 여부, 로그 여부
+	 */
+	public RetrievalResult run(String originalQuery, String faqQuery, String planQuery, RetrievalOptions options) {
+		return execute(new TransformedQuery(originalQuery, faqQuery, planQuery), 0L, new LapClock(), options);
+	}
+
+	/** 변환된 질문으로 임베딩 → 후보 검색 → 요금제 검색 → Context 구성을 실행한다. */
+	private RetrievalResult execute(TransformedQuery transformed, long transformNanos, LapClock clock, RetrievalOptions options) {
+		String query = transformed.original();
+		boolean searchFaq = transformed.faqQuery() != null;
+		boolean searchPlans = options.includePlans() && transformed.planQuery() != null;
+		if (!searchFaq && !searchPlans) {
+			return emptyResult(transformed, transformNanos);
+		}
+
+		// 2. 임베딩. FAQ와 요금제는 같은 임베딩 모델·차원이라, 두 질문이 같으면 벡터 변환을 한 번만 한다. null인 쪽은 건너뛴다.
+		float[] faqVector = searchFaq ? embeddingProvider.embedQuery(transformed.faqQuery()) : null;
+		float[] planVector = null;
+		if (searchPlans) {
+			planVector = searchFaq && transformed.sameForFaqAndPlan()
+					? faqVector
+					: embeddingProvider.embedQuery(transformed.planQuery());
 		}
 		long embeddingNanos = clock.lap();
 
 		// 3. FAQ 후보 검색. threshold 미달 후보의 최고 점수도 topSimilarity로 알려야 해서, 검색기는 threshold 없이 후보를
 		// 가까운 순으로 가져오고 threshold는 후처리에서 적용한다(정렬이 유사도 순이라 결과 집합은 동일).
-		List<FaqSimilarityResult> pool = faqRetriever.retrieve(new RetrievalQuery(transformed.faqQuery(), faqVector), options.poolSize());
+		List<FaqSimilarityResult> pool = searchFaq
+				? faqRetriever.retrieve(new RetrievalQuery(transformed.faqQuery(), faqVector), options.poolSize())
+				: List.of();
 		long faqSearchNanos = clock.lap();
 
 		// 4. 요금제 검색. FAQ와 각각(별도 쿼리) 조회 후 병합한다 — UNION 한 쿼리 대신 이 방식을 택한 이유는 두 테이블의 유사도
 		// 분포가 달라(threshold도 다름) 한 번에 정렬·컷오프하면 한쪽이 불리해질 수 있어서다. 요금제는 벡터 유사도에 더해,
 		// 질문의 가격·데이터량·대상 그룹·무제한 여부를 plans 컬럼과 직접 비교한다.
-		PlanSearchService.PlanSearchOutcome planOutcome = options.includePlans()
-				? planSearchService.search(transformed.planQuery(), planVector, options.topK())
+		// 요금제 개수는 FAQ topK가 아니라 요금제 설정(또는 옵션의 요금제 개수)을 따른다. 임베딩은 요금제용 질문으로, 조건은 원문과 요금제용 질문 양쪽에서 읽는다.
+		int planTopK = options.planTopK() > 0 ? options.planTopK() : settings.planTopK();
+		PlanSearchService.PlanSearchOutcome planOutcome = searchPlans
+				? planSearchService.search(query, transformed.planQuery(), planVector, planTopK, settings.planMatchedLimit())
 				: new PlanSearchService.PlanSearchOutcome(List.of(), false);
-		// 요금제를 검색하지 않았으면(FAQ만 평가) 이 단계 시간은 0으로 둔다.
+		// 요금제를 검색하지 않았으면(FAQ만 평가하거나 요금제와 무관한 질문) 이 단계 시간은 0으로 둔다.
 		long planLapNanos = clock.lap();
-		long planSearchNanos = options.includePlans() ? planLapNanos : 0L;
+		long planSearchNanos = searchPlans ? planLapNanos : 0L;
 
 		// 5. Context 구성
 		// 개인 정보 조회·타사 질문처럼 FAQ로 답할 수 없는 유형은 문장 모양(규칙)으로 알아본다. 변환된 질문이 아니라 원문으로 판정한다.
@@ -114,7 +149,7 @@ public class RetrievalPipeline {
 
 		FaqSelection faq = selectFaq(query, pool, options.topK());
 
-		if (options.logDetails()) {
+		if (options.logDetails() && searchFaq) {
 			if (faq.results().isEmpty()) {
 				log.info("관련 FAQ 없음 (threshold={}, 최고 유사도={}). query={}",
 						settings.faqThreshold(), String.format("%.4f", faq.topSimilarity()), query);
@@ -149,7 +184,7 @@ public class RetrievalPipeline {
 						.filter(candidate -> candidate.similarity() >= settings.planThreshold())
 						.toList();
 
-		if (options.includePlans()) {
+		if (searchPlans) {
 			if (planResults.isEmpty()) {
 				if (options.logDetails()) {
 					log.info("관련 요금제 없음 (threshold={}, 최고 유사도={}). query={}",
@@ -174,6 +209,13 @@ public class RetrievalPipeline {
 		StageTimings timings = new StageTimings(transformNanos, embeddingNanos, faqSearchNanos, planSearchNanos, clock.lap());
 		return finish(transformed, faq, planOutcome, planResults, planTopSimilarity, topSimilarity, irrelevantRules,
 				timings, context, options);
+	}
+
+	/** FAQ도 요금제도 검색하지 않는 경우(두 질문이 모두 null)의 빈 결과. */
+	private RetrievalResult emptyResult(TransformedQuery transformed, long transformNanos) {
+		FaqSelection emptySelection = new FaqSelection(List.of(), List.of(), List.of(), List.of(), 0.0);
+		return new RetrievalResult(transformed, emptySelection, new PlanSearchService.PlanSearchOutcome(List.of(), false),
+				List.of(), 0.0, 0.0, Set.of(), new StageTimings(transformNanos, 0L, 0L, 0L, 0L), FaqRetrievalContext.empty());
 	}
 
 	/**

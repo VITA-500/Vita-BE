@@ -103,6 +103,14 @@ plan:
     # 워치 등)의 top1은 0.8208~0.8767, FAQ성·무관 질문의 top1은 0.7414~0.8008이라
     # 그 사이인 0.81로 잡음.
     similarity-threshold: ${PLAN_RETRIEVAL_SIMILARITY_THRESHOLD:0.81}
+    # 질문 조건(가격·데이터량·대상 등)에 매칭되지 않는 질문에서 벡터 유사도로 돌려줄 요금제 개수. FAQ의 topK와 따로 둔다
+    # (BE4가 FAQ topK를 10으로 올려도 요금제에 불필요한 후보가 늘지 않게). 요금제 평가셋(검수 전 초안)으로 3/5/7/10을 비교해 5로 정했다:
+    # 3→5에서 Recall(1점 이상) 74.5→75.5%, 대상 그룹 질문 70→76%로 오르고 정밀도는 80.2→78.9%로 소폭 내린다. 10까지 키우면 정답이 1개인
+    # 이름 지목 질문의 정밀도가 51→39%로 크게 떨어진다.
+    top-k: ${PLAN_RETRIEVAL_TOP_K:5}
+    # 조건에 매칭된 요금제를 돌려줄 최대 개수. 요금제가 15종 규모라 기본값 20은 사실상 전부를 준다
+    # ("무제한 아닌 요금제"처럼 조건에 맞는 요금제가 10개를 넘는 질문에서 일부만 전달되는 것을 막는다).
+    matched-limit: ${PLAN_RETRIEVAL_MATCHED_LIMIT:20}
 
 embedding:
   # 호스트 실행은 localhost, Docker backend는 EMBEDDING_BASE_URL로 주소를 지정한다.
@@ -119,7 +127,7 @@ search:
     query-transformer: ${SEARCH_PIPELINE_QUERY_TRANSFORMER:identityQueryTransformer}
     faq-retriever: ${SEARCH_PIPELINE_FAQ_RETRIEVER:vectorFaqRetriever}
   # 요금제 평가셋(plan_eval_v1)으로 BE4에 전달되는 요금제 목록의 품질을 재는 수동 도구. 로컬 도커(DB+임베딩 서버)가 떠 있고
-  # 요금제 15종이 DB에 있을 때만 켠다. top-ks는 한 번에 비교할 상위 개수(현재 서비스 3, 합의한 값 10).
+  # 요금제 15종이 DB에 있을 때만 켠다. top-ks는 한 번에 비교할 요금제 개수(plan.retrieval.top-k 후보).
   plan-eval:
     enabled: ${SEARCH_PLAN_EVAL_ENABLED:false}
     resource: ${SEARCH_PLAN_EVAL_RESOURCE:classpath:data/regression/eval_v2/plan_eval_v1.jsonl}

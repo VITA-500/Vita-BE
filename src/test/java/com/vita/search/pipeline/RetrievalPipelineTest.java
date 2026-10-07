@@ -46,7 +46,7 @@ class RetrievalPipelineTest {
 	/** 분류 이름 가산점과 무관 질문 규칙 사용 여부만 바꾼 기본 파이프라인(변환 없음 + 벡터 검색)을 만든다. */
 	private RetrievalPipeline pipelineWith(double categoryBoostBonus, boolean irrelevantRuleEnabled) {
 		return new RetrievalPipeline(embeddingProvider, new IdentityQueryTransformer(), new VectorFaqRetriever(faqRepository),
-				planSearchService, new RetrievalSettings(0.83, 0.81, irrelevantRuleEnabled, categoryBoostBonus));
+				planSearchService, new RetrievalSettings(0.83, 0.81, irrelevantRuleEnabled, categoryBoostBonus, 3, 20));
 	}
 
 	private void stubSearch(double faqSimilarity, double planSimilarity) {
@@ -59,7 +59,7 @@ class RetrievalPipelineTest {
 		PlanSimilarityResult plan = new PlanSimilarityResult(
 				1L, "VITA-MAX", "비타 맥스", "무제한 요금제", 69000, "설명", planSimilarity, null,
 					"5G", "GENERAL", null, null, "UNLIMITED", null, null, "UNLIMITED", null, "UNLIMITED", null);
-		when(planSearchService.search(any(), any(float[].class), anyInt()))
+		when(planSearchService.search(any(), any(), any(float[].class), anyInt(), anyInt()))
 				.thenReturn(new PlanSearchService.PlanSearchOutcome(List.of(plan), false));
 	}
 
@@ -103,7 +103,7 @@ class RetrievalPipelineTest {
 	private void stubFaqPool(FaqSimilarityResult... pool) {
 		when(faqRepository.searchBySimilarity(any(float[].class), eq(FaqStatus.ACTIVE), anyDouble(), anyInt()))
 				.thenReturn(List.of(pool));
-		when(planSearchService.search(any(), any(float[].class), anyInt()))
+		when(planSearchService.search(any(), any(), any(float[].class), anyInt(), anyInt()))
 				.thenReturn(new PlanSearchService.PlanSearchOutcome(List.of(), false));
 	}
 
@@ -163,7 +163,7 @@ class RetrievalPipelineTest {
 				"5G", "YOUTH", 19, 34, "LIMITED", 20480L, null, "LIMITED", 300, "LIMITED", 100);
 		when(faqRepository.searchBySimilarity(any(float[].class), eq(FaqStatus.ACTIVE), anyDouble(), anyInt()))
 				.thenReturn(List.of());
-		when(planSearchService.search(any(), any(float[].class), anyInt()))
+		when(planSearchService.search(any(), any(), any(float[].class), anyInt(), anyInt()))
 				.thenReturn(new PlanSearchService.PlanSearchOutcome(List.of(limited, youth), false));
 
 		var plans = searchContext("요금제 추천해줘", 3).planReferences();
@@ -222,10 +222,10 @@ class RetrievalPipelineTest {
 				faqOf(2, "소상공인", "IPTV", 0.863)));
 		when(embeddingProvider.embedQuery("english faq query")).thenReturn(new float[] {0.2f});
 		when(embeddingProvider.embedQuery("플랜 질문")).thenReturn(new float[] {0.3f});
-		when(planSearchService.search(any(), any(float[].class), anyInt()))
+		when(planSearchService.search(any(), any(), any(float[].class), anyInt(), anyInt()))
 				.thenReturn(new PlanSearchService.PlanSearchOutcome(List.of(), false));
 		pipeline = new RetrievalPipeline(embeddingProvider, transformerTo("english faq query", "플랜 질문"), retriever,
-				planSearchService, new RetrievalSettings(0.83, 0.81, true, 0.01));
+				planSearchService, new RetrievalSettings(0.83, 0.81, true, 0.01, 3, 20));
 
 		// 원문의 "IPTV", "상가"가 분류 이름 가산점에 쓰이므로 소상공인/IPTV가 1등이 된다(변환된 영어 질문에는 분류 이름이 없다).
 		RetrievalResult result = pipeline.run("IPTV 설치가 안 되는 상가 지역도 있나요?", 3);
@@ -234,7 +234,7 @@ class RetrievalPipelineTest {
 		verify(retriever).retrieve(queryCaptor.capture(), eq(30));
 		assertThat(queryCaptor.getValue().text()).isEqualTo("english faq query");
 		assertThat(queryCaptor.getValue().vector()).containsExactly(0.2f);
-		verify(planSearchService).search(eq("플랜 질문"), eq(new float[] {0.3f}), eq(3));
+		verify(planSearchService).search(eq("IPTV 설치가 안 되는 상가 지역도 있나요?"), eq("플랜 질문"), eq(new float[] {0.3f}), eq(3), eq(20));
 		assertThat(result.query().original()).isEqualTo("IPTV 설치가 안 되는 상가 지역도 있나요?");
 		assertThat(result.context().references()).extracting(r -> r.subcategory()).containsExactly("IPTV", "IPTV 상품안내");
 	}
@@ -252,10 +252,10 @@ class RetrievalPipelineTest {
 	void keepsThePoolAtThirtyCandidatesEvenWhenTopKGrowsToTen() {
 		FaqRetriever retriever = mock(FaqRetriever.class);
 		when(retriever.retrieve(any(), anyInt())).thenReturn(List.of());
-		when(planSearchService.search(any(), any(float[].class), anyInt()))
+		when(planSearchService.search(any(), any(), any(float[].class), anyInt(), anyInt()))
 				.thenReturn(new PlanSearchService.PlanSearchOutcome(List.of(), false));
 		pipeline = new RetrievalPipeline(embeddingProvider, new IdentityQueryTransformer(), retriever, planSearchService,
-				new RetrievalSettings(0.83, 0.81, true, 0.01));
+				new RetrievalSettings(0.83, 0.81, true, 0.01, 3, 20));
 
 		pipeline.run("로밍 신청 방법", 3);
 		pipeline.run("로밍 신청 방법", 10);
@@ -314,5 +314,126 @@ class RetrievalPipelineTest {
 				.isInstanceOf(IllegalStateException.class)
 				.hasMessageContaining("englishTransformer")
 				.hasMessageContaining("identityQueryTransformer");
+	}
+
+	// ---- 질문을 FAQ용·요금제용으로 이미 나눠 받는 입구 ----
+
+	/** 질문 변환기가 호출되면 실패하는 변환기. 변환된 질문을 직접 받는 경로가 변환기를 거치지 않는지 확인한다. */
+	private static final QueryTransformer NEVER_CALLED = query -> {
+		throw new AssertionError("이미 변환된 질문을 받는 경로는 질문 변환기를 부르면 안 된다");
+	};
+
+	private RetrievalPipeline directPipeline(FaqRetriever retriever) {
+		return new RetrievalPipeline(embeddingProvider, NEVER_CALLED, retriever, planSearchService,
+				new RetrievalSettings(0.83, 0.81, true, 0.0, 3, 20));
+	}
+
+	@Test
+	void searchesFaqAndPlansOnceEachWithTheirOwnQueriesWithoutTheTransformer() {
+		FaqRetriever retriever = mock(FaqRetriever.class);
+		when(retriever.retrieve(any(), anyInt())).thenReturn(List.of(faqOf(1, "요금 및 납부", "요금조회", 0.9)));
+		when(embeddingProvider.embedQuery("FAQ용 질문")).thenReturn(new float[] {0.2f});
+		when(embeddingProvider.embedQuery("요금제용 질문")).thenReturn(new float[] {0.3f});
+		when(planSearchService.search(any(), any(), any(float[].class), anyInt(), anyInt()))
+				.thenReturn(new PlanSearchService.PlanSearchOutcome(List.of(), false));
+
+		RetrievalResult result = directPipeline(retriever).run("사용자 원문", "FAQ용 질문", "요금제용 질문",
+				RetrievalOptions.forService(3));
+
+		ArgumentCaptor<RetrievalQuery> captor = ArgumentCaptor.forClass(RetrievalQuery.class);
+		verify(retriever, times(1)).retrieve(captor.capture(), eq(30));
+		assertThat(captor.getValue().text()).isEqualTo("FAQ용 질문");
+		assertThat(captor.getValue().vector()).containsExactly(0.2f);
+		verify(planSearchService, times(1)).search(eq("사용자 원문"), eq("요금제용 질문"), eq(new float[] {0.3f}), eq(3), eq(20));
+		verify(embeddingProvider, times(2)).embedQuery(any());
+		assertThat(result.query().original()).isEqualTo("사용자 원문");
+		assertThat(result.timings().transformNanos()).isZero();
+	}
+
+	@Test
+	void embedsOnlyOnceWhenTheTwoPresetQueriesAreTheSame() {
+		stubFaqPool(faqOf(1, "요금 및 납부", "요금조회", 0.9));
+
+		directPipeline(new VectorFaqRetriever(faqRepository)).run("원문", "같은 질문", "같은 질문", RetrievalOptions.forService(3));
+
+		verify(embeddingProvider, times(1)).embedQuery(any());
+	}
+
+	@Test
+	void skipsTheFaqSearchAndEmbeddingWhenTheFaqQueryIsNull() {
+		FaqRetriever retriever = mock(FaqRetriever.class);
+		when(planSearchService.search(any(), any(), any(float[].class), anyInt(), anyInt()))
+				.thenReturn(new PlanSearchService.PlanSearchOutcome(List.of(), false));
+
+		RetrievalResult result = directPipeline(retriever).run("원문", null, "요금제용 질문", RetrievalOptions.forService(3));
+
+		verify(retriever, never()).retrieve(any(), anyInt());
+		verify(embeddingProvider, times(1)).embedQuery("요금제용 질문");
+		verify(planSearchService).search(eq("원문"), eq("요금제용 질문"), any(float[].class), eq(3), eq(20));
+		assertThat(result.context().references()).isEmpty();
+		assertThat(result.faq().topSimilarity()).isZero();
+	}
+
+	@Test
+	void skipsThePlanSearchAndEmbeddingWhenThePlanQueryIsNull() {
+		stubFaqPool(faqOf(1, "요금 및 납부", "요금조회", 0.9));
+
+		RetrievalResult result = directPipeline(new VectorFaqRetriever(faqRepository))
+				.run("원문", "FAQ용 질문", null, RetrievalOptions.forService(3));
+
+		verify(planSearchService, never()).search(any(), any(float[].class), anyInt());
+		verify(embeddingProvider, times(1)).embedQuery("FAQ용 질문");
+		assertThat(result.context().references()).hasSize(1);
+		assertThat(result.context().planReferences()).isEmpty();
+		assertThat(result.timings().planSearchNanos()).isZero();
+	}
+
+	@Test
+	void returnsAnEmptyContextWithoutSearchingWhenBothQueriesAreNull() {
+		FaqRetriever retriever = mock(FaqRetriever.class);
+
+		RetrievalResult result = directPipeline(retriever).run("원문", null, null, RetrievalOptions.forService(3));
+
+		verify(retriever, never()).retrieve(any(), anyInt());
+		verify(embeddingProvider, never()).embedQuery(any());
+		verify(planSearchService, never()).search(any(), any(float[].class), anyInt());
+		assertThat(result.context().hasAnyRelevant()).isFalse();
+		assertThat(result.context().topSimilarity()).isZero();
+	}
+
+	@Test
+	void judgesTheIrrelevantRulesWithTheOriginalQuestionEvenWhenTheTransformedOneLostTheCue() {
+		stubSearch(0.87, 0.85);
+
+		// 변환된 질문에는 "내"(개인 정보 조회의 단서)가 없지만 원문에는 있다.
+		RetrievalResult result = directPipeline(new VectorFaqRetriever(faqRepository)).run(
+				"내 이번 달 요금 얼마 나왔어?", "질문: 이번 달 통신요금은 얼마인가요?", "금액: 이번 달 요금", RetrievalOptions.forService(3));
+
+		assertThat(result.irrelevantRules()).isNotEmpty();
+		assertThat(result.context().references()).isEmpty();
+		assertThat(result.context().planReferences()).isEmpty();
+	}
+
+	// ---- 요금제 개수는 FAQ topK와 따로 ----
+
+	@Test
+	void usesThePlanCountSettingInsteadOfTheFaqTopKAndPassesTheMatchedLimit() {
+		stubFaqPool(faqOf(1, "요금 및 납부", "요금조회", 0.9));
+		RetrievalPipeline custom = new RetrievalPipeline(embeddingProvider, new IdentityQueryTransformer(),
+				new VectorFaqRetriever(faqRepository), planSearchService, new RetrievalSettings(0.83, 0.81, true, 0.0, 4, 15));
+
+		custom.run("자동이체 계좌를 변경하고 싶어요", 10);
+
+		// FAQ topK가 10이어도 요금제 개수는 설정값 4이고, 조건 매칭 상한은 설정값 15다.
+		verify(planSearchService).search(eq("자동이체 계좌를 변경하고 싶어요"), eq("자동이체 계좌를 변경하고 싶어요"), any(float[].class), eq(4), eq(15));
+	}
+
+	@Test
+	void thePlanCountOptionOverridesTheSettingForEvaluationRuns() {
+		stubFaqPool(faqOf(1, "요금 및 납부", "요금조회", 0.9));
+
+		pipeline.run("자동이체 계좌를 변경하고 싶어요", RetrievalOptions.forEval(3, 30, true).withPlanTopK(7));
+
+		verify(planSearchService).search(any(), any(), any(float[].class), eq(7), eq(20));
 	}
 }

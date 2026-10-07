@@ -1,6 +1,7 @@
 package com.vita.search.service;
 
 import com.vita.search.dto.FaqRetrievalContext;
+import com.vita.search.pipeline.RetrievalOptions;
 import com.vita.search.pipeline.RetrievalPipeline;
 import org.springframework.stereotype.Service;
 
@@ -21,5 +22,10 @@ public class FaqRetrievalServiceImpl implements FaqRetrievalService {
 	@Override
 	public FaqRetrievalContext search(String query, int topK) {
 		return retrievalPipeline.run(query, topK).context();
+	}
+
+	@Override
+	public FaqRetrievalContext search(String originalQuery, String faqQuery, String planQuery, int topK) {
+		return retrievalPipeline.run(originalQuery, faqQuery, planQuery, RetrievalOptions.forService(topK)).context();
 	}
 }

@@ -12,7 +12,6 @@ import com.vita.search.pipeline.VectorFaqRetriever;
 import com.vita.search.regression.RegressionQueryReader;
 import com.vita.search.service.FaqCandidateSelector;
 import com.vita.search.service.PlanLookupService;
-import com.vita.search.service.PlanSearchService;
 import com.vita.search.service.PlanSortKey;
 import java.io.IOException;
 import java.io.Writer;
@@ -54,7 +53,8 @@ import org.springframework.stereotype.Component;
  *   <li>정확히 맞는 요금제 없음 — 안내할 대안이 전달되는지</li>
  * </ul>
  *
- * <p>상위 개수(topK)는 {@code search.plan-eval.top-ks}(기본 3,10)로 여러 값을 한 번에 잰다. 현재 서비스가 쓰는 3과 합의한 10을 비교하기 위해서다.
+ * <p>요금제 개수(조건 매칭이 안 될 때 돌려줄 요금제 수)는 {@code search.plan-eval.top-ks}(기본 3,10)로 여러 값을 한 번에 잰다.
+ * 요금제 개수는 FAQ의 topK와 따로 설정되므로(plan.retrieval.top-k), 이 값으로 개수별 점수를 비교해 기본값을 정한다.
  * 질문 변환기·검색기는 {@code search.plan-eval.query-transformer}, {@code search.plan-eval.faq-retriever}로 갈아끼울 수 있다
  * (질문 변환의 요금제용 질문 {@code planQuery} 효과를 재는 용도). 로컬 도커(DB+임베딩 서버)가 떠 있고 요금제 15종이 DB에 있을 때
  * {@code search.plan-eval.enabled=true}로 켜서 수동 실행하며, 결과는 {@code build/regression-report/plan-eval-*.csv}로도 저장된다.
@@ -74,6 +74,9 @@ public class PlanEvalRunner implements CommandLineRunner {
 	/** 최상급 유형: BE4가 정렬 기준을 알아낸 뒤 정형 조회로 처리한다. */
 	private static final String TYPE_EXTREME = "EXTREME";
 
+	/** 요금제 평가에서 고정해 두는 FAQ의 topK. 요금제 점수에는 영향이 없다. */
+	private static final int FAQ_TOP_K = 3;
+
 	private static final DateTimeFormatter FILE_TIMESTAMP = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
 	private final RetrievalPipeline servicePipeline;
@@ -88,7 +91,7 @@ public class PlanEvalRunner implements CommandLineRunner {
 	@Value("${search.plan-eval.resource:classpath:data/regression/eval_v2/plan_eval_v1.jsonl}")
 	private String resourceLocation;
 
-	/** 비교할 상위 개수 목록. 현재 서비스(BE4) 값 3과 합의한 값 10을 함께 잰다. */
+	/** 비교할 요금제 개수 목록(조건 매칭이 안 될 때 벡터 유사도로 돌려줄 요금제 수). */
 	@Value("${search.plan-eval.top-ks:3,10}")
 	private List<Integer> topKs;
 
@@ -132,7 +135,7 @@ public class PlanEvalRunner implements CommandLineRunner {
 			for (PlanEvalQuestion question : questions) {
 				rows.add(evaluate(question, pipeline, topK));
 			}
-			printSummary(rows, topK);
+			printSummary(rows, topK, pipeline.settings().planMatchedLimit());
 			all.addAll(rows);
 		}
 		writeCsvReport(all);
@@ -169,7 +172,7 @@ public class PlanEvalRunner implements CommandLineRunner {
 			path = "lookup";
 		} else {
 			RetrievalResult result = pipeline.run(question.query(),
-					RetrievalOptions.forEval(topK, FaqCandidateSelector.poolSize(topK), true));
+					RetrievalOptions.forEval(FAQ_TOP_K, FaqCandidateSelector.poolSize(FAQ_TOP_K), true).withPlanTopK(topK));
 			delivered = result.context().planReferences().stream().map(PlanReference::planCode).toList();
 			conditionMatched = result.planOutcome().conditionMatched();
 			path = "search";
@@ -187,16 +190,16 @@ public class PlanEvalRunner implements CommandLineRunner {
 
 		PlanEvalMetrics.Score score = PlanEvalMetrics.score(question, delivered);
 		// 조건 매칭 결과가 상한에 닿았는데 꼭 나와야 하는 요금제가 빠졌으면 잘린 것이다.
-		boolean truncated = conditionMatched && delivered.size() >= Math.max(topK, PlanSearchService.MATCHED_RESULT_LIMIT)
+		boolean truncated = conditionMatched && delivered.size() >= Math.max(topK, pipeline.settings().planMatchedLimit())
 				&& !new LinkedHashSet<>(delivered).containsAll(required);
 		return new EvalRow(question, topK, path, conditionMatched, delivered, required, score, false, false, truncated);
 	}
 
 	// ---- 출력 ----
 
-	private void printSummary(List<EvalRow> rows, int topK) {
+	private void printSummary(List<EvalRow> rows, int topK, int matchedLimit) {
 		List<EvalRow> scored = rows.stream().filter(EvalRow::scored).toList();
-		log.info("===== 요금제 평가: 상위 {}개 (정답이 있는 질문 {}개, 요금제 아님 {}개, 정확히 맞는 요금제 없음 {}개) =====", topK,
+		log.info("===== 요금제 평가: 요금제 개수 {} (정답이 있는 질문 {}개, 요금제 아님 {}개, 정확히 맞는 요금제 없음 {}개) =====", topK,
 				scored.size(), count(rows, TYPE_NONE), count(rows, TYPE_NO_EXACT));
 		log.info("Recall은 정답 요금제가 전달된 비율, 정밀도는 전달된 것 중 정답지에 있는 비율, 정확 일치는 꼭 나와야 하는 요금제를 모두 전달하고 오답이 없는 비율이다. "
 				+ "최상급은 정형 조회 경로(개수 {})로 평가한다.", extremeLimit);
@@ -221,7 +224,7 @@ public class PlanEvalRunner implements CommandLineRunner {
 				r.question().alternatives()));
 
 		List<EvalRow> truncated = scored.stream().filter(EvalRow::truncated).toList();
-		log.info("조건 매칭 결과가 상한({}개)에 닿아 정답이 잘린 질문: {}개", Math.max(topK, PlanSearchService.MATCHED_RESULT_LIMIT), truncated.size());
+		log.info("조건 매칭 결과가 상한({}개)에 닿아 정답이 잘린 질문: {}개", Math.max(topK, matchedLimit), truncated.size());
 		truncated.forEach(r -> log.info("  잘림 {} | {} → 전달 {}개, 빠진 정답 {}", r.question().qid(), r.question().query(),
 				r.delivered().size(), missing(r)));
 

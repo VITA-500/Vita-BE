@@ -27,6 +27,27 @@ public record PlanQueryConditions(
 	}
 
 	/**
+	 * 이 조건에서 비어 있는 항목을 다른 조건으로 채운 새 조건. 같은 항목이 양쪽에 있으면 이 조건의 값을 쓴다.
+	 * 사용자 원문에서 읽은 조건을 우선하고, 원문에는 없지만 질문 변환 결과(요금제용 질문)에서 읽은 조건으로 보충할 때 쓴다.
+	 *
+	 * <p>월 요금 범위(feeMin·feeMax)와 데이터량 범위(dataMbMin·dataMbMax)는 각각 한 묶음으로 본다. 한쪽 끝만 섞으면
+	 * "5만원 이하"와 "3만원 이상"이 합쳐져 사용자가 하지 않은 범위가 되기 때문이다.
+	 *
+	 * @param other 이 조건에 없는 항목을 채울 조건
+	 */
+	public PlanQueryConditions orElse(PlanQueryConditions other) {
+		boolean ownFee = feeMin != null || feeMax != null;
+		boolean ownData = dataMbMin != null || dataMbMax != null;
+		return new PlanQueryConditions(
+				ownFee ? feeMin : other.feeMin,
+				ownFee ? feeMax : other.feeMax,
+				ownData ? dataMbMin : other.dataMbMin,
+				ownData ? dataMbMax : other.dataMbMax,
+				targetGroup != null ? targetGroup : other.targetGroup,
+				dataPolicy != null ? dataPolicy : other.dataPolicy);
+	}
+
+	/**
 	 * 데이터 정책 조건만 뺀 사본. "청년 요금제 무제한 있어?"처럼 조건을 모두 만족하는 요금제가 없을 때,
 	 * 가장 덜 확실한 조건(무제한 여부)을 포기하고 다시 찾기 위해 쓴다.
 	 */
