@@ -35,9 +35,9 @@ public class ChatSseRegistry {
         emitters.computeIfAbsent(sessionId, k -> new CopyOnWriteArraySet<>()).add(emitter);
 
         Runnable cleanup = () -> remove(sessionId, emitter);
-        emitter.onCompletion(cleanup);
-        emitter.onTimeout(cleanup);
-        emitter.onError(e -> cleanup.run());
+        emitter.onCompletion(cleanup); // 정상적으로 닫혔을 때 (예: 사용자가 탭을 닫음)
+        emitter.onTimeout(cleanup); // 30분이 지나서 만료됐을 때
+        emitter.onError(e -> cleanup.run()); //에러로 끊겼을 때
 
         // 연결 직후 한 번 보내서 FE가 연결 성공을 알 수 있게 하고, 프록시 버퍼링도 깨운다
         try {
