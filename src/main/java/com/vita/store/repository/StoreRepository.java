@@ -16,7 +16,8 @@ import java.util.Optional;
 public interface StoreRepository extends JpaRepository<Store, Long>, JpaSpecificationExecutor<Store> {
 
     @Query(value = """
-            SELECT s.id, s.name, s.address, s.lat, s.lng, s.business_hours,
+            SELECT s.id, s.name, s.address, s.lat, s.lng, 
+                to_char(s.open_time, 'HH24:MI') || '-' || to_char(s.close_time, 'HH24:MI') AS business_hours,
                 s.phone, array_to_string(s.consult_services, '||') AS consult_services,
                 array_to_string(s.provided_services, '||') AS provided_services,
                 2 * 6371 * asin(sqrt(
@@ -33,7 +34,8 @@ public interface StoreRepository extends JpaRepository<Store, Long>, JpaSpecific
 
     @Query(value = """
             SELECT * FROM(
-                SELECT s.id, s.name, s.address, s.lat, s.lng, s.business_hours,
+                SELECT s.id, s.name, s.address, s.lat, s.lng, 
+                to_char(s.open_time, 'HH24:MI') || '-' || to_char(s.close_time, 'HH24:MI') AS business_hours,
                 s.phone, array_to_string(s.consult_services, '||') AS consult_services,
                 array_to_string(s.provided_services, '||') AS provided_services,
                 2 * 6371 * asin(sqrt(

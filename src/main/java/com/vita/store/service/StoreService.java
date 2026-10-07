@@ -7,10 +7,7 @@ import com.vita.common.page.PageResponse;
 import com.vita.store.dto.request.StoreCreateRequest;
 import com.vita.store.dto.request.StoreUpdateRequest;
 import com.vita.store.dto.response.*;
-import com.vita.store.entity.Benefit;
-import com.vita.store.entity.Store;
-import com.vita.store.entity.StoreBenefit;
-import com.vita.store.entity.StoreType;
+import com.vita.store.entity.*;
 import com.vita.store.exception.BenefitNotFoundException;
 import com.vita.store.exception.StoreNotFoundException;
 import com.vita.store.repository.*;
@@ -72,7 +69,7 @@ public class StoreService {
             List<StoreNearbyItemResponse> stores = storeRepository.findNearBy(lat, lng, radiusKm).stream()
                 .map(p -> new StoreNearbyItemResponse(p.getId(), p.getName(), StoreType.PHONE.name(), p.getAddress(),
                         p.getPhone(), p.getLat(), p.getLng(), round2(p.getDistanceKm()), splitServices(p.getConsultServices()),
-                        splitServices(p.getProvidedServices()), null, null, null, null, null))
+                        splitServices(p.getProvidedServices()),null, null, null, null, null))
                     .toList();
         return new StoreNearbyListResponse(stores);
         }
@@ -154,7 +151,7 @@ public class StoreService {
                 .address(request.address())
                 .lat(request.lat())
                 .lng(request.lng())
-                .businessHours(request.businessHours())
+                .businessHours(BusinessHours.parse(request.businessHours()))
                 .phone(request.phone())
                 .consultServices(request.consultServices())
                 .providedServices(request.providedServices())
@@ -172,7 +169,8 @@ public class StoreService {
         Store store = findStoreOrThrow(storeId);
         Benefit benefit = resolveBenefit(store.getStoreType(), request.benefitId(), false);
         store.update(request.name(), request.address(), request.lat(), request.lng(),
-                request.businessHours(), request.phone(), request.consultServices(), request.providedServices());
+                BusinessHours.parse(request.businessHours()), request.phone(),
+                request.consultServices(), request.providedServices());
         storeRepository.flush();
         LocalDateTime updatedAt = store.getUpdatedAt();
 
