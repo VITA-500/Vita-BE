@@ -7,6 +7,7 @@ public interface PartnerStoreDistanceProjection {
     String getName();
     String getAddress();
     String getPhone();
+    String getBusinessHours();
     BigDecimal getLat();
     BigDecimal getLng();
     Double getDistanceKm();
