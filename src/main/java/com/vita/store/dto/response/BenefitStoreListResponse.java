@@ -14,6 +14,8 @@ public record BenefitStoreListResponse(
             BigDecimal lat,
             BigDecimal lng,
             double distanceKm,
+            String businessHours,
+            Boolean openNow,
             Long benefitId,
             String brand,
             String category,

@@ -31,10 +31,12 @@ public class BenefitController {
             @RequestParam(required = false) BigDecimal lng,
             @RequestParam(required = false) Double radius,
             @RequestParam(required = false) Integer limit,
-            @RequestParam(required = false) Long benefitId){
+            @RequestParam(required = false) Long benefitId,
+            @RequestParam(required = false) Boolean openNow,
+            @RequestParam(required = false) String openAt){
         if(lat == null || lng == null) {
             throw new BusinessException(ErrorCode.LOCATION_REQUIRED);
         }
-        return benefitService.findStores(category, lat, lng, radius, limit, benefitId);
+        return benefitService.findStores(category, lat, lng, radius, limit, benefitId, openNow, openAt);
     }
 }
