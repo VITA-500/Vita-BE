@@ -10,8 +10,18 @@ package com.vita.search.pipeline;
  *                  (규칙과 분류 이름이 한국어 기준이라 변환된 질문으로는 맞지 않을 수 있다).
  * @param faqQuery  FAQ 검색(임베딩·후보 검색)에 쓸 질문
  * @param planQuery 요금제 검색에 쓸 질문. 요금제 조건 추출기는 한국어 문장을 읽으므로 한국어여야 한다.
+ * @param info      변환이 어떻게 이뤄졌는지의 기록(변환됨/한쪽만 변환/원문으로 폴백). 검색 동작에는 쓰지 않고 평가 기록에만 쓴다.
  */
-public record TransformedQuery(String original, String faqQuery, String planQuery) {
+public record TransformedQuery(String original, String faqQuery, String planQuery, TransformInfo info) {
+
+	public TransformedQuery {
+		info = info == null ? TransformInfo.identity() : info;
+	}
+
+	/** 변환 기록 없이 만든다(영어 번역 같은 다른 변환기 구현이 쓰던 기존 생성 방식). 기록은 {@link TransformInfo#identity()}가 된다. */
+	public TransformedQuery(String original, String faqQuery, String planQuery) {
+		this(original, faqQuery, planQuery, TransformInfo.identity());
+	}
 
 	/** 변환 없이 원문을 FAQ·요금제 검색에 그대로 쓴다. */
 	public static TransformedQuery unchanged(String query) {
