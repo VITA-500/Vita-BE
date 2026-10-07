@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vita.chat.client.BedrockChatClient;
 import com.vita.chat.dto.QueryTransformResult;
 import com.vita.search.pipeline.TransformInfo;
+import com.vita.chat.dto.PriceRange;
 
 import lombok.extern.slf4j.Slf4j;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -104,6 +105,7 @@ public class QueryTransformer {
         String planQuery = blankToNull(textOrNull(node, "plan_query"));
         PlanIntent intent = parseIntent(node);
         boolean structured = node.path("is_structured").asBoolean(false);
+        PriceRange priceRange = parsePriceRange(node);
 
         // 둘 다 null이면 "무관"이 아니라 변환 실패일 수 있으니 원문으로 검색 (단, 극값 질문이면 그대로 진행)
         if (faqQuery == null && planQuery == null && !intent.extreme()) {
@@ -112,7 +114,8 @@ public class QueryTransformer {
         TransformInfo info = (faqQuery == null || planQuery == null)
                 ? TransformInfo.partialNull(faqQuery == null, planQuery == null)
                 : TransformInfo.changed();
-        return new TransformOutcome(new QueryTransformResult(faqQuery, planQuery, intent, structured), info);
+        return new TransformOutcome(
+                new QueryTransformResult(faqQuery, planQuery, intent, structured, priceRange), info);
     }
     
     private static String textOrNull(JsonNode node, String field) {
@@ -137,6 +140,22 @@ public class QueryTransformer {
             return PlanIntent.none();
         }
     }
+    
+    private static Long longOrNull(JsonNode node, String field) {
+        return node.hasNonNull(field) && node.get(field).canConvertToLong() ? node.get(field).asLong() : null;
+    }
+
+    /** 가격 범위 파싱. min이 max보다 크면 잘못된 값이라 범위 없음으로 처리한다. */
+    private static PriceRange parsePriceRange(JsonNode node) {
+        Long min = longOrNull(node, "min_price_won");
+        Long max = longOrNull(node, "max_price_won");
+        if (min != null && max != null && min > max) {
+            log.warn("가격 범위 파싱 실패, 범위 없음으로 처리 - node={}", node);
+            return PriceRange.none();
+        }
+        return new PriceRange(min, max);
+    }
+    
 
     private static String blankToNull(String s) {
         return (s == null || s.isBlank()) ? null : s;

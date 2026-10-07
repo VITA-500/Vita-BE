@@ -9,6 +9,7 @@ import com.vita.chat.dto.PlanIntent;
 import com.vita.search.dto.FaqReference;
 import com.vita.search.dto.PlanReference;
 import com.vita.search.service.PlanLookupService;
+import com.vita.chat.dto.PriceRange;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +20,9 @@ import lombok.extern.slf4j.Slf4j;
 public class ChatContextBuilder {
 
 	private final PlanLookupService planLookupService;
+	
+	/** 가격 범위로 거른 뒤 limit만큼 쓰기 위해 넉넉히 조회한다 (요금제 수가 적어 부담 없음) */
+	private static final int EXTREME_FETCH_LIMIT = 50;
 
 	public record ChatContext(String text, List<FaqReference> faqs) {
 		public static ChatContext empty() { return new ChatContext("", List.of()); }
@@ -32,15 +36,27 @@ public class ChatContextBuilder {
 	 */
 	public ChatContext build(String question, List<FaqReference> faqs, List<PlanReference> plans,
 	        PlanIntent intent) {
+	    return build(question, faqs, plans, intent, PriceRange.none());
+	}
+
+	public ChatContext build(String question, List<FaqReference> faqs, List<PlanReference> plans,
+	        PlanIntent intent, PriceRange priceRange) {
 
 	    List<PlanReference> extremePlans = List.of();
 	    if (intent.extreme()) {
-	        extremePlans = planLookupService.findExtremeForQuery(intent.sortKey(), intent.limit(), question);
+	        // 범위 조건이 있으면 정렬된 후보를 넉넉히 가져와 범위로 거른 뒤 limit만큼 사용
+	        int fetch = priceRange.isEmpty() ? intent.limit() : EXTREME_FETCH_LIMIT;
+	        extremePlans = planLookupService.findExtremeForQuery(intent.sortKey(), fetch, question).stream()
+	                .filter(p -> priceRange.contains(p.monthlyFee()))
+	                .limit(intent.limit())
+	                .toList();
 	    }
 
-		List<PlanReference> generalPlans = extremePlans.isEmpty() ? plans : List.of();
+	 // 범위 조건이 있는 극값 질문인데 조건에 맞는 요금제가 없는 경우
+	    boolean noMatch = intent.extreme() && !priceRange.isEmpty() && extremePlans.isEmpty();
+	    List<PlanReference> generalPlans = (extremePlans.isEmpty() && !noMatch) ? plans : List.of();
 
-		if (faqs.isEmpty() && plans.isEmpty() && extremePlans.isEmpty()) {
+	    if (faqs.isEmpty() && plans.isEmpty() && extremePlans.isEmpty() && !noMatch) {
 			log.info("관련 FAQ/요금제 없음. question={}", question);
 			return ChatContext.empty();
 		}
@@ -51,6 +67,8 @@ public class ChatContextBuilder {
 			sb.append("<comparison_result>\n")
 			  .append(extremePlans.stream().map(this::toPlanXml).collect(Collectors.joining("\n")))
 			  .append("\n</comparison_result>\n");
+		} else if (noMatch) {
+		    sb.append("<comparison_result>\n확인 결과: 사용자가 요청한 가격 조건에 해당하는 요금제가 없음. 이 사실을 그대로 안내할 것.\n</comparison_result>\n");
 		}
 
 		generalPlans.stream().map(this::toPlanXml).forEach(xml -> sb.append(xml).append("\n"));

@@ -63,9 +63,9 @@ public class ChatAnswerStreamer {
             // 1) 질문 변환 (FAQ용 / 요금제용)
             publishStatus(sessionId, messageId, AssistantStatus.THINKING);
             QueryTransformResult q = queryTransformer.transform(question, history);
-            log.info("query transform - original={}, faqQuery={}, planQuery={}, extreme={}, sortKey={}, limit={}, structured={}",
+            log.info("query transform - original={}, faqQuery={}, planQuery={}, extreme={}, sortKey={}, limit={}, structured={}, priceRange={}",
                     question, q.faqQuery(), q.planQuery(),
-                    q.planIntent().extreme(), q.planIntent().sortKey(), q.planIntent().limit(), q.structured());
+                    q.planIntent().extreme(), q.planIntent().sortKey(), q.planIntent().limit(), q.structured(), q.priceRange());
 
             // 2) 검색
             publishStatus(sessionId, messageId, AssistantStatus.RETRIEVING_FAQ);
@@ -88,7 +88,7 @@ public class ChatAnswerStreamer {
             }
 
             // 3) context 조립 (극값 분기는 원문 질문 기준)
-            ChatContext context = chatContextBuilder.build(question, faqs, plans, q.planIntent());
+            ChatContext context = chatContextBuilder.build(question, faqs, plans, q.planIntent(), q.priceRange());
 
             // 4) 답변 생성 (원문 질문으로 호출)
             publishStatus(sessionId, messageId, AssistantStatus.GENERATING);
