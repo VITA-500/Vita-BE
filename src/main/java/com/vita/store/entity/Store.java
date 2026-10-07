@@ -10,6 +10,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -35,8 +36,11 @@ public class Store extends BaseTimeEntity {
     @Column(nullable = false, precision = 9, scale = 6)
     private BigDecimal lng;
 
-    @Column(name = "business_hours", length = 100)
-    private String businessHours;
+    @Column(name = "open_time")
+    private LocalTime openTime;
+
+    @Column(name = "close_time")
+    private LocalTime closeTime;
 
     @Column(length = 20)
     private String phone;
@@ -54,26 +58,26 @@ public class Store extends BaseTimeEntity {
     private StoreType storeType = StoreType.PHONE;
 
     @Builder
-    public Store(String name, String address, BigDecimal lat, BigDecimal lng, String businessHours,
+    public Store(String name, String address, BigDecimal lat, BigDecimal lng, BusinessHours businessHours,
                  String phone, List<String> consultServices, List<String> providedServices, StoreType storeType){
         this.name = name;
         this.address = address;
         this.lat = lat;
         this.lng = lng;
-        this.businessHours = businessHours;
+        changeBusinessHours(businessHours);
         this.phone = phone;
         this.consultServices = consultServices != null ? new ArrayList<>(consultServices) : new ArrayList<>();
         this.providedServices = providedServices != null ? new ArrayList<>(providedServices) : new ArrayList<>();
         this.storeType = storeType != null ? storeType : StoreType.PHONE;
     }
 
-    public void update(String name, String address, BigDecimal lat, BigDecimal lng, String businessHours,
+    public void update(String name, String address, BigDecimal lat, BigDecimal lng, BusinessHours businessHours,
                        String phone, List<String> consultServices, List<String> providedServices){
         this.name = name;
         this.address = address;
         this.lat = lat;
         this.lng = lng;
-        this.businessHours = businessHours;
+        changeBusinessHours(businessHours);
         this.phone = phone;
         if(consultServices != null){
             this.consultServices = new ArrayList<>(consultServices);
@@ -81,5 +85,15 @@ public class Store extends BaseTimeEntity {
         if(providedServices != null){
             this.providedServices = new ArrayList<>(providedServices);
         }
+    }
+
+    /** 응답용 "HH:mm-HH:mm" */
+    public String getBusinessHours(){
+        return BusinessHours.format(openTime, closeTime);
+    }
+
+    private void changeBusinessHours(BusinessHours businessHours){
+        this.openTime = businessHours != null ? businessHours.open() : null;
+        this.closeTime = businessHours != null ? businessHours.close() : null;
     }
 }
