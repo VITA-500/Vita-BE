@@ -26,11 +26,11 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 public class ChatAnswerStreamer {
 
-    private static final int TOP_K = 3; // ChatMessageService의 기존 TOP_K와 동일
+    private static final int TOP_K = 10;
 
     private final ChatSseRegistry registry;
     private final FaqRetrievalService faqRetrievalService;
-    private final QueryTransformer queryTransformer;
+    private final LlmQueryTransformer queryTransformer;
     private final ChatContextBuilder chatContextBuilder;
     private final LlmStreamClient llmStreamClient;
     private final ChatMessagePersistence chatMessagePersistence;
@@ -39,7 +39,7 @@ public class ChatAnswerStreamer {
     public ChatAnswerStreamer(
             ChatSseRegistry registry,
             FaqRetrievalService faqRetrievalService,
-            QueryTransformer queryTransformer,
+            LlmQueryTransformer queryTransformer,
             ChatContextBuilder chatContextBuilder,
             LlmStreamClient llmStreamClient,
             ChatMessagePersistence chatMessagePersistence,
@@ -63,31 +63,31 @@ public class ChatAnswerStreamer {
             // 1) 질문 변환 (FAQ용 / 요금제용)
             publishStatus(sessionId, messageId, AssistantStatus.THINKING);
             QueryTransformResult q = queryTransformer.transform(question, history);
-            log.info("query transform - original={}, faqQuery={}, planQuery={}",
-                    question, q.faqQuery(), q.planQuery());
+            log.info("query transform - original={}, faqQuery={}, planQuery={}, extreme={}, sortKey={}, limit={}, structured={}, priceRange={}",
+                    question, q.faqQuery(), q.planQuery(),
+                    q.planIntent().extreme(), q.planIntent().sortKey(), q.planIntent().limit(), q.structured(), q.priceRange());
 
-            // 2) 검색
+         // 2) 검색 (정형 질문은 DB 조회만 사용하고 벡터 검색을 생략)
             publishStatus(sessionId, messageId, AssistantStatus.RETRIEVING_FAQ);
-            List<FaqReference> faqs = List.of();
-            List<PlanReference> plans = List.of();
 
-            if (q.faqQuery() != null && q.faqQuery().equals(q.planQuery())) {
-                // 폴백(원문)처럼 두 쿼리가 같으면 검색 한 번으로 양쪽 결과를 쓴다
-                FaqRetrievalContext c = faqRetrievalService.search(q.faqQuery(), TOP_K);
-                faqs = c.hasRelevantFaq() ? c.references() : List.of();
-                plans = c.planReferences();
-            } else {
-                if (q.faqQuery() != null) {
-                    FaqRetrievalContext c = faqRetrievalService.search(q.faqQuery(), TOP_K);
-                    faqs = c.hasRelevantFaq() ? c.references() : List.of();
-                }
-                if (q.planQuery() != null) {
-                    plans = faqRetrievalService.search(q.planQuery(), TOP_K).planReferences();
-                }
+            // 정형 질문 = 요금제 극값 조회로 끝나는 질문 (FAQ/벡터 검색 불필요)
+            boolean dbOnly = q.structured() && q.planIntent().extreme();
+            Retrieved retrieved = dbOnly ? Retrieved.EMPTY : retrieve(q);
+            if (dbOnly) {
+                log.info("정형 질문: 검색 생략, DB 조회 결과만 사용 - question={}", question);
             }
 
             // 3) context 조립 (극값 분기는 원문 질문 기준)
-            ChatContext context = chatContextBuilder.build(question, faqs, plans);
+            ChatContext context = chatContextBuilder.build(
+                    question, retrieved.faqs(), retrieved.plans(), q.planIntent(), q.priceRange());
+
+            // DB 결과가 비면(해당 대상의 요금제가 없는 경우 등) 일반 검색으로 폴백
+            if (dbOnly && context.text().isBlank()) {
+                log.info("정형 질문이지만 DB 결과 없음, 일반 검색으로 폴백 - question={}", question);
+                retrieved = retrieve(q);
+                context = chatContextBuilder.build(
+                        question, retrieved.faqs(), retrieved.plans(), q.planIntent(), q.priceRange());
+            }
 
             // 4) 답변 생성 (원문 질문으로 호출)
             publishStatus(sessionId, messageId, AssistantStatus.GENERATING);
@@ -117,6 +117,32 @@ public class ChatAnswerStreamer {
             registry.publish(sessionId, ChatEvents.ASSISTANT_ERROR,
                     new ChatEvents.Error(sessionId, messageId, "INTERNAL_ERROR", "답변 생성에 실패했습니다."));
         }
+    }
+    
+    private record Retrieved(List<FaqReference> faqs, List<PlanReference> plans) {
+        static final Retrieved EMPTY = new Retrieved(List.of(), List.of());
+    }
+
+    /** 변환된 쿼리로 FAQ/요금제를 벡터 검색한다 */
+    private Retrieved retrieve(QueryTransformResult q) {
+        List<FaqReference> faqs = List.of();
+        List<PlanReference> plans = List.of();
+
+        if (q.faqQuery() != null && q.faqQuery().equals(q.planQuery())) {
+            // 폴백(원문)처럼 두 쿼리가 같으면 검색 한 번으로 양쪽 결과를 쓴다
+            FaqRetrievalContext c = faqRetrievalService.search(q.faqQuery(), TOP_K);
+            faqs = c.hasRelevantFaq() ? c.references() : List.of();
+            plans = c.planReferences();
+        } else {
+            if (q.faqQuery() != null) {
+                FaqRetrievalContext c = faqRetrievalService.search(q.faqQuery(), TOP_K);
+                faqs = c.hasRelevantFaq() ? c.references() : List.of();
+            }
+            if (q.planQuery() != null) {
+                plans = faqRetrievalService.search(q.planQuery(), TOP_K).planReferences();
+            }
+        }
+        return new Retrieved(faqs, plans);
     }
 
     private void publishStatus(Long sessionId, Long messageId, AssistantStatus status) {
