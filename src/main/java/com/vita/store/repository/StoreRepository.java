@@ -28,7 +28,7 @@ public interface StoreRepository extends JpaRepository<Store, Long>, JpaSpecific
                     )) AS distance_km
             FROM stores s
             WHERE s.store_type = 'PHONE'
-            ORDER BY distance_km
+            ORDER BY distance_km, s.id
             LIMIT 1
             """, nativeQuery = true)
     Optional<StoreDistanceProjection> findNearest(@Param("lat")BigDecimal lat, @Param("lng") BigDecimal lng);
@@ -55,7 +55,7 @@ public interface StoreRepository extends JpaRepository<Store, Long>, JpaSpecific
                                 END)
             ) ranked
             WHERE distance_km <= :radiusKm
-            ORDER BY distance_km
+            ORDER BY distance_km, id
             """, nativeQuery = true)
 
     List<StoreDistanceProjection> findNearBy(
@@ -131,7 +131,7 @@ public interface StoreRepository extends JpaRepository<Store, Long>, JpaSpecific
                                 END)
             ) ranked
             WHERE CAST(:radiusKm AS DOUBLE PRECISION) IS NULL OR distance_km <= :radiusKm
-            ORDER BY distance_km
+            ORDER BY distance_km, id
             LIMIT :limit
             """, nativeQuery = true)
     List<PartnerStoreDistanceProjection> findPartnersNearby(
