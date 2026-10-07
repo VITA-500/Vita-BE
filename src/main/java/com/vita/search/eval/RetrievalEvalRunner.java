@@ -10,6 +10,8 @@ import com.vita.search.pipeline.RetrievalPipeline;
 import com.vita.search.pipeline.RetrievalPipelineConfig;
 import com.vita.search.pipeline.RetrievalResult;
 import com.vita.search.pipeline.StageTimings;
+import com.vita.search.pipeline.TransformInfo;
+import com.vita.search.pipeline.TransformedQuery;
 import com.vita.search.pipeline.VectorFaqRetriever;
 import com.vita.search.regression.RegressionQueryReader;
 import com.vita.search.service.FaqCandidateSelector;
@@ -24,6 +26,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -31,6 +34,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.ToDoubleFunction;
 import lombok.RequiredArgsConstructor;
@@ -118,6 +122,14 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 	@Value("${search.eval.faq-retriever:" + VectorFaqRetriever.BEAN_NAME + "}")
 	private String faqRetrieverName;
 
+	/**
+	 * 질문 변환 결과를 저장·재사용하는 파일(JSONL). 비어 있으면 쓰지 않는다. LLM 변환은 실행마다 결과가 달라질 수 있어서, 변환 결과를
+	 * 파일에 남겨 두면 같은 변환 결과로 다시 평가(예: 변환 위에 Hybrid를 얹은 C+H)할 수 있고 변환 호출도 아낀다.
+	 * 파일 하나는 하나의 실험(변환기·프롬프트 버전) 전용으로 쓴다. 단계별 응답 시간 측정은 캐시를 쓰지 않고 실제 변환기를 부른다.
+	 */
+	@Value("${search.eval.transform-cache:}")
+	private String transformCachePath;
+
 	/** 단계별 응답 시간을 질문 하나당 몇 번 반복해서 잴지. 0이면 시간 측정을 건너뛴다. */
 	@Value("${search.eval.timing-repeats:3}")
 	private int timingRepeats;
@@ -131,7 +143,8 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 			double recallPool1, double recallPool2, double recallTop1, double recallTop2, int distinctInPool, int maxDuplicates,
 			List<FaqSimilarityResult> top, List<String> topIds, Map<String, Integer> grades,
 			double precisionK, double ndcgK, double mrr, double hit1, double hitK,
-			int passedThreshold, double e2ePrecisionK, double e2eHitK, boolean ruleBlocked) {
+			int passedThreshold, double e2ePrecisionK, double e2eHitK, boolean ruleBlocked,
+			TransformedQuery transformed) {
 
 		double top1Similarity() {
 			return top.isEmpty() ? 0.0 : top.get(0).similarity();
@@ -146,10 +159,18 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 		verifyGroundTruthLoaded(questions, new HashSet<>(sourceIds.values()));
 
 		// 서비스 파이프라인과 같은 설정(threshold, 가산점)에서 질문 변환기와 FAQ 검색기만 갈아끼운 평가용 파이프라인.
-		RetrievalPipeline pipeline = servicePipeline.with(
-				RetrievalPipelineConfig.pick(queryTransformers, queryTransformerName, "search.eval.query-transformer"),
-				RetrievalPipelineConfig.pick(faqRetrievers, faqRetrieverName, "search.eval.faq-retriever"));
+		QueryTransformer rawTransformer = RetrievalPipelineConfig.pick(queryTransformers, queryTransformerName, "search.eval.query-transformer");
+		FaqRetriever retriever = RetrievalPipelineConfig.pick(faqRetrievers, faqRetrieverName, "search.eval.faq-retriever");
+		// 점수 계산용 파이프라인은 변환 결과 저장 파일이 지정되면 저장된 결과를 다시 쓴다. 단계별 시간 측정용은 항상 실제 변환기를 쓴다
+		// (저장된 결과를 쓰면 변환 시간이 0에 가깝게 나온다).
+		CachedQueryTransformer cachedTransformer = transformCachePath.isBlank()
+				? null : new CachedQueryTransformer(rawTransformer, Path.of(transformCachePath));
+		RetrievalPipeline pipeline = servicePipeline.with(cachedTransformer != null ? cachedTransformer : rawTransformer, retriever);
+		RetrievalPipeline timingPipeline = servicePipeline.with(rawTransformer, retriever);
 		double similarityThreshold = pipeline.settings().faqThreshold();
+		if (cachedTransformer != null) {
+			log.info("질문 변환 결과 저장 파일 사용: {} (저장된 변환 {}건)", transformCachePath, cachedTransformer.size());
+		}
 
 		List<Integer> sizes = effectivePoolSizes();
 		int maxPoolSize = sizes.get(sizes.size() - 1);
@@ -164,8 +185,14 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 			boolean ruleBlocked = !IrrelevantQueryDetector.detect(question.query()).isEmpty();
 			for (int size : sizes) {
 				List<FaqSimilarityResult> pool = fullPool.subList(0, Math.min(size, fullPool.size()));
-				rows.add(evaluate(question, pipeline, pool, size, sourceIds, ruleBlocked));
+				rows.add(evaluate(question, pipeline, pool, size, sourceIds, ruleBlocked, retrieved.query()));
 			}
+		}
+
+		if (cachedTransformer != null) {
+			cachedTransformer.save();
+			log.info("질문 변환 결과 저장 파일: 저장된 결과 사용 {}건, 새로 변환 {}건, 일시 실패로 저장하지 않음 {}건 → 파일 {}건",
+					cachedTransformer.hits(), cachedTransformer.misses(), cachedTransformer.skippedTransient(), cachedTransformer.size());
 		}
 
 		List<EvalRow> mainRows = rows.stream()
@@ -175,10 +202,11 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 
 		printPoolSizeSummary(rows, sizes, similarityThreshold);
 		printStyleSummary(mainRows);
+		printFallbackSummary(mainRows);
 		printSubsetStability(mainRows);
 		printWeakQuestions(mainRows);
 		writeCsvReport(rows);
-		measureStageTimings(pipeline, questions);
+		measureStageTimings(timingPipeline, questions);
 		log.info("RETRIEVAL EVAL DONE");
 	}
 
@@ -218,7 +246,7 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 	}
 
 	private EvalRow evaluate(RetrievalEvalQuestion question, RetrievalPipeline pipeline, List<FaqSimilarityResult> pool,
-			int poolSize, Map<Long, String> sourceIds, boolean ruleBlocked) {
+			int poolSize, Map<Long, String> sourceIds, boolean ruleBlocked, TransformedQuery transformed) {
 		List<String> poolIds = pool.stream().map(result -> idOf(result, sourceIds)).toList();
 
 		Map<String, Integer> grades = question.gradeById();
@@ -250,7 +278,7 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 				passedIds.size(),
 				RetrievalMetrics.precisionAtK(passedIds, grades, topK, TOP_MIN_GRADE),
 				RetrievalMetrics.hitAtK(passedIds, grades, topK, TOP_MIN_GRADE),
-				ruleBlocked);
+				ruleBlocked, transformed);
 	}
 
 	private String idOf(FaqSimilarityResult result, Map<Long, String> sourceIds) {
@@ -290,6 +318,85 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 		byStyle.forEach((style, group) -> log.info("{} ({}개): 풀 Recall {} | Recall@{} {} | P@{} {} | nDCG@{} {} | MRR {} | Hit@{} {}",
 				style, group.size(), pct(avg(group, EvalRow::recallPool1)), topK, pct(avg(group, EvalRow::recallTop1)), topK, pct(avg(group, EvalRow::precisionK)),
 				topK, pct(avg(group, EvalRow::ndcgK)), pct(avg(group, EvalRow::mrr)), topK, pct(avg(group, EvalRow::hitK))));
+	}
+
+	/**
+	 * 폴백 현황. 질문이 원문으로 되돌아간 경우(질문 변환 폴백)와 "관련 정보 없음"이 된 경우를 센다.
+	 *
+	 * <p>질문 변환기가 질문을 바꾸지 않는 구현(Baseline)이면 변환 폴백은 집계 대상이 아니라 "관련 FAQ 없음"과 규칙 차단만 낸다.
+	 * 변환기를 쓰면 변환 결과의 종류와 폴백 사유별 건수, 그리고 FAQ 검색에 변환된 질문이 쓰인 질문과 원문이 쓰인 질문의 점수를
+	 * 따로 낸다. 폴백으로 원문이 쓰인 질문이 섞여 있으면 "질문 변환 효과"가 실제보다 Baseline에 가까워지므로, 두 집단을 나눠 봐야 한다.
+	 */
+	private void printFallbackSummary(List<EvalRow> mainRows) {
+		log.info("===== 폴백 현황 (풀 {}, 질문 {}개) =====", mainPoolSize, mainRows.size());
+		long noFaq = mainRows.stream().filter(row -> row.passedThreshold() == 0).count();
+		long blocked = mainRows.stream().filter(EvalRow::ruleBlocked).count();
+		log.info("관련 FAQ 없음(threshold 후 결과 0개): {}개({}) | 무관 질문 규칙으로 막힌 질문: {}개({})",
+				noFaq, rate(noFaq, mainRows.size()), blocked, rate(blocked, mainRows.size()));
+
+		Map<TransformInfo.Kind, Long> byKind = new EnumMap<>(TransformInfo.Kind.class);
+		for (EvalRow row : mainRows) {
+			byKind.merge(row.transformed().info().kind(), 1L, Long::sum);
+		}
+		if (byKind.keySet().equals(Set.of(TransformInfo.Kind.IDENTITY))) {
+			log.info("질문 변환 없음(변환기 {}): 변환 폴백은 집계 대상이 아니다", queryTransformerName);
+			return;
+		}
+
+		log.info("질문 변환 결과: 변환됨(CHANGED) {}개 | 한쪽만 변환(PARTIAL_NULL) {}개 | 원문으로 폴백(FALLBACK_ORIGINAL) {}개 | 변환 안 함(IDENTITY) {}개",
+				byKind.getOrDefault(TransformInfo.Kind.CHANGED, 0L), byKind.getOrDefault(TransformInfo.Kind.PARTIAL_NULL, 0L),
+				byKind.getOrDefault(TransformInfo.Kind.FALLBACK_ORIGINAL, 0L), byKind.getOrDefault(TransformInfo.Kind.IDENTITY, 0L));
+
+		Map<String, Long> reasons = new TreeMap<>();
+		mainRows.stream().map(row -> row.transformed().info())
+				.filter(info -> info.kind() == TransformInfo.Kind.FALLBACK_ORIGINAL)
+				.forEach(info -> reasons.merge(info.reason(), 1L, Long::sum));
+		log.info("원문 폴백 사유: {}", reasons.isEmpty() ? "없음" : reasons);
+		// 사유별 건수를 비율로도 낸다(질문 수가 달라도 실험끼리 비교할 수 있게).
+		StringBuilder reasonRates = new StringBuilder();
+		reasons.forEach((reason, count) -> reasonRates.append(reasonRates.length() == 0 ? "" : " | ")
+				.append(reason).append(' ').append(rate(count, mainRows.size())));
+		if (reasonRates.length() > 0) {
+			log.info("원문 폴백 사유별 비율: {}", reasonRates);
+		}
+
+		long faqNull = mainRows.stream().filter(row -> row.transformed().info().faqNull()).count();
+		long planNull = mainRows.stream().filter(row -> row.transformed().info().planNull()).count();
+		long sameText = mainRows.stream()
+				.filter(this::faqQueryTransformed)
+				.filter(row -> row.transformed().faqQuery().equals(row.transformed().original()))
+				.count();
+		log.info("한쪽만 비어 있음: FAQ용 {}개(FAQ 검색은 원문으로 진행), 요금제용 {}개 | 변환됐지만 FAQ용 질문이 원문과 같은 질문: {}개",
+				faqNull, planNull, sameText);
+
+		long faqOriginalCount = mainRows.stream().filter(row -> !faqQueryTransformed(row)).count();
+		long fallbackCount = byKind.getOrDefault(TransformInfo.Kind.FALLBACK_ORIGINAL, 0L);
+		log.info("FAQ 변환 적용률 {} | FAQ 검색에 원문을 쓴 비율 {} (원문 폴백 {} + FAQ용만 비어 있음 {}) | 요금제용만 비어 있음 {} (FAQ 질문 평가에서는 정상)",
+				rate(mainRows.size() - faqOriginalCount, mainRows.size()), rate(faqOriginalCount, mainRows.size()),
+				rate(fallbackCount, mainRows.size()), rate(faqOriginalCount - fallbackCount, mainRows.size()),
+				rate(planNull, mainRows.size()));
+
+		List<EvalRow> faqTransformed = mainRows.stream().filter(this::faqQueryTransformed).toList();
+		List<EvalRow> faqOriginal = mainRows.stream().filter(row -> !faqQueryTransformed(row)).toList();
+		printGroupScores("FAQ 검색에 변환된 질문을 쓴 질문", faqTransformed);
+		printGroupScores("FAQ 검색에 원문을 쓴 질문(폴백·FAQ용 비어 있음)", faqOriginal);
+	}
+
+	/** FAQ 검색에 변환된 질문이 실제로 쓰였는지. 원문으로 폴백했거나 FAQ용 질문이 비어 있으면(원문으로 채움) false. */
+	private boolean faqQueryTransformed(EvalRow row) {
+		TransformInfo info = row.transformed().info();
+		return info.applied() && !info.faqNull();
+	}
+
+	private void printGroupScores(String label, List<EvalRow> group) {
+		if (group.isEmpty()) {
+			log.info("{}: 0개", label);
+			return;
+		}
+		log.info("{} ({}개): 최종 Recall@{}(1점↑) {} | Recall@{}(2점↑) {} | nDCG@{} {} | MRR {} | Hit@1 {} | Hit@{} {} | threshold 후 남은 결과 평균 {}개",
+				label, group.size(), topK, pct(avg(group, EvalRow::recallTop1)), topK, pct(avg(group, EvalRow::recallTop2)),
+				topK, pct(avg(group, EvalRow::ndcgK)), pct(avg(group, EvalRow::mrr)), pct(avg(group, EvalRow::hit1)),
+				topK, pct(avg(group, EvalRow::hitK)), fmt(avg(group, row -> row.passedThreshold())));
 	}
 
 	/**
@@ -425,7 +532,7 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 				writer.write('﻿');
 				writer.write("qid,subsetOrder,style,query,poolSize,relevantCount,recallPool1,recallPool2,recallTop1,recallTop2,distinctInPool,maxDuplicates,"
 						+ "precisionK,ndcgK,mrr,hit1,hitK,passedThreshold,e2ePrecisionK,e2eHitK,ruleBlocked,"
-						+ topColumnNames() + "\n");
+						+ topColumnNames() + ",transformKind,fallbackReason,faqNull,planNull,faqQuery,planQuery\n");
 				for (EvalRow row : rows) {
 					writeRow(writer, row);
 				}
@@ -472,8 +579,18 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 				sb.append(",,,,");
 			}
 		}
+		TransformedQuery transformed = row.transformed();
+		TransformInfo info = transformed.info();
+		sb.append(',').append(info.kind().name()).append(',').append(info.reason() == null ? "" : info.reason())
+				.append(',').append(info.faqNull() ? "Y" : "N").append(',').append(info.planNull() ? "Y" : "N")
+				.append(',').append(csv(oneLine(transformed.faqQuery()))).append(',').append(csv(oneLine(transformed.planQuery())));
 		sb.append('\n');
 		writer.write(sb.toString());
+	}
+
+	/** 줄바꿈을 글자 그대로 "\n"로 바꿔 CSV 한 줄이 깨지지 않게 한다. */
+	private static String oneLine(String value) {
+		return value == null ? "" : value.replace("\r", "").replace("\n", "\\n");
 	}
 
 	private static String csv(String value) {
@@ -488,6 +605,11 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 
 	private static double avg(List<EvalRow> rows, ToDoubleFunction<EvalRow> getter) {
 		return rows.stream().mapToDouble(getter).average().orElse(0.0);
+	}
+
+	/** 건수를 전체 대비 비율 문자열로. 전체가 0이면 0.0%. */
+	private static String rate(long count, long total) {
+		return pct(total == 0 ? 0.0 : (double) count / total);
 	}
 
 	private static String pct(double value) {

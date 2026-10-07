@@ -145,6 +145,9 @@ search:
     # 영어 번역·질문 재작성·영어 컬럼·Hybrid 실험은 해당 구현 빈의 이름을 적는다(팀 노션의 검색 평가 도구 사용 안내 참고).
     query-transformer: ${SEARCH_EVAL_QUERY_TRANSFORMER:identityQueryTransformer}
     faq-retriever: ${SEARCH_EVAL_FAQ_RETRIEVER:vectorFaqRetriever}
+    # 질문 변환 결과를 저장·재사용할 JSONL 파일(비우면 매번 변환기를 부른다). LLM 변환은 실행마다 결과가 달라질 수 있어,
+    # 변환 실험(C)과 그 위의 검색 방식 실험을 같은 변환 결과로 비교하려면 같은 파일을 쓴다. 변환기·프롬프트를 바꾸면 다른 파일을 쓴다.
+    transform-cache: ${SEARCH_EVAL_TRANSFORM_CACHE:}
     # 단계별 응답 시간을 질문마다 몇 번 반복해 잴지(0이면 건너뜀)와, 결과를 버리고 먼저 돌려 둘 예열 횟수.
     timing-repeats: ${SEARCH_EVAL_TIMING_REPEATS:3}
     timing-warmup: ${SEARCH_EVAL_TIMING_WARMUP:5}
