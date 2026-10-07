@@ -13,9 +13,12 @@ public class QueryTransformerAdapter implements com.vita.search.pipeline.QueryTr
 
     @Override
     public TransformedQuery transform(String query) {
-        QueryTransformResult r = delegate.transform(query, null); // 평가는 단일 턴이라 history 없음
+        // 평가는 단일 턴이라 history 없음
+        QueryTransformer.TransformOutcome outcome = delegate.transformWithStatus(query, null);
+        QueryTransformResult r = outcome.result();
+        // 비어 있는 쪽(null)은 원문으로 채워 검색이 끊기지 않게 한다. 채우기 전의 상태는 info에 남아 평가에서 폴백을 셀 수 있다.
         String faq = r.faqQuery() != null ? r.faqQuery() : query;
         String plan = r.planQuery() != null ? r.planQuery() : query;
-        return new TransformedQuery(query, faq, plan); // (원문, FAQ용, 요금제용)
+        return new TransformedQuery(query, faq, plan, outcome.info()); // (원문, FAQ용, 요금제용, 변환 기록)
     }
 }
