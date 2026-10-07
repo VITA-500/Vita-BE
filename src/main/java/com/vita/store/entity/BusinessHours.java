@@ -18,6 +18,10 @@ public record BusinessHours(LocalTime open, LocalTime close) {
     public static final String FORMAT = "^([01][0-9]|2[0-3]):[0-5][0-9]-" +
             "([01][0-9]|2[0-3]):[0-5][0-9]$";
 
+    /** 마지막 예약은 닫기 30분 전까지 */
+    private static final int LAST_RESERVATION_BEFORE_CLOSE_MINUTES = 30;
+    private static final int MINUTES_PER_DAY = 24 * 60;
+
     private static final Pattern PATTERN = Pattern.compile(FORMAT);
     private static final DateTimeFormatter HH_MM = DateTimeFormatter.ofPattern("HH:mm");
 
@@ -39,6 +43,29 @@ public record BusinessHours(LocalTime open, LocalTime close) {
                     "영업시간의 여는 시각과 닫는 시각이 같을 수 없습니다.");
         }
         return new BusinessHours(open, close);
+    }
+
+    /** 여는 시각 ~ 닫기 30분 전 사이에만 예약 가능 */
+    public boolean isReservableAt(LocalTime time){
+        return minutesFromOpen(time) <= openMinutes() - LAST_RESERVATION_BEFORE_CLOSE_MINUTES;
+    }
+
+    public LocalTime lastReservationTime(){
+        return close.minusMinutes(LAST_RESERVATION_BEFORE_CLOSE_MINUTES);
+    }
+
+    // 여는 시각부터 time까지 몇 분 지났는지
+    private int minutesFromOpen(LocalTime time){
+        return Math.floorMod(toMinutes(time) - toMinutes(open), MINUTES_PER_DAY);
+    }
+
+    // 하루 영업 시간
+    private int openMinutes(){
+        return Math.floorMod(toMinutes(close) - toMinutes(open), MINUTES_PER_DAY);
+    }
+
+    private static int toMinutes(LocalTime time){
+        return time.getHour() * 60 + time.getMinute();
     }
 
     /** 두 시각 중 하나라도 없으면 null */

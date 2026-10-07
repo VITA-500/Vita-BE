@@ -4,6 +4,7 @@ import com.vita.common.exception.BusinessException;
 import com.vita.common.exception.ErrorCode;
 import com.vita.store.dto.request.ReservationRequest;
 import com.vita.store.dto.response.ReservationResponse;
+import com.vita.store.entity.BusinessHours;
 import com.vita.store.entity.Store;
 import com.vita.store.entity.StoreReservation;
 import com.vita.store.entity.StoreType;
@@ -40,6 +41,12 @@ public class ReservationService {
         }
         if(!LocalDateTime.of(request.date(), request.time()).isAfter(LocalDateTime.now(ZoneId.of("Asia/Seoul")))){
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "지난 시간으로는 예약할 수 없습니다.");
+        }
+        // 영업시간이 등록되지 않은 매장은 검사하지 않는다
+        BusinessHours hours = store.toBusinessHours();
+        if(hours != null && !hours.isReservableAt(request.time())){
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "영업시간(" + store.getBusinessHours() + ") 중 " + hours.lastReservationTime() + "까지 예약할 수 있습니다.");
         }
 
         StoreReservation reservation = reservationRepository.save(

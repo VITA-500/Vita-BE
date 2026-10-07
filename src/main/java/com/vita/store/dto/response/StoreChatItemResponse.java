@@ -3,10 +3,9 @@ package com.vita.store.dto.response;
 import java.math.BigDecimal;
 import java.util.List;
 
-public record StoreNearbyItemResponse(
+public record StoreChatItemResponse(
         Long storeId,
         String name,
-        String storeType,
         String address,
         String phone,
         BigDecimal lat,
@@ -14,9 +13,4 @@ public record StoreNearbyItemResponse(
         Double distanceKm,
         String businessHours,
         List<String> consultServices,
-        List<String> providedServices,
-        Long benefitId,
-        String brand,
-        String category,
-        String benefitName,
-        String benefitDescription) { }
+        List<String> providedServices) { }
