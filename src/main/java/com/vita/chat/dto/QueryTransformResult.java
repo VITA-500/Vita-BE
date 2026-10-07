@@ -1,15 +1,12 @@
 package com.vita.chat.dto;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
-
-@JsonIgnoreProperties(ignoreUnknown = true)
 public record QueryTransformResult(
-        @JsonProperty("faq_query") String faqQuery,
-        @JsonProperty("plan_query") String planQuery) {
+        String faqQuery,
+        String planQuery,
+        PlanIntent planIntent,   // 극값 여부, sortKey, limit (기존 분류기 결과와 같은 타입)
+        boolean structured) {    // 정형 질문 여부 (값만 추출, 아직 쓰는 곳 없음)
 
-    /** 변환 실패 시 원문으로 양쪽을 검색하기 위한 폴백 */
     public static QueryTransformResult original(String question) {
-        return new QueryTransformResult(question, question);
+        return new QueryTransformResult(question, question, PlanIntent.none(), false);
     }
 }

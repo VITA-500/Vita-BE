@@ -1,7 +1,6 @@
 package com.vita.chat.service;
 
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
@@ -19,11 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ChatContextBuilder {
 
-	private static final Set<String> EXTREME_SIGNAL_KEYWORDS = Set.of(
-			"가장", "제일", "최고", "최저", "가성비", "제일싼", "가장싼");
-
 	private final PlanLookupService planLookupService;
-	private final PlanIntentClassifier planIntentClassifier;
 
 	public record ChatContext(String text, List<FaqReference> faqs) {
 		public static ChatContext empty() { return new ChatContext("", List.of()); }
@@ -35,15 +30,13 @@ public class ChatContextBuilder {
 	 *
 	 * @param question 사용자 원문 질문 (극값 판단과 극값 조회에 사용)
 	 */
-	public ChatContext build(String question, List<FaqReference> faqs, List<PlanReference> plans) {
+	public ChatContext build(String question, List<FaqReference> faqs, List<PlanReference> plans,
+	        PlanIntent intent) {
 
-		List<PlanReference> extremePlans = List.of();
-		if (!plans.isEmpty() || hasExtremeSignal(question)) {
-			PlanIntent intent = planIntentClassifier.classify(question);
-			if (intent.extreme()) {
-				extremePlans = planLookupService.findExtremeForQuery(intent.sortKey(), intent.limit(), question);
-			}
-		}
+	    List<PlanReference> extremePlans = List.of();
+	    if (intent.extreme()) {
+	        extremePlans = planLookupService.findExtremeForQuery(intent.sortKey(), intent.limit(), question);
+	    }
 
 		List<PlanReference> generalPlans = extremePlans.isEmpty() ? plans : List.of();
 
@@ -69,10 +62,6 @@ public class ChatContextBuilder {
 				generalPlans.stream().map(PlanReference::name).toList());
 
 		return new ChatContext(sb.toString(), faqs);
-	}
-
-	private boolean hasExtremeSignal(String query) {
-		return EXTREME_SIGNAL_KEYWORDS.stream().anyMatch(query::contains);
 	}
 
 	private String toFaqXml(FaqReference faq) {

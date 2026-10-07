@@ -26,7 +26,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 public class ChatAnswerStreamer {
 
-    private static final int TOP_K = 3; // ChatMessageService의 기존 TOP_K와 동일
+    private static final int TOP_K = 10;
 
     private final ChatSseRegistry registry;
     private final FaqRetrievalService faqRetrievalService;
@@ -63,8 +63,9 @@ public class ChatAnswerStreamer {
             // 1) 질문 변환 (FAQ용 / 요금제용)
             publishStatus(sessionId, messageId, AssistantStatus.THINKING);
             QueryTransformResult q = queryTransformer.transform(question, history);
-            log.info("query transform - original={}, faqQuery={}, planQuery={}",
-                    question, q.faqQuery(), q.planQuery());
+            log.info("query transform - original={}, faqQuery={}, planQuery={}, extreme={}, sortKey={}, limit={}, structured={}",
+                    question, q.faqQuery(), q.planQuery(),
+                    q.planIntent().extreme(), q.planIntent().sortKey(), q.planIntent().limit(), q.structured());
 
             // 2) 검색
             publishStatus(sessionId, messageId, AssistantStatus.RETRIEVING_FAQ);
@@ -87,7 +88,7 @@ public class ChatAnswerStreamer {
             }
 
             // 3) context 조립 (극값 분기는 원문 질문 기준)
-            ChatContext context = chatContextBuilder.build(question, faqs, plans);
+            ChatContext context = chatContextBuilder.build(question, faqs, plans, q.planIntent());
 
             // 4) 답변 생성 (원문 질문으로 호출)
             publishStatus(sessionId, messageId, AssistantStatus.GENERATING);
