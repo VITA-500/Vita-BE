@@ -1,7 +1,10 @@
 package com.vita.search.service;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -128,6 +131,48 @@ public final class PlanQueryConditionExtractor {
 
 	/** "무제한"을 잘못 적은 표기("무재한"). */
 	private static final Pattern UNLIMITED_TYPO = Pattern.compile("무재한");
+
+	/** 대상 그룹(plans.target_group 값) 하나를 가리키는 말들. */
+	private record GroupWord(String group, Pattern pattern) {
+	}
+
+	/**
+	 * 대상 그룹을 가리키는 말. 오탐을 막으려고 뒤에 오는 글자나 문맥을 함께 본다.
+	 * <ul>
+	 *   <li>청년: 연령대("20대")와 대학생·사회초년생도 청년 요금제(만 19~34세) 대상이다.</li>
+	 *   <li>시니어: "부모님"은 뒤에 동의·허락·명의 같은 말이 오면 어르신이 아니라 가입 절차 이야기("부모님 동의 받아야 돼요")라 뺀다.</li>
+	 *   <li>키즈: 초·중·고등학생(만 18세 이하)과 어린이를 뜻하는 말. "아이"는 "아이디", "아이돌", "아이폰"처럼 다른 단어의 앞부분일 수
+	 *       있어서, 단독으로 쓰이거나 조사가 붙을 때만 인정한다. "아기자기"의 "아기"도 뺀다.</li>
+	 *   <li>태블릿: "아이패드", "갤럭시 탭"도 태블릿이다.</li>
+	 *   <li>일반: "일반적인", "일반 전화/문자/통화"의 "일반"은 대상 그룹 표현이 아니다.</li>
+	 * </ul>
+	 */
+	private static final List<GroupWord> TARGET_GROUP_WORDS = List.of(
+			new GroupWord("YOUTH", Pattern.compile("청년|유스|(?<![\\d가-힣])20대|대학생|대학원생|사회초년생")),
+			new GroupWord("SENIOR", Pattern.compile(
+					"시니어|어르신|할머니|할아버지|노인|실버|고령|(?<![\\d가-힣])[678]0대|부모님(?!\\s*(?:동의|허락|승인|명의|서류|확인|인증))")),
+			new GroupWord("KIDS", Pattern.compile(
+					"키즈|어린이|초등학생|중학생|고등학생|초딩|중딩|고딩|애들|아기(?!자기)|유아"
+							+ "|(?<![가-힣])아이(?=$|[^가-힣]|(?:가|는|은|도|를|을|랑|와|과|한테|에게|의|들|용|께서?)+(?![가-힣]))")),
+			new GroupWord("WATCH", Pattern.compile("워치")),
+			new GroupWord("TABLET", Pattern.compile("태블릿|아이패드|갤럭시\\s*탭")),
+			new GroupWord("GENERAL", Pattern.compile("일반(?!적|\\s*(?:전화|통화|문자|우편|택배|상담))")));
+
+	/** 대상 그룹 말이 나온 자리. */
+	private record GroupMention(String group, int start, int end) {
+	}
+
+	/** 대상 그룹 말 바로 뒤에서 그 그룹을 제외한다는 뜻을 알려 주는 표현("시니어 말고", "청년 아닌", "시니어 요금제 말고", "워치 빼고"). */
+	private static final Pattern GROUP_NEGATION_AFTER = Pattern.compile(
+			"^(?:\\s*(?:요금제|플랜|용|전용|쪽|사용자|이용자|고객|사람|분))*\\s*(?:은|는|이|가|을|를|도)?\\s*(?:말고|아닌|아니고|아니라|빼고|제외|외에|이외|외의)");
+
+	/** 대상 그룹 말 사이를 잇는 말("워치나 태블릿 말고"에서 "나"). 제외 표현이 이어진 말들에 함께 걸리게 한다. */
+	private static final Pattern GROUP_CONNECTOR = Pattern.compile("^\\s*(?:이나|나|이랑|랑|이고|하고|와|과|또는|혹은|,|·|/)?\\s*$");
+
+	/** 폰과 기기(워치·태블릿)를 함께 쓰는 요금제를 찾는 질문을 알아보는 말. 이때는 기기 전용 요금제가 아니라 같이 쓰는 요금제를 뜻한다. */
+	private static final Pattern PHONE_WORD = Pattern.compile("폰|휴대전화");
+
+	private static final Pattern SHARED_USE_WORD = Pattern.compile("같이|함께|나눠|나누어|공유|쉐어|셰어|묶어");
 
 	/** 워치·태블릿 같은 기기 전용 요금제를 가리키는 말. 요금제 단어 없이도("스마트워치 데이터 얼마나 줘?") 쓰인다. */
 	private static final Pattern DEVICE_PLAN_MENTION = Pattern.compile("워치|태블릿|패드|갤럭시 ?탭");
@@ -321,28 +366,47 @@ public final class PlanQueryConditionExtractor {
 		return query == null ? null : extractTargetGroup(query);
 	}
 
-	/** 대상 그룹 키워드가 정확히 한 그룹만 가리킬 때만 채택한다(여러 그룹이 섞이면 null). */
+	/**
+	 * 대상 그룹 말이 정확히 한 그룹만 가리킬 때만 채택한다(여러 그룹이 섞이면 null).
+	 *
+	 * <p>"시니어 말고", "청년 아닌"처럼 제외하는 말은 그 그룹으로 세지 않는다. "청년 말고 일반 요금제"는 일반 하나만 남아 일반으로 읽고,
+	 * "시니어 말고 3만원대 요금제"는 남는 그룹이 없어 대상 조건이 없다("워치나 태블릿 말고"처럼 제외 표현이 이어진 말들에 같이 걸린다).
+	 * 또 "폰이랑 태블릿 데이터 같이 쓰는 요금제"는 태블릿 전용 요금제를 찾는 질문이 아니라서 기기 그룹(워치·태블릿)을 대상으로 읽지 않는다.
+	 */
 	private static String extractTargetGroup(String query) {
+		List<GroupMention> mentions = new ArrayList<>();
+		for (GroupWord word : TARGET_GROUP_WORDS) {
+			Matcher matcher = word.pattern().matcher(query);
+			while (matcher.find()) {
+				mentions.add(new GroupMention(word.group(), matcher.start(), matcher.end()));
+			}
+		}
+		mentions.sort(Comparator.comparingInt(GroupMention::start));
+
+		// 뒤에서부터 보며 제외 표현이 걸린 말을 찾는다. 바로 뒤에 제외 표현이 있거나, 이어진 다음 말이 제외되면 함께 제외된다.
+		boolean[] negated = new boolean[mentions.size()];
+		for (int i = mentions.size() - 1; i >= 0; i--) {
+			GroupMention current = mentions.get(i);
+			String tail = query.substring(current.end(), Math.min(query.length(), current.end() + 16));
+			boolean direct = GROUP_NEGATION_AFTER.matcher(tail).find();
+			boolean chained = false;
+			if (i + 1 < mentions.size() && negated[i + 1]) {
+				GroupMention next = mentions.get(i + 1);
+				chained = next.start() >= current.end()
+						&& GROUP_CONNECTOR.matcher(query.substring(current.end(), next.start())).matches();
+			}
+			negated[i] = direct || chained;
+		}
+
 		Set<String> groups = new LinkedHashSet<>();
-		if (Pattern.compile("청년|유스").matcher(query).find()) {
-			groups.add("YOUTH");
+		for (int i = 0; i < mentions.size(); i++) {
+			if (!negated[i]) {
+				groups.add(mentions.get(i).group());
+			}
 		}
-		if (Pattern.compile("시니어|어르신|부모님").matcher(query).find()) {
-			groups.add("SENIOR");
-		}
-		// "아이폰"/"아이패드"의 "아이"는 어린이가 아니다.
-		if (Pattern.compile("키즈|어린이|초등학생|아이(?!폰|패드)").matcher(query).find()) {
-			groups.add("KIDS");
-		}
-		if (Pattern.compile("워치").matcher(query).find()) {
-			groups.add("WATCH");
-		}
-		if (Pattern.compile("태블릿").matcher(query).find()) {
-			groups.add("TABLET");
-		}
-		// "일반적인"의 "일반"은 대상 그룹 표현이 아니다.
-		if (Pattern.compile("일반(?!적)").matcher(query).find()) {
-			groups.add("GENERAL");
+		if (SHARED_USE_WORD.matcher(query).find() && PHONE_WORD.matcher(query).find()) {
+			groups.remove("WATCH");
+			groups.remove("TABLET");
 		}
 		return groups.size() == 1 ? groups.iterator().next() : null;
 	}

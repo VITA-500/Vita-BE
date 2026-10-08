@@ -131,6 +131,79 @@ class PlanQueryConditionExtractorTest {
 	}
 
 	@Test
+	void readsAgeGroupAndStudentWordsAsTheirTargetGroup() {
+		assertThat(extract("20대 요금제 추천해줘").targetGroup()).isEqualTo("YOUTH");
+		assertThat(extract("대학생 요금제 있어?").targetGroup()).isEqualTo("YOUTH");
+		assertThat(extract("60대 요금제 있어?").targetGroup()).isEqualTo("SENIOR");
+		assertThat(extract("할머니 폰 요금제 뭐가 좋아요").targetGroup()).isEqualTo("SENIOR");
+		assertThat(extract("중학생 요금제 뭐가 좋아요").targetGroup()).isEqualTo("KIDS");
+		assertThat(extract("애들 요금제 있어요?").targetGroup()).isEqualTo("KIDS");
+		assertThat(extract("아이패드 요금제 있어?").targetGroup()).isEqualTo("TABLET");
+		assertThat(extract("갤럭시 탭 요금제 있어?").targetGroup()).isEqualTo("TABLET");
+	}
+
+	@Test
+	void doesNotMistakeAgeLookalikesForAgeGroups() {
+		// 숫자가 이어진 "120대"나 "2020대"의 "20대"는 연령대가 아니다.
+		assertThat(extract("120대 한정 요금제").targetGroup()).isNull();
+	}
+
+	@Test
+	void keepsTheChildWordOnlyWhenItStandsAloneOrTakesAParticle() {
+		assertThat(extract("아이가 쓰는 요금제 추천해줘").targetGroup()).isEqualTo("KIDS");
+		assertThat(extract("아이들 요금제 있어?").targetGroup()).isEqualTo("KIDS");
+		assertThat(extract("아이한테도 줄 요금제 있어?").targetGroup()).isEqualTo("KIDS");
+		// "아이디", "아이돌", "아이폰", "아이스", "아기자기"는 아이·아기가 아니다.
+		assertThat(extract("아이디 없이 요금제 가입돼요?").targetGroup()).isNull();
+		assertThat(extract("아이돌 굿즈 주는 요금제 있어?").targetGroup()).isNull();
+		assertThat(extract("아이스 아메리카노 쿠폰 주는 요금제").targetGroup()).isNull();
+		assertThat(extract("아기자기한 디자인 요금제 있어?").targetGroup()).isNull();
+	}
+
+	@Test
+	void doesNotTreatParentConsentOrGeneralPhoneAsATargetGroup() {
+		assertThat(extract("요금제 가입하려는데 부모님 동의 받아야 돼요?").targetGroup()).isNull();
+		assertThat(extract("부모님 명의로 가입한 요금제 알려줘").targetGroup()).isNull();
+		assertThat(extract("부모님 폰 요금제 추천해줘").targetGroup()).isEqualTo("SENIOR");
+		assertThat(extract("일반 전화로도 쓸 수 있는 요금제").targetGroup()).isNull();
+		assertThat(extract("일반 문자 되는 요금제").targetGroup()).isNull();
+		assertThat(extract("일반 고객용 요금제 알려줘").targetGroup()).isEqualTo("GENERAL");
+	}
+
+	@Test
+	void doesNotCountAGroupThatTheQuestionExcludes() {
+		assertThat(extract("청년 말고 일반 요금제").targetGroup()).isEqualTo("GENERAL");
+		assertThat(extract("청년 아닌 일반 사용자용 요금제").targetGroup()).isEqualTo("GENERAL");
+		assertThat(extract("청년이 아닌 일반 요금제 알려줘").targetGroup()).isEqualTo("GENERAL");
+		// 제외하는 그룹만 있으면 대상 조건이 없고, 나머지 조건(가격)은 그대로 읽는다.
+		PlanQueryConditions c = extract("시니어 말고 3만원대 요금제");
+		assertThat(c.targetGroup()).isNull();
+		assertThat(c.feeMin()).isEqualTo(30_000);
+		assertThat(extract("시니어 요금제 말고 3만원대 요금제 알려줘").targetGroup()).isNull();
+		assertThat(extract("워치 말고 폰 요금제 알려줘").targetGroup()).isNull();
+		assertThat(extract("태블릿 빼고 요금제 알려줘").targetGroup()).isNull();
+	}
+
+	@Test
+	void appliesAnExclusionToEveryGroupInAnUnbrokenList() {
+		assertThat(extract("워치나 태블릿 말고 폰 요금제 알려줘").targetGroup()).isNull();
+		assertThat(extract("청년이랑 시니어 말고 일반 요금제").targetGroup()).isEqualTo("GENERAL");
+	}
+
+	@Test
+	void doesNotReadADeviceGroupWhenThePhoneAndTheDeviceShareOnePlan() {
+		assertThat(extract("폰이랑 태블릿 데이터 같이 쓰는 요금제").targetGroup()).isNull();
+		assertThat(extract("스마트폰이랑 워치 함께 쓸 수 있는 요금제").targetGroup()).isNull();
+		assertThat(extract("태블릿 전용 요금제 있어?").targetGroup()).isEqualTo("TABLET");
+	}
+
+	@Test
+	void usesTheSameGroupRulesWithoutAPlanWord() {
+		assertThat(PlanQueryConditionExtractor.targetGroupOf("20대 중에 제일 싼 거")).isEqualTo("YOUTH");
+		assertThat(PlanQueryConditionExtractor.targetGroupOf("부모님 동의 필요한 가입")).isNull();
+	}
+
+	@Test
 	void extractsUnlimitedAndItsNegation() {
 		assertThat(extract("데이터 무제한 요금제 있어?").dataPolicy()).isEqualTo("UNLIMITED");
 		assertThat(extract("무제한 아니고 적당히 쓰는 요금제 있어?").dataPolicy()).isEqualTo("LIMITED");
