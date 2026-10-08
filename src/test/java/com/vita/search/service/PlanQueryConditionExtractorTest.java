@@ -257,6 +257,29 @@ class PlanQueryConditionExtractorTest {
 	}
 
 	@Test
+	void readsConditionsEvenWhenThePlanWordIsMisspelled() {
+		assertThat(extract("3만7천원 요금재 있어요?").feeMin()).isEqualTo(37_000);
+		assertThat(extract("데이터 40기가 요근제 알려줘").dataMbMin()).isEqualTo(40_960L);
+		assertThat(extract("3만원대 요금재 알려줘").feeMax()).isEqualTo(39_999);
+		assertThat(extract("청년 요금재 추천").targetGroup()).isEqualTo("YOUTH");
+		assertThat(extract("시니어 요금지 알려줘").targetGroup()).isEqualTo("SENIOR");
+		assertThat(extract("시니어 요금지가 뭐야").targetGroup()).isEqualTo("SENIOR");
+	}
+
+	@Test
+	void readsUnlimitedEvenWhenItIsMisspelled() {
+		assertThat(extract("무재한 요금제 알려줘").dataPolicy()).isEqualTo("UNLIMITED");
+		assertThat(extract("데이터 무재한 요금재 있어?").dataPolicy()).isEqualTo("UNLIMITED");
+	}
+
+	@Test
+	void doesNotTreatRealWordsThatStartLikeTheTyposAsThePlanWord() {
+		// "요금지급"은 실제 단어라 "요금제"로 고치면 안 된다. 요금제 질문이 아니므로 조건이 나오지 않아야 한다.
+		assertThat(extract("3만원 요금지급일 알려줘").isEmpty()).isTrue();
+		assertThat(extract("요금지급 방법 5기가").isEmpty()).isTrue();
+	}
+
+	@Test
 	void combinesConditions() {
 		PlanQueryConditions c = extract("3만5천원짜리 청년 요금제 있어?");
 

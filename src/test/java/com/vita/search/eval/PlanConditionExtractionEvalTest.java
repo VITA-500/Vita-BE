@@ -77,7 +77,7 @@ class PlanConditionExtractionEvalTest {
 	 * 추출기가 나빠진 것이다.
 	 * 추출기를 개선해 점수가 오르면 이 값을 새 점수로 올려서 그 이상을 지키게 한다.
 	 */
-	private static final int BASELINE_EXACT_CASES = 94;
+	private static final int BASELINE_EXACT_CASES = 99;
 
 	private static final Set<String> GROUPS = Set.of("GENERAL", "YOUTH", "SENIOR", "KIDS", "WATCH", "TABLET");
 	private static final Set<String> POLICIES = Set.of("LIMITED", "UNLIMITED");

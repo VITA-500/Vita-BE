@@ -88,6 +88,20 @@ public final class PlanQueryConditionExtractor {
 	private static final int FEE_APPROX_PERCENT = 10;
 	private static final int DATA_APPROX_PERCENT = 25;
 
+	/**
+	 * "요금제"를 잘못 적은 표기("요금재", "요근제"). 사전에 없는 말이라 다른 단어와 헷갈릴 일이 없어 그대로 바꾼다. 오표기가 있으면
+	 * 요금제 질문으로 인식하지 못해 조건 추출이 아예 켜지지 않기 때문에, 조건을 읽기 전에 먼저 바른 표기로 고친다.
+	 */
+	private static final Pattern PLAN_WORD_TYPO = Pattern.compile("요금재|요근제");
+
+	/**
+	 * "요금지"(요금제의 오표기). "요금지급"처럼 실제 단어의 앞부분일 수 있어서, 뒤에 조사가 붙거나 단어가 끝날 때만 오표기로 본다.
+	 */
+	private static final Pattern PLAN_WORD_TYPO_GUARDED = Pattern.compile("요금지(?=$|[^가-힣]|[는은이가을를도만에와과로의])");
+
+	/** "무제한"을 잘못 적은 표기("무재한"). */
+	private static final Pattern UNLIMITED_TYPO = Pattern.compile("무재한");
+
 	/** 워치·태블릿 같은 기기 전용 요금제를 가리키는 말. 요금제 단어 없이도("스마트워치 데이터 얼마나 줘?") 쓰인다. */
 	private static final Pattern DEVICE_PLAN_MENTION = Pattern.compile("워치|태블릿|패드|갤럭시 ?탭");
 
@@ -110,12 +124,17 @@ public final class PlanQueryConditionExtractor {
 	}
 
 	/**
-	 * 질문에서 요금제 조건을 뽑는다.
+	 * 질문에서 요금제 조건을 뽑는다. "요금재", "무재한"처럼 핵심 단어의 흔한 오표기는 먼저 바른 표기로 고친 뒤 읽는다.
 	 *
+	 * @param rawQuery 사용자가 입력한 질문(또는 질문 변환 결과)
 	 * @return 추출된 조건. 요금제 관련 질문이 아니거나 조건이 없으면 {@link PlanQueryConditions#isEmpty()}인 값
 	 */
-	public static PlanQueryConditions extract(String query) {
-		if (query == null || !PLAN_CONTEXT.matcher(query).find()) {
+	public static PlanQueryConditions extract(String rawQuery) {
+		if (rawQuery == null) {
+			return new PlanQueryConditions(null, null, null, null, null, null);
+		}
+		String query = fixSpelling(rawQuery);
+		if (!PLAN_CONTEXT.matcher(query).find()) {
 			return new PlanQueryConditions(null, null, null, null, null, null);
 		}
 
@@ -132,6 +151,16 @@ public final class PlanQueryConditionExtractor {
 				policies.data(),
 				policies.voice(),
 				policies.sms());
+	}
+
+	/**
+	 * 조건을 읽는 데 쓰는 핵심 단어("요금제", "무제한")의 흔한 오표기를 바른 표기로 고친다. 조건 값(금액·데이터량)은 건드리지 않고
+	 * 다른 말과 겹칠 수 있는 표기는 넣지 않는다.
+	 */
+	private static String fixSpelling(String query) {
+		String fixed = PLAN_WORD_TYPO.matcher(query).replaceAll("요금제");
+		fixed = PLAN_WORD_TYPO_GUARDED.matcher(fixed).replaceAll("요금제");
+		return UNLIMITED_TYPO.matcher(fixed).replaceAll("무제한");
 	}
 
 	/** 금액이 정확히 하나일 때만 조건으로 삼는다(두 개 이상이면 "3만원에서 5만원 사이"처럼 해석이 모호). */
