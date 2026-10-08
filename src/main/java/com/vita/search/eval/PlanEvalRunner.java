@@ -3,6 +3,7 @@ package com.vita.search.eval;
 import com.vita.search.dto.PlanReference;
 import com.vita.search.pipeline.FaqRetriever;
 import com.vita.search.pipeline.IdentityQueryTransformer;
+import com.vita.search.pipeline.PlanRetriever;
 import com.vita.search.pipeline.QueryTransformer;
 import com.vita.search.pipeline.RetrievalOptions;
 import com.vita.search.pipeline.RetrievalPipeline;
@@ -12,6 +13,7 @@ import com.vita.search.pipeline.StageTimings;
 import com.vita.search.pipeline.TransformInfo;
 import com.vita.search.pipeline.TransformedQuery;
 import com.vita.search.pipeline.VectorFaqRetriever;
+import com.vita.search.pipeline.VectorPlanRetriever;
 import com.vita.search.regression.RegressionQueryReader;
 import com.vita.search.service.FaqCandidateSelector;
 import com.vita.search.service.PlanLookupService;
@@ -92,6 +94,7 @@ public class PlanEvalRunner implements CommandLineRunner {
 	private final RetrievalPipeline servicePipeline;
 	private final Map<String, QueryTransformer> queryTransformers;
 	private final Map<String, FaqRetriever> faqRetrievers;
+	private final Map<String, PlanRetriever> planRetrievers;
 	private final PlanLookupService planLookupService;
 	private final RegressionQueryReader queryReader;
 	private final ResourceLoader resourceLoader;
@@ -112,6 +115,10 @@ public class PlanEvalRunner implements CommandLineRunner {
 	/** 평가에 쓸 FAQ 후보 검색기의 빈 이름. 요금제 평가에는 영향이 없지만 파이프라인 구성에 필요하다. */
 	@Value("${search.plan-eval.faq-retriever:" + VectorFaqRetriever.BEAN_NAME + "}")
 	private String faqRetrieverName;
+
+	/** 평가에 쓸 요금제 후보 검색기의 빈 이름. 기본은 벡터 검색이고, Hybrid 같은 실험 구현은 그 빈 이름을 적는다. */
+	@Value("${search.plan-eval.plan-retriever:" + VectorPlanRetriever.BEAN_NAME + "}")
+	private String planRetrieverName;
 
 	/**
 	 * 질문 변환 결과를 저장·재사용하는 파일(JSONL). 비어 있으면 쓰지 않는다. LLM 변환은 실행마다 결과가 달라질 수 있어서, 변환 결과를
@@ -151,14 +158,15 @@ public class PlanEvalRunner implements CommandLineRunner {
 
 		QueryTransformer rawTransformer = RetrievalPipelineConfig.pick(queryTransformers, queryTransformerName, "search.plan-eval.query-transformer");
 		FaqRetriever retriever = RetrievalPipelineConfig.pick(faqRetrievers, faqRetrieverName, "search.plan-eval.faq-retriever");
+		PlanRetriever planRetriever = RetrievalPipelineConfig.pick(planRetrievers, planRetrieverName, "search.plan-eval.plan-retriever");
 		// 변환 결과 저장 파일이 지정되면 저장된 결과를 다시 쓴다(저장된 변환이 없는 질문만 실제 변환기를 부른다).
 		CachedQueryTransformer cachedTransformer = transformCachePath.isBlank()
 				? null : new CachedQueryTransformer(rawTransformer, Path.of(transformCachePath));
-		RetrievalPipeline pipeline = servicePipeline.with(cachedTransformer != null ? cachedTransformer : rawTransformer, retriever);
+		RetrievalPipeline pipeline = servicePipeline.with(cachedTransformer != null ? cachedTransformer : rawTransformer, retriever, planRetriever);
 		// 응답 시간 측정용은 항상 실제 변환기를 쓴다(저장된 결과를 쓰면 변환 시간이 0에 가깝게 나온다).
-		RetrievalPipeline timingPipeline = servicePipeline.with(rawTransformer, retriever);
-		log.info("요금제 평가셋 {}문항, 상위 개수 {}, 요금제 threshold {}, 질문 변환기 {}, 후보 검색기 {}", questions.size(), topKs,
-				pipeline.settings().planThreshold(), queryTransformerName, faqRetrieverName);
+		RetrievalPipeline timingPipeline = servicePipeline.with(rawTransformer, retriever, planRetriever);
+		log.info("요금제 평가셋 {}문항, 상위 개수 {}, 요금제 threshold {}, 질문 변환기 {}, 후보 검색기 {}, 요금제 후보 검색기 {}", questions.size(), topKs,
+				pipeline.settings().planThreshold(), queryTransformerName, faqRetrieverName, planRetrieverName);
 		if (cachedTransformer != null) {
 			log.info("질문 변환 결과 저장 파일 사용: {} (저장된 변환 {}건)", transformCachePath, cachedTransformer.size());
 		}

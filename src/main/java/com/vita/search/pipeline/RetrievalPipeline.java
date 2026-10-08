@@ -66,6 +66,14 @@ public class RetrievalPipeline {
 		return new RetrievalPipeline(embeddingProvider, transformer, retriever, planSearchService, settings);
 	}
 
+	/**
+	 * 질문 변환기, FAQ 검색기, 요금제 검색기를 바꾼 같은 설정의 파이프라인을 만든다. 요금제 평가 러너가 요금제 후보 검색 방식
+	 * (Hybrid, 영어)까지 갈아끼울 때 쓴다. 서비스 빈은 바뀌지 않는다.
+	 */
+	public RetrievalPipeline with(QueryTransformer transformer, FaqRetriever retriever, PlanRetriever planRetriever) {
+		return new RetrievalPipeline(embeddingProvider, transformer, retriever, planSearchService.with(planRetriever), settings);
+	}
+
 	/** 실제 서비스와 같은 옵션으로 검색한다. 질문 변환기로 질문을 변환한 뒤 검색한다. */
 	public RetrievalResult run(String query, int topK) {
 		return run(query, RetrievalOptions.forService(topK));
