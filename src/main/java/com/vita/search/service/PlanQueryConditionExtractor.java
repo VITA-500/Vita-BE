@@ -1,12 +1,13 @@
 package com.vita.search.service;
 
+import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 질문 문장에서 요금제 조건(가격·데이터량·대상 그룹·무제한 여부)을 규칙 기반으로 뽑아낸다. LLM 호출 없이
+ * 질문 문장에서 요금제 조건(가격·데이터량·대상 그룹·데이터 무제한 여부·통화/문자 무제한·불가 여부)을 규칙 기반으로 뽑아낸다. LLM 호출 없이
  * 정규식만 쓰고, 상태가 없는 순수 함수라 DB 없이 단위 테스트가 된다.
  *
  * <p>왜 필요한가: 임베딩은 "3만1천원"과 설명문의 "31,000원"이 같은 값이라는 걸 모르고, "무제한 아니고"
@@ -35,9 +36,38 @@ public final class PlanQueryConditionExtractor {
 	private static final Pattern UNLIMITED_NEGATED = Pattern.compile(
 			"무제한(?:은|이|를|요금제|\\s)*(?:아니|아닌|말고|빼고|제외|없)");
 
-	private static final Pattern UNLIMITED_PARAPHRASE = Pattern.compile("데이터\\s*걱정\\s*없이|마음껏|맘껏");
+	/**
+	 * 무제한을 뜻하는 표현. "마음껏/맘껏"은 "무제한"이라는 단어 없이 같은 뜻을 말하는 표현이고, "데이터 걱정 없이/없는"은 "데이터"를
+	 * 이미 포함하고 있어 대상이 데이터로 정해진다.
+	 */
+	private static final Pattern UNLIMITED_EXPRESSION = Pattern.compile("무제한|마음껏|맘껏|데이터\\s*걱정\\s*없(?:이|는)");
 
-	private static final Pattern VOICE_OR_SMS = Pattern.compile("통화|문자|전화|음성|SMS|sms");
+	/**
+	 * 무제한 표현이 가리킬 수 있는 대상 명사(데이터·통화·문자). 긴 표현을 앞에 둬서 "음성통화"가 "음성"으로 잘리지 않게 한다.
+	 * "전화"는 "전화번호"처럼 조건이 아닌 쓰임이 많아서, 아래 명사 연쇄처럼 무제한 표현이 바로 붙은 경우에만 쓴다.
+	 */
+	private static final String POLICY_NOUN = "데이터|음성\\s*통화|문자\\s*메시지|통화|음성|문자|SMS|sms|전화";
+
+	/**
+	 * 문장 어딘가에서 끝나는 명사 연쇄("통화랑 문자", "통화도 데이터도", "통화, 문자", "통화 문자"). 무제한 표현이나 "안 되는" 바로
+	 * 앞에 붙어 있는 것만 보려고 질문의 앞부분을 잘라 이 패턴을 끝에 맞춰 찾는다.
+	 */
+	private static final Pattern NOUN_CHAIN_BEFORE = Pattern.compile(
+			"(?:(?:" + POLICY_NOUN + ")\\s*(?:도|은|는|이랑|이|가|을|를|랑|와|과|하고|및|,|·|/)?[\\s,]*)+$");
+
+	private static final Pattern POLICY_NOUN_PATTERN = Pattern.compile(POLICY_NOUN);
+
+	/** 무제한 표현 바로 뒤에 오는 명사("무제한 통화"). 앞에 명사가 없을 때만 쓴다. */
+	private static final Pattern NOUN_RIGHT_AFTER = Pattern.compile("^\\s{0,2}(" + POLICY_NOUN + ")");
+
+	/**
+	 * 요금제를 꾸미는 "안 되는/없는" 표현("문자 안 되는 요금제"). 반드시 "요금제/플랜"으로 이어질 때만 인정한다.
+	 * "요금제 바꿨는데 통화가 안 돼요"처럼 문장이 끝나는 장애 문의는 읽지 않는다(읽으면 워치·태블릿 요금제가 나오는 오탐이 된다).
+	 */
+	private static final Pattern ABSENT_MODIFIER = Pattern.compile("(?:안\\s*되는|안되는|없는|못\\s*하는)\\s*(?:요금제|플랜)");
+
+	/** "음성통화 없이 데이터만 쓰는 요금제"처럼 통화가 없는 데이터 전용 요금제를 찾는 표현. */
+	private static final Pattern VOICE_ABSENT_DATA_ONLY = Pattern.compile("(?:음성\\s*통화|통화|음성|전화)\\s*없이\\s*데이터만");
 
 	/** "이하/이내/까지"에 더해 "안 넘는/못 넘는/넘지 않는"도 상한이다("넘는"만 보면 초과로 잘못 읽는다). */
 	private static final Pattern BOUND_MAX = Pattern.compile(
@@ -91,6 +121,7 @@ public final class PlanQueryConditionExtractor {
 
 		Range fee = extractFee(query);
 		Range data = extractData(query);
+		Policies policies = extractPolicies(query);
 
 		return new PlanQueryConditions(
 				fee == null || fee.min() == null ? null : fee.min().intValue(),
@@ -98,7 +129,9 @@ public final class PlanQueryConditionExtractor {
 				data == null ? null : data.min(),
 				data == null ? null : data.max(),
 				extractTargetGroup(query),
-				extractDataPolicy(query));
+				policies.data(),
+				policies.voice(),
+				policies.sms());
 	}
 
 	/** 금액이 정확히 하나일 때만 조건으로 삼는다(두 개 이상이면 "3만원에서 5만원 사이"처럼 해석이 모호). */
@@ -240,24 +273,96 @@ public final class PlanQueryConditionExtractor {
 		return groups.size() == 1 ? groups.iterator().next() : null;
 	}
 
+	/** 무제한·불가 표현이 가리키는 대상. */
+	private enum PolicyTarget { DATA, VOICE, SMS }
+
+	/** 데이터·통화·문자 정책 조건. 읽지 못한 항목은 null. */
+	private record Policies(String data, String voice, String sms) {
+	}
+
 	/**
-	 * "무제한 아니고/빼고/말고"는 LIMITED, 그냥 "무제한"은 UNLIMITED. 다만 통화·문자를 함께 언급하면
-	 * "통화 무제한"처럼 데이터가 아닌 음성/문자 무제한을 뜻할 수 있어 데이터 조건으로 삼지 않는다.
+	 * 데이터·통화·문자 정책을 읽는다.
+	 *
+	 * <p>"무제한"(또는 "마음껏")이 무엇에 붙는지는 표현 바로 앞의 명사 연쇄로 정한다("통화랑 문자 무제한"은 통화·문자, "통화도 데이터도
+	 * 무제한"은 통화·데이터). 앞에 명사가 없으면 뒤의 명사("무제한 통화")를 보고, 그것도 없으면 데이터로 본다("무제한 요금제"는 데이터
+	 * 무제한). 예전에는 질문에 통화·문자 단어가 있으면 데이터 무제한을 통째로 포기했는데, 이제는 무제한 표현마다 대상을 따로 정한다.
+	 *
+	 * <p>"무제한 아니고/빼고/말고"는 데이터면 LIMITED다. 통화·문자의 부정("통화 무제한 아닌")은 값이 LIMITED와 NONE을 함께 뜻해서 읽지
+	 * 않는다. 통화·문자가 안 되는 요금제를 찾는 질문("문자 안 되는 요금제", "음성통화 없이 데이터만")은 NONE으로 읽는다.
 	 */
-	private static String extractDataPolicy(String query) {
-		// "데이터 걱정 없이", "마음껏"처럼 "무제한"이라는 단어 없이 같은 뜻을 말하는 표현.
-		if (UNLIMITED_PARAPHRASE.matcher(query).find() && !query.contains("무제한")) {
-			return "UNLIMITED";
+	private static Policies extractPolicies(String query) {
+		String data = null;
+		String voice = null;
+		String sms = null;
+
+		Matcher expression = UNLIMITED_EXPRESSION.matcher(query);
+		while (expression.find()) {
+			boolean negated = expression.group().equals("무제한")
+					&& UNLIMITED_NEGATED.matcher(query).region(expression.start(), query.length()).lookingAt();
+			for (PolicyTarget target : unlimitedTargets(query, expression)) {
+				switch (target) {
+					case DATA -> data = negated || "LIMITED".equals(data) ? "LIMITED" : "UNLIMITED";
+					case VOICE -> voice = negated ? voice : "UNLIMITED";
+					case SMS -> sms = negated ? sms : "UNLIMITED";
+				}
+			}
 		}
-		if (!query.contains("무제한")) {
-			return null;
+
+		Matcher absent = ABSENT_MODIFIER.matcher(query);
+		while (absent.find()) {
+			for (PolicyTarget target : nounChainBefore(query.substring(0, absent.start()))) {
+				if (target == PolicyTarget.VOICE && voice == null) {
+					voice = "NONE";
+				} else if (target == PolicyTarget.SMS && sms == null) {
+					sms = "NONE";
+				}
+			}
 		}
-		if (UNLIMITED_NEGATED.matcher(query).find()) {
-			return "LIMITED";
+		if (voice == null && VOICE_ABSENT_DATA_ONLY.matcher(query).find()) {
+			voice = "NONE";
 		}
-		if (VOICE_OR_SMS.matcher(query).find()) {
-			return null;
+		return new Policies(data, voice, sms);
+	}
+
+	/** 무제한 표현 하나가 가리키는 대상들. 앞의 명사 연쇄 → 뒤의 명사 → 데이터 순으로 정한다. */
+	private static Set<PolicyTarget> unlimitedTargets(String query, Matcher expression) {
+		if (expression.group().startsWith("데이터")) {
+			return EnumSet.of(PolicyTarget.DATA);
 		}
-		return "UNLIMITED";
+		Set<PolicyTarget> before = nounChainBefore(query.substring(0, expression.start()));
+		if (!before.isEmpty()) {
+			return before;
+		}
+		String tail = query.substring(expression.end(), Math.min(query.length(), expression.end() + 6));
+		Matcher after = NOUN_RIGHT_AFTER.matcher(tail);
+		if (after.find()) {
+			return EnumSet.of(targetOf(after.group(1)));
+		}
+		return EnumSet.of(PolicyTarget.DATA);
+	}
+
+	/** 주어진 앞부분의 끝에 이어진 명사 연쇄가 가리키는 대상들. 연쇄가 없으면 빈 집합. */
+	private static Set<PolicyTarget> nounChainBefore(String prefix) {
+		Set<PolicyTarget> targets = EnumSet.noneOf(PolicyTarget.class);
+		Matcher chain = NOUN_CHAIN_BEFORE.matcher(prefix);
+		if (!chain.find()) {
+			return targets;
+		}
+		Matcher noun = POLICY_NOUN_PATTERN.matcher(chain.group());
+		while (noun.find()) {
+			targets.add(targetOf(noun.group()));
+		}
+		return targets;
+	}
+
+	private static PolicyTarget targetOf(String noun) {
+		String compact = noun.replaceAll("\\s+", "");
+		if (compact.equals("데이터")) {
+			return PolicyTarget.DATA;
+		}
+		if (compact.startsWith("문자") || compact.equalsIgnoreCase("SMS")) {
+			return PolicyTarget.SMS;
+		}
+		return PolicyTarget.VOICE;
 	}
 }

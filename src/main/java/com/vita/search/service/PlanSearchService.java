@@ -148,11 +148,20 @@ public class PlanSearchService {
 				.collect(Collectors.toSet());
 	}
 
-	/** 모든 조건을 만족하는 요금제를 찾고, 없으면 무제한 여부 조건만 빼고 한 번 더 찾는다. */
+	/**
+	 * 모든 조건을 만족하는 요금제를 찾고, 없으면 덜 확실한 조건부터 하나씩 포기하며 다시 찾는다. 먼저 데이터 무제한 여부를 빼고,
+	 * 그래도 없으면 통화·문자 정책까지 뺀다("키즈 요금제 통화 무제한 있어?"는 키즈 요금제를 대안으로 돌려준다).
+	 */
 	private Set<String> findMatching(PlanQueryConditions conditions) {
 		Set<String> matched = planLookupRepository.findPlanCodesByConditions(conditions);
 		if (matched.isEmpty() && conditions.dataPolicy() != null) {
 			PlanQueryConditions relaxed = conditions.withoutDataPolicy();
+			if (!relaxed.isEmpty()) {
+				matched = planLookupRepository.findPlanCodesByConditions(relaxed);
+			}
+		}
+		if (matched.isEmpty() && (conditions.voicePolicy() != null || conditions.smsPolicy() != null)) {
+			PlanQueryConditions relaxed = conditions.withoutDataPolicy().withoutVoiceSmsPolicy();
 			if (!relaxed.isEmpty()) {
 				matched = planLookupRepository.findPlanCodesByConditions(relaxed);
 			}

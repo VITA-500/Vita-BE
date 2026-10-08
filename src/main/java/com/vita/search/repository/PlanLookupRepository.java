@@ -142,6 +142,14 @@ public class PlanLookupRepository {
 			sql.append(" AND data_policy = ?");
 			params.add(conditions.dataPolicy());
 		}
+		if (conditions.voicePolicy() != null) {
+			sql.append(" AND voice_policy = ?");
+			params.add(conditions.voicePolicy());
+		}
+		if (conditions.smsPolicy() != null) {
+			sql.append(" AND sms_policy = ?");
+			params.add(conditions.smsPolicy());
+		}
 
 		return new HashSet<>(jdbcTemplate.queryForList(sql.toString(), String.class, params.toArray()));
 	}

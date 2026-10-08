@@ -151,6 +151,112 @@ class PlanQueryConditionExtractorTest {
 	}
 
 	@Test
+	void treatsDataWorryFreeWithEitherEndingAsUnlimited() {
+		assertThat(extract("데이터 걱정 없는 요금제 추천해줘").dataPolicy()).isEqualTo("UNLIMITED");
+	}
+
+	@Test
+	void extractsVoiceAndSmsUnlimitedSeparatelyFromData() {
+		PlanQueryConditions voice = extract("통화 무제한 요금제");
+		assertThat(voice.voicePolicy()).isEqualTo("UNLIMITED");
+		assertThat(voice.smsPolicy()).isNull();
+		assertThat(voice.dataPolicy()).isNull();
+
+		PlanQueryConditions sms = extract("문자 무제한 되는 요금제");
+		assertThat(sms.smsPolicy()).isEqualTo("UNLIMITED");
+		assertThat(sms.voicePolicy()).isNull();
+		assertThat(sms.dataPolicy()).isNull();
+
+		assertThat(extract("음성통화 무제한 요금제").voicePolicy()).isEqualTo("UNLIMITED");
+		assertThat(extract("SMS 무제한 요금제 있어?").smsPolicy()).isEqualTo("UNLIMITED");
+	}
+
+	@Test
+	void readsEveryNounOfAnUnlimitedChain() {
+		for (String query : java.util.List.of("통화랑 문자 무제한인 요금제 있어?", "통화, 문자 무제한 요금제", "통화 문자 무제한 요금제 알려줘",
+				"통화·문자 무제한 요금제", "통화와 문자 무제한 요금제")) {
+			PlanQueryConditions c = extract(query);
+			assertThat(c.voicePolicy()).as(query).isEqualTo("UNLIMITED");
+			assertThat(c.smsPolicy()).as(query).isEqualTo("UNLIMITED");
+			assertThat(c.dataPolicy()).as(query).isNull();
+		}
+	}
+
+	@Test
+	void givesEachUnlimitedExpressionItsOwnTarget() {
+		PlanQueryConditions voiceAndData = extract("통화도 데이터도 무제한인 요금제");
+		assertThat(voiceAndData.voicePolicy()).isEqualTo("UNLIMITED");
+		assertThat(voiceAndData.dataPolicy()).isEqualTo("UNLIMITED");
+		assertThat(voiceAndData.smsPolicy()).isNull();
+
+		PlanQueryConditions separate = extract("데이터 무제한이고 통화도 무제한인 요금제");
+		assertThat(separate.dataPolicy()).isEqualTo("UNLIMITED");
+		assertThat(separate.voicePolicy()).isEqualTo("UNLIMITED");
+
+		// 변환된 요금제용 질문 형태: 줄마다 무제한 표현이 따로 붙는다.
+		PlanQueryConditions labeled = extract("조건: 통화 무제한, 문자 무제한\n핵심 키워드: 통화 무제한, 문자 무제한, 요금제");
+		assertThat(labeled.voicePolicy()).isEqualTo("UNLIMITED");
+		assertThat(labeled.smsPolicy()).isEqualTo("UNLIMITED");
+		assertThat(labeled.dataPolicy()).isNull();
+
+		// 통화 무제한과 데이터량을 함께 말해도 데이터량은 그대로 읽고, 무제한은 통화에만 붙는다.
+		PlanQueryConditions withAmount = extract("통화 무제한이면서 데이터 20기가 요금제");
+		assertThat(withAmount.voicePolicy()).isEqualTo("UNLIMITED");
+		assertThat(withAmount.dataPolicy()).isNull();
+		assertThat(withAmount.dataMbMin()).isEqualTo(20_480L);
+	}
+
+	@Test
+	void readsMaeumkkeutBySubjectAndKeepsPlainOnesAsDataUnlimited() {
+		PlanQueryConditions callsAndTexts = extract("통화와 문자를 마음껏 쓸 수 있는 요금제가 뭐예요?");
+		assertThat(callsAndTexts.voicePolicy()).isEqualTo("UNLIMITED");
+		assertThat(callsAndTexts.smsPolicy()).isEqualTo("UNLIMITED");
+		assertThat(callsAndTexts.dataPolicy()).isNull();
+
+		assertThat(extract("데이터 마음껏 쓰는 요금제").dataPolicy()).isEqualTo("UNLIMITED");
+		assertThat(extract("맘껏 쓸 수 있는 요금제 있어?").dataPolicy()).isEqualTo("UNLIMITED");
+		assertThat(extract("무제한 요금제 있어?").dataPolicy()).isEqualTo("UNLIMITED");
+	}
+
+	@Test
+	void readsTheNounAfterAnUnlimitedExpressionOnlyWhenNothingPrecedesIt() {
+		PlanQueryConditions c = extract("무제한 통화 되는 요금제");
+
+		assertThat(c.voicePolicy()).isEqualTo("UNLIMITED");
+		assertThat(c.dataPolicy()).isNull();
+	}
+
+	@Test
+	void doesNotReadANegatedVoiceOrSmsUnlimited() {
+		PlanQueryConditions c = extract("통화 무제한 아닌 요금제 있어?");
+
+		assertThat(c.voicePolicy()).isNull();
+		assertThat(c.dataPolicy()).isNull();
+	}
+
+	@Test
+	void extractsPlansWhereVoiceOrSmsIsNotAvailable() {
+		assertThat(extract("문자 안 되는 요금제는 뭐야?").smsPolicy()).isEqualTo("NONE");
+		assertThat(extract("통화가 없는 요금제 알려줘").voicePolicy()).isEqualTo("NONE");
+		assertThat(extract("음성통화 없이 데이터만 제공하는 요금제가 있나요?").voicePolicy()).isEqualTo("NONE");
+
+		PlanQueryConditions both = extract("통화 문자 안 되는 요금제 있어?");
+		assertThat(both.voicePolicy()).isEqualTo("NONE");
+		assertThat(both.smsPolicy()).isEqualTo("NONE");
+	}
+
+	@Test
+	void ignoresTroubleReportsAndPhrasesThatAreNotVoiceOrSmsConditions() {
+		// 장애 문의는 "안 돼요"로 끝난다. 이것을 NONE으로 읽으면 워치·태블릿 요금제가 나오는 오탐이 된다.
+		assertThat(extract("요금제 바꿨는데 통화가 안 돼요").voicePolicy()).isNull();
+		assertThat(extract("요금제 변경 후 문자가 안 와요").smsPolicy()).isNull();
+		assertThat(extract("요금제 변경 후 통화가 안 되는 곳이 있어요").voicePolicy()).isNull();
+		assertThat(extract("고객센터 전화번호 알려주는 요금제 상담").voicePolicy()).isNull();
+		assertThat(extract("전화 상담 가능한 요금제 있어?").voicePolicy()).isNull();
+		assertThat(extract("통화 품질 좋은 요금제 추천해줘").voicePolicy()).isNull();
+	}
+
+	@Test
 	void combinesConditions() {
 		PlanQueryConditions c = extract("3만5천원짜리 청년 요금제 있어?");
 

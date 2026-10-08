@@ -41,6 +41,43 @@ class PlanQueryConditionsTest {
 		assertThat(empty.orElse(empty).isEmpty()).isTrue();
 	}
 
+	private static PlanQueryConditions withVoiceSms(String voice, String sms) {
+		return new PlanQueryConditions(null, null, null, null, null, null, voice, sms);
+	}
+
+	@Test
+	void isNotEmptyWhenOnlyAVoiceOrSmsPolicyIsSet() {
+		assertThat(withVoiceSms("UNLIMITED", null).isEmpty()).isFalse();
+		assertThat(withVoiceSms(null, "NONE").isEmpty()).isFalse();
+		assertThat(withVoiceSms(null, null).isEmpty()).isTrue();
+	}
+
+	@Test
+	void fillsVoiceAndSmsPoliciesSeparatelyAndKeepsTheOwnOnes() {
+		PlanQueryConditions original = withVoiceSms("UNLIMITED", null);
+		PlanQueryConditions fallback = withVoiceSms("NONE", "UNLIMITED");
+
+		PlanQueryConditions merged = original.orElse(fallback);
+
+		assertThat(merged.voicePolicy()).isEqualTo("UNLIMITED");
+		assertThat(merged.smsPolicy()).isEqualTo("UNLIMITED");
+	}
+
+	@Test
+	void dropsOnlyTheVoiceAndSmsPoliciesWhenRelaxing() {
+		PlanQueryConditions all = new PlanQueryConditions(null, 50_000, null, null, "YOUTH", "UNLIMITED", "UNLIMITED", "UNLIMITED");
+
+		PlanQueryConditions relaxed = all.withoutVoiceSmsPolicy();
+
+		assertThat(relaxed.voicePolicy()).isNull();
+		assertThat(relaxed.smsPolicy()).isNull();
+		assertThat(relaxed.feeMax()).isEqualTo(50_000);
+		assertThat(relaxed.targetGroup()).isEqualTo("YOUTH");
+		assertThat(relaxed.dataPolicy()).isEqualTo("UNLIMITED");
+		// 데이터 정책만 빼는 쪽은 통화·문자 정책을 그대로 둔다.
+		assertThat(all.withoutDataPolicy().voicePolicy()).isEqualTo("UNLIMITED");
+	}
+
 	@Test
 	void keepsTheOwnConditionsWhenTheFallbackAddsNothing() {
 		PlanQueryConditions own = of(30_000, 39_999, null, null, "GENERAL", "UNLIMITED");

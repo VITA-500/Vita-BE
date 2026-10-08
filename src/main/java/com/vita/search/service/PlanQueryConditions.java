@@ -11,6 +11,8 @@ package com.vita.search.service;
  * @param dataMbMax  기본 데이터 상한(MB). 값이 있으면 무제한 요금제는 조건에서 빠진다.
  * @param targetGroup 대상 그룹(plans.target_group 값: GENERAL/YOUTH/SENIOR/KIDS/WATCH/TABLET)
  * @param dataPolicy 데이터 정책(plans.data_policy 값: LIMITED/UNLIMITED)
+ * @param voicePolicy 통화 정책(plans.voice_policy 값). "통화 무제한"은 UNLIMITED, "통화가 안 되는 요금제"는 NONE
+ * @param smsPolicy  문자 정책(plans.sms_policy 값). "문자 무제한"은 UNLIMITED, "문자가 안 되는 요금제"는 NONE
  */
 public record PlanQueryConditions(
 		Integer feeMin,
@@ -18,12 +20,20 @@ public record PlanQueryConditions(
 		Long dataMbMin,
 		Long dataMbMax,
 		String targetGroup,
-		String dataPolicy) {
+		String dataPolicy,
+		String voicePolicy,
+		String smsPolicy) {
+
+	/** 통화·문자 정책 없이 만든다(통화·문자 조건을 추가하기 전부터 쓰던 생성 방식). */
+	public PlanQueryConditions(Integer feeMin, Integer feeMax, Long dataMbMin, Long dataMbMax, String targetGroup,
+			String dataPolicy) {
+		this(feeMin, feeMax, dataMbMin, dataMbMax, targetGroup, dataPolicy, null, null);
+	}
 
 	/** 추출된 조건이 하나도 없는지. */
 	public boolean isEmpty() {
 		return feeMin == null && feeMax == null && dataMbMin == null && dataMbMax == null
-				&& targetGroup == null && dataPolicy == null;
+				&& targetGroup == null && dataPolicy == null && voicePolicy == null && smsPolicy == null;
 	}
 
 	/**
@@ -44,7 +54,9 @@ public record PlanQueryConditions(
 				ownData ? dataMbMin : other.dataMbMin,
 				ownData ? dataMbMax : other.dataMbMax,
 				targetGroup != null ? targetGroup : other.targetGroup,
-				dataPolicy != null ? dataPolicy : other.dataPolicy);
+				dataPolicy != null ? dataPolicy : other.dataPolicy,
+				voicePolicy != null ? voicePolicy : other.voicePolicy,
+				smsPolicy != null ? smsPolicy : other.smsPolicy);
 	}
 
 	/**
@@ -52,6 +64,14 @@ public record PlanQueryConditions(
 	 * 가장 덜 확실한 조건(무제한 여부)을 포기하고 다시 찾기 위해 쓴다.
 	 */
 	public PlanQueryConditions withoutDataPolicy() {
-		return new PlanQueryConditions(feeMin, feeMax, dataMbMin, dataMbMax, targetGroup, null);
+		return new PlanQueryConditions(feeMin, feeMax, dataMbMin, dataMbMax, targetGroup, null, voicePolicy, smsPolicy);
+	}
+
+	/**
+	 * 통화·문자 정책 조건만 뺀 사본. "키즈 요금제 통화 무제한 있어?"처럼 조건을 모두 만족하는 요금제가 없을 때, 데이터 무제한 여부를
+	 * 포기한 뒤에도 일치가 없으면 통화·문자 조건까지 포기하고 가까운 요금제(키즈 요금제)를 찾기 위해 쓴다.
+	 */
+	public PlanQueryConditions withoutVoiceSmsPolicy() {
+		return new PlanQueryConditions(feeMin, feeMax, dataMbMin, dataMbMax, targetGroup, dataPolicy, null, null);
 	}
 }

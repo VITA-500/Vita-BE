@@ -40,11 +40,7 @@ class PlanConditionExtractionEvalTest {
 	record EvalCase(String id, String category, String query, Map<String, Object> expect, boolean fuzzy, String note) {
 	}
 
-	/**
-	 * 조건 항목 8개. 추출기 결과에서 값을 꺼내는 방법을 함께 둔다. 통화·문자 정책(VOICE_POLICY, SMS_POLICY)은 plans.voice_policy,
-	 * plans.sms_policy와 비교하는 조건("통화 무제한" 등, 검수에서 확정)인데 추출기가 아직 읽지 못해 항상 비어 있다. 추출기가
-	 * 이 조건을 지원하면 {@link #valueOf}가 실제 값을 돌려주게 고친다.
-	 */
+	/** 조건 항목 8개. 추출기 결과에서 값을 꺼내는 방법을 함께 둔다. 통화·문자 정책은 plans.voice_policy, plans.sms_policy와 비교하는 조건이다. */
 	private enum Field {
 		FEE_MIN("feeMin", "금액"), FEE_MAX("feeMax", "금액"), DATA_MB_MIN("dataMbMin", "데이터량"),
 		DATA_MB_MAX("dataMbMax", "데이터량"), TARGET_GROUP("targetGroup", "대상"), DATA_POLICY("dataPolicy", "무제한"),
@@ -67,7 +63,8 @@ class PlanConditionExtractionEvalTest {
 				case DATA_MB_MAX -> c.dataMbMax();
 				case TARGET_GROUP -> c.targetGroup();
 				case DATA_POLICY -> c.dataPolicy();
-				case VOICE_POLICY, SMS_POLICY -> null; // 추출기가 아직 읽지 않는 조건
+				case VOICE_POLICY -> c.voicePolicy();
+				case SMS_POLICY -> c.smsPolicy();
 			};
 		}
 	}
@@ -80,7 +77,7 @@ class PlanConditionExtractionEvalTest {
 	 * 추출기가 나빠진 것이다.
 	 * 추출기를 개선해 점수가 오르면 이 값을 새 점수로 올려서 그 이상을 지키게 한다.
 	 */
-	private static final int BASELINE_EXACT_CASES = 86;
+	private static final int BASELINE_EXACT_CASES = 94;
 
 	private static final Set<String> GROUPS = Set.of("GENERAL", "YOUTH", "SENIOR", "KIDS", "WATCH", "TABLET");
 	private static final Set<String> POLICIES = Set.of("LIMITED", "UNLIMITED");
