@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
 import com.vita.chat.client.BedrockChatClient;
+import com.vita.chat.dto.CompletionResult;
 import com.vita.search.dto.PlanReference;
 import com.vita.search.service.PlanLookupService;
 import com.vita.search.service.PlanSortKey;
@@ -93,15 +94,19 @@ public class LlmQuestionTranslator implements QuestionTranslator {
         log.info("질문 번역 시작 - original={}, planNameCount={}", question, planNames.size());
 
         long start = System.nanoTime();
-        String raw;
+        CompletionResult completion;
         try {
-            raw = chatClient.complete(buildSystemPrompt(planNames), buildUserPrompt(question));
+            completion = chatClient.completeWithUsage(buildSystemPrompt(planNames), buildUserPrompt(question));
         } catch (Exception e) {
-            log.warn("질문 번역 LLM 호출 실패: {}", e.toString());
+            long failedMs = (System.nanoTime() - start) / 1_000_000;
+            log.warn("질문 번역 LLM 호출 실패 (elapsedMs={}): {}", failedMs, e.toString());
             return fallback(question, "llm error: " + e.getClass().getSimpleName());
         }
         long elapsedMs = (System.nanoTime() - start) / 1_000_000;
-        log.info("질문 번역 LLM 응답 ({}ms) - raw={}", elapsedMs, raw);
+        String raw = completion.text();
+        log.info("질문 번역 LLM 응답 - elapsedMs={}, promptTokens={}, completionTokens={}, totalTokens={}, raw={}",
+                elapsedMs, tokenText(completion.promptTokens()), tokenText(completion.completionTokens()),
+                tokenText(completion.totalTokens()), raw);
 
         String translated = clean(raw);
         String violation = validate(question, translated, planNames);
@@ -249,6 +254,11 @@ public class LlmQuestionTranslator implements QuestionTranslator {
             s = s.substring(1, s.length() - 1).strip();
         }
         return s;
+    }
+
+    /** 토큰 수가 없으면(모델이 usage를 안 주는 경우) 0이 아니라 "n/a"로 찍어 구분한다 */
+    private static String tokenText(Long tokens) {
+        return tokens == null ? "n/a" : String.valueOf(tokens);
     }
 
     private TranslationOutcome fallback(String original, String reason) {

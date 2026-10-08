@@ -6,6 +6,9 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.stereotype.Component;
+
+import com.vita.chat.dto.CompletionResult;
+
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -29,18 +32,43 @@ public class BedrockChatClient {
         return call(systemPrompt, userPrompt);
     }
 
+    /** {@link #complete}와 같은 호출이지만 응답 텍스트와 함께 토큰 사용량을 돌려준다. */
+    public CompletionResult completeWithUsage(String systemPrompt, String userPrompt) {
+        ChatResponse response = callForResponse(systemPrompt, userPrompt);
+        String text = extractText(response);
+
+        var usage = (response.getMetadata() == null) ? null : response.getMetadata().getUsage();
+        if (usage == null) {
+            return new CompletionResult(text, null, null, null);
+        }
+        return new CompletionResult(text,
+                toLong(usage.getPromptTokens()),
+                toLong(usage.getCompletionTokens()),
+                toLong(usage.getTotalTokens()));
+    }
+
     private String call(String systemPrompt, String userPrompt) {
-        ChatResponse response = chatClient.prompt()
+        return extractText(callForResponse(systemPrompt, userPrompt));
+    }
+
+    private ChatResponse callForResponse(String systemPrompt, String userPrompt) {
+        return chatClient.prompt()
                 .system(systemPrompt)
                 .user(userPrompt)
                 .call()
                 .chatResponse();
+    }
 
+    private static String extractText(ChatResponse response) {
         return response.getResults().stream()
                 .map(generation -> generation.getOutput().getText())
                 .filter(Objects::nonNull)
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("LLM 응답 내용이 없습니다."));
+    }
+
+    private static Long toLong(Number n) {
+        return n == null ? null : n.longValue();
     }
 
     private static final String SYSTEM_PROMPT = """
