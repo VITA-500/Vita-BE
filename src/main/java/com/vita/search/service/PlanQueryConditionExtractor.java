@@ -1,5 +1,7 @@
 package com.vita.search.service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -57,10 +59,36 @@ public final class PlanQueryConditionExtractor {
 	private static final Pattern KOREAN_FEE = Pattern.compile("(?:(\\d+)\\s*만)?\\s*(?:(\\d+)\\s*천)?\\s*원");
 
 	/** "31,000원", "31000원"처럼 숫자로만 쓴 금액. */
-	private static final Pattern DIGIT_FEE = Pattern.compile("(\\d{1,3}(?:,\\d{3})+|\\d{4,6})\\s*원");
+	private static final Pattern DIGIT_FEE = Pattern.compile("(?<![\\d,])(\\d{1,3}(?:,\\d{3})+|\\d{4,6})\\s*원");
 
 	/** "20기가", "20GB". 5G(네트워크)와 헷갈리지 않도록 단독 "G"는 받지 않고, 소수("1.5기가")는 제외한다. */
-	private static final Pattern DATA_AMOUNT = Pattern.compile("(?<![\\d.])(\\d+)\\s*(?:기가바이트|기가|GB|gb|Gb)");
+	private static final Pattern DATA_GB = Pattern.compile("(?<![\\d.])(\\d+(?:\\.\\d+)?)\\s*(?:기가바이트|기가|GB|gb|Gb)");
+
+	/** "500MB", "500메가". 요금제 기본 데이터는 보통 GB 단위지만 작은 데이터량도 MB로 말한다. */
+	private static final Pattern DATA_MB = Pattern.compile("(?<![\\d.])(\\d+)\\s*(?:메가바이트|메가|MB|mb|Mb)");
+
+	/**
+	 * "20G"처럼 G만 쓴 데이터량. 5G·4G·3G는 이동통신 세대라서 {@link #MAX_NETWORK_GENERATION} 이하는 데이터량으로 읽지 않는다.
+	 * 뒤에 알파벳이 붙으면("20GB", "10Gbps") 다른 단위라 제외한다.
+	 */
+	private static final Pattern DATA_G_ONLY = Pattern.compile("(?<![\\d.A-Za-z])(\\d+)\\s*G(?![A-Za-z])");
+
+	private static final int MAX_NETWORK_GENERATION = 5;
+
+	/**
+	 * 두 금액·데이터량을 범위로 잇는 말("3만원에서 5만원 사이", "3만원부터 5만원까지", "3만원~5만원"). 두 수치 사이에 이 말만 있을 때 범위로 읽는다.
+	 */
+	private static final Pattern RANGE_CONNECTOR = Pattern.compile("\\s*(?:에서부터|에서|부터|~|-|–)\\s*");
+
+	/**
+	 * "삼만오천원", "만오천원", "이십기가"처럼 한글 숫자로 쓴 금액·데이터량. 십·백·천·만 중 하나를 포함하고 바로 뒤에 원·기가·메가 같은 단위가 올 때만
+	 * 숫자로 바꾼다. "수천원", "몇만원"처럼 앞에 한글이 붙은 말은 정확한 값이 아니라서 바꾸지 않는다.
+	 */
+	private static final Pattern KOREAN_NUMERAL_BEFORE_UNIT = Pattern.compile(
+			"(?<![가-힣\\d.])((?:[일이삼사오육칠팔구]?[십백천만])+[일이삼사오육칠팔구]?)(?=\\s*(?:원|기가바이트|기가|GB|gb|Gb|메가바이트|메가|MB|mb|Mb))");
+
+	/** "3.5만원"처럼 소수에 만 단위가 붙은 금액. 그대로 두면 소수점 뒤의 "5만원"만 읽혀 5만원으로 잘못 읽는다. */
+	private static final Pattern DECIMAL_MAN = Pattern.compile("(?<![\\d.])(\\d+)\\.(\\d+)\\s*만(?=\\s*원)");
 
 	/** 무제한 부정("무제한 아니고", "무제한은 빼고", "무제한 말고" 등). */
 	private static final Pattern UNLIMITED_NEGATED = Pattern.compile(
@@ -101,16 +129,21 @@ public final class PlanQueryConditionExtractor {
 
 	/** "이하/이내/까지"에 더해 "안 넘는/못 넘는/넘지 않는"도 상한이다("넘는"만 보면 초과로 잘못 읽는다). */
 	private static final Pattern BOUND_MAX = Pattern.compile(
-			"^\\s*(?:이하|이내|아래|까지|안쪽|(?:안|못)\\s*넘|넘지\\s*(?:않|못))");
+			"^\\s*(?:이하|이내|아래|까지|안쪽|안으로|안에|밑|(?:안|못)\\s*넘|넘지\\s*(?:않|못)"
+					+ "|넘는\\s*(?:건|게|거|것)\\s*(?:은\\s*)?(?:좀\\s*)?(?:부담|싫|별로|곤란|무리|비싸))");
 	/** "3만원 정도/쯤/안팎"처럼 대략적인 값. 정확히 그 값인 요금제가 없어도 근처 요금제를 찾도록 범위로 바꾼다. */
-	private static final Pattern BOUND_APPROX = Pattern.compile("^\\s*(?:정도|쯤|안팎|내외|가량|언저리)");
-	private static final Pattern BOUND_MAX_EXCLUSIVE = Pattern.compile("^\\s*미만");
+	private static final Pattern BOUND_APPROX = Pattern.compile("^\\s*(?:정도|쯤|안팎|내외|가량|언저리|근처|근방|전후)");
+	/** "미만", "안 되는", "보다 싼/저렴한/적은": 그 값보다 작다. */
+	private static final Pattern BOUND_MAX_EXCLUSIVE = Pattern.compile(
+			"^\\s*(?:미만|안\\s*되는|안되는|보다\\s*(?:더\\s*)?(?:싼|싸|저렴|낮|적|작))");
 	private static final Pattern BOUND_MIN = Pattern.compile("^\\s*(?:이상|부터)");
-	private static final Pattern BOUND_MIN_EXCLUSIVE = Pattern.compile("^\\s*(?:초과|넘)");
+	/** "초과", "넘는", "보다 비싼/높은/많은": 그 값보다 크다. */
+	private static final Pattern BOUND_MIN_EXCLUSIVE = Pattern.compile(
+			"^\\s*(?:초과|넘|보다\\s*(?:더\\s*)?(?:비싼|비싸|높|많|큰|크))");
 	private static final Pattern BOUND_BAND = Pattern.compile("^\\s*대(?!신|해|비|체|여)");
 
 	/** 금액/데이터 수치 바로 뒤에 붙는 비교 표현을 볼 범위(글자 수). */
-	private static final int BOUND_LOOKAHEAD = 8;
+	private static final int BOUND_LOOKAHEAD = 14;
 
 	private static final int MB_PER_GB = 1024;
 	private static final int FEE_BAND_WIDTH = 9_999;
@@ -216,7 +249,7 @@ public final class PlanQueryConditionExtractor {
 		if (rawQuery == null) {
 			return new PlanQueryConditions(null, null, null, null, null, null);
 		}
-		String query = fixSpelling(rawQuery);
+		String query = normalizeNumbers(fixSpelling(rawQuery));
 		if (!PLAN_CONTEXT.matcher(query).find()) {
 			return new PlanQueryConditions(null, null, null, null, null, null);
 		}
@@ -248,11 +281,16 @@ public final class PlanQueryConditionExtractor {
 		return UNLIMITED_TYPO.matcher(fixed).replaceAll("무제한");
 	}
 
-	/** 금액이 정확히 하나일 때만 조건으로 삼는다(두 개 이상이면 "3만원에서 5만원 사이"처럼 해석이 모호). */
+	/** 금액·데이터량 수치 하나와 그 자리. 값은 금액이면 원, 데이터량이면 MB. */
+	private record AmountToken(long value, int start, int end) {
+	}
+
+	/**
+	 * 월 요금 조건을 읽는다. 금액이 하나면 뒤의 비교 표현으로 구간을 정하고("3만원 이하"), 둘이면 범위로 읽는다("3만원에서 5만원 사이",
+	 * "3만원 이상 5만원 이하"). 셋 이상이거나 범위로 읽을 수 없으면 해석이 모호해 읽지 않는다.
+	 */
 	private static Range extractFee(String query) {
-		Long amount = null;
-		int end = -1;
-		int count = 0;
+		List<AmountToken> tokens = new ArrayList<>();
 
 		Matcher digit = DIGIT_FEE.matcher(query);
 		while (digit.find()) {
@@ -260,9 +298,7 @@ public final class PlanQueryConditionExtractor {
 			if (isNonFilterAmount(query, digit.start(), digit.end(), FEE_NON_FILTER_BEFORE, FEE_NON_FILTER_AFTER)) {
 				continue;
 			}
-			count++;
-			amount = Long.parseLong(digit.group(1).replace(",", ""));
-			end = digit.end();
+			tokens.add(new AmountToken(Long.parseLong(digit.group(1).replace(",", "")), digit.start(), digit.end()));
 		}
 
 		Matcher korean = KOREAN_FEE.matcher(query);
@@ -277,17 +313,99 @@ public final class PlanQueryConditionExtractor {
 			if (isNonFilterAmount(query, korean.start(), korean.end(), FEE_NON_FILTER_BEFORE, FEE_NON_FILTER_AFTER)) {
 				continue;
 			}
-			count++;
 			long man = korean.group(1) == null ? 0 : Long.parseLong(korean.group(1));
 			long cheon = korean.group(2) == null ? 0 : Long.parseLong(korean.group(2));
-			amount = man * 10_000 + cheon * 1_000;
-			end = korean.end();
+			tokens.add(new AmountToken(man * 10_000 + cheon * 1_000, korean.start(), korean.end()));
 		}
+		return rangeOf(query, tokens, true);
+	}
 
-		if (count != 1) {
-			return null;
+	/**
+	 * 수치가 하나면 뒤의 비교 표현으로, 둘이면 범위로 구간을 정한다. 수치가 없거나 셋 이상이거나 범위로 읽을 수 없으면 null.
+	 *
+	 * @param isFee 금액이면 true(데이터량이면 false). "3만원대"는 금액에서만 의미가 있다.
+	 */
+	private static Range rangeOf(String query, List<AmountToken> found, boolean isFee) {
+		List<AmountToken> tokens = new ArrayList<>(found);
+		tokens.sort(Comparator.comparingInt(AmountToken::start));
+		if (tokens.size() == 1) {
+			AmountToken token = tokens.get(0);
+			return toRange(token.value(), boundAfter(query, token.end()), isFee);
 		}
-		return toRange(amount, boundAfter(query, end), true);
+		if (tokens.size() == 2) {
+			return combineTwo(query, tokens.get(0), tokens.get(1), isFee);
+		}
+		return null;
+	}
+
+	/**
+	 * 두 수치를 범위로 읽는다. 사이에 "에서/부터/~"만 있으면 작은 쪽부터 큰 쪽까지, 앞쪽이 "이상"이고 뒤쪽이 "이하"(또는 그 반대)이면 그 하한과
+	 * 상한을 잇는다. 그 밖의 조합("3만원 이하 5만원 이하")은 무엇을 뜻하는지 알 수 없어 null이다.
+	 */
+	private static Range combineTwo(String query, AmountToken first, AmountToken second, boolean isFee) {
+		String between = query.substring(first.end(), Math.max(first.end(), second.start()));
+		if (RANGE_CONNECTOR.matcher(between).matches()) {
+			return new Range(Math.min(first.value(), second.value()), Math.max(first.value(), second.value()));
+		}
+		Range a = toRange(first.value(), boundAfter(query, first.end()), isFee);
+		Range b = toRange(second.value(), boundAfter(query, second.end()), isFee);
+		if (a.min() != null && a.max() == null && b.min() == null && b.max() != null && a.min() <= b.max()) {
+			return new Range(a.min(), b.max());
+		}
+		if (b.min() != null && b.max() == null && a.min() == null && a.max() != null && b.min() <= a.max()) {
+			return new Range(b.min(), a.max());
+		}
+		return null;
+	}
+
+	/**
+	 * 한글 숫자와 소수 표기를 검색 조건으로 읽을 수 있는 숫자로 바꾼다. "삼만오천원"은 35000원, "이십기가"는 20기가, "3.5만원"은 35000원이 된다.
+	 * 바꾸지 않으면 "삼만오천원"은 읽히지 않고, "3.5만원"은 소수점 뒤의 5만원만 읽힌다.
+	 */
+	private static String normalizeNumbers(String query) {
+		Matcher numeral = KOREAN_NUMERAL_BEFORE_UNIT.matcher(query);
+		StringBuilder converted = new StringBuilder();
+		while (numeral.find()) {
+			numeral.appendReplacement(converted, Long.toString(koreanNumeralValue(numeral.group(1))));
+		}
+		numeral.appendTail(converted);
+
+		Matcher decimal = DECIMAL_MAN.matcher(converted);
+		StringBuilder result = new StringBuilder();
+		while (decimal.find()) {
+			long won = new BigDecimal(decimal.group(1) + "." + decimal.group(2))
+					.multiply(BigDecimal.valueOf(10_000)).setScale(0, RoundingMode.HALF_UP).longValue();
+			decimal.appendReplacement(result, Long.toString(won));
+		}
+		decimal.appendTail(result);
+		return result.toString();
+	}
+
+	/** "삼만오천"(35000), "만오천"(15000), "이십"(20)처럼 십·백·천·만으로 쓴 한글 숫자의 값. */
+	private static long koreanNumeralValue(String numeral) {
+		long total = 0;
+		long section = 0;
+		long digit = 0;
+		for (char c : numeral.toCharArray()) {
+			int value = "일이삼사오육칠팔구".indexOf(c) + 1;
+			if (value > 0) {
+				digit = value;
+				continue;
+			}
+			switch (c) {
+				case '십' -> section += (digit == 0 ? 1 : digit) * 10;
+				case '백' -> section += (digit == 0 ? 1 : digit) * 100;
+				case '천' -> section += (digit == 0 ? 1 : digit) * 1_000;
+				case '만' -> {
+					long part = section + digit;
+					total += (part == 0 ? 1 : part) * 10_000;
+					section = 0;
+				}
+				default -> { }
+			}
+			digit = 0;
+		}
+		return total + section + digit;
 	}
 
 	/** 금액·데이터량(start~end) 바로 앞이나 뒤에 월 요금·기본 데이터가 아님을 알려 주는 말이 있는지. */
@@ -307,25 +425,40 @@ public final class PlanQueryConditionExtractor {
 		return false;
 	}
 
-	/** 데이터량이 정확히 하나일 때만 조건으로 삼는다. 단위는 GB → MB(1GB = 1024MB, plans.base_data_mb 기준). */
+	/**
+	 * 기본 데이터량 조건을 읽는다(1GB = 1024MB, plans.base_data_mb 기준). "20기가", "20GB", "20G", "1.5기가", "500MB"를 읽고, 수치가 둘이면
+	 * 금액과 같이 범위로 읽는다("20기가에서 30기가 사이"). 로밍·쿠폰·추가 데이터처럼 기본 데이터가 아닌 수치는 세지 않는다.
+	 */
 	private static Range extractData(String query) {
-		Matcher matcher = DATA_AMOUNT.matcher(query);
-		Long amountMb = null;
-		int end = -1;
-		int count = 0;
-		while (matcher.find()) {
-			// 로밍·쿠폰·추가 데이터처럼 요금제 기본 데이터가 아닌 데이터량은 세지 않는다.
-			if (isNonFilterAmount(query, matcher.start(), matcher.end(), DATA_NON_FILTER_BEFORE, DATA_NON_FILTER_AFTER)) {
+		List<AmountToken> tokens = new ArrayList<>();
+
+		Matcher gb = DATA_GB.matcher(query);
+		while (gb.find()) {
+			if (isNonFilterAmount(query, gb.start(), gb.end(), DATA_NON_FILTER_BEFORE, DATA_NON_FILTER_AFTER)) {
 				continue;
 			}
-			count++;
-			amountMb = Long.parseLong(matcher.group(1)) * MB_PER_GB;
-			end = matcher.end();
+			long mb = new BigDecimal(gb.group(1)).multiply(BigDecimal.valueOf(MB_PER_GB)).setScale(0, RoundingMode.HALF_UP).longValue();
+			tokens.add(new AmountToken(mb, gb.start(), gb.end()));
 		}
-		if (count != 1) {
-			return null;
+
+		Matcher mb = DATA_MB.matcher(query);
+		while (mb.find()) {
+			if (isNonFilterAmount(query, mb.start(), mb.end(), DATA_NON_FILTER_BEFORE, DATA_NON_FILTER_AFTER)) {
+				continue;
+			}
+			tokens.add(new AmountToken(Long.parseLong(mb.group(1)), mb.start(), mb.end()));
 		}
-		return toRange(amountMb, boundAfter(query, end), false);
+
+		Matcher g = DATA_G_ONLY.matcher(query);
+		while (g.find()) {
+			long generationOrGb = Long.parseLong(g.group(1));
+			if (generationOrGb <= MAX_NETWORK_GENERATION
+					|| isNonFilterAmount(query, g.start(), g.end(), DATA_NON_FILTER_BEFORE, DATA_NON_FILTER_AFTER)) {
+				continue;
+			}
+			tokens.add(new AmountToken(generationOrGb * MB_PER_GB, g.start(), g.end()));
+		}
+		return rangeOf(query, tokens, false);
 	}
 
 	private static Bound boundAfter(String query, int end) {

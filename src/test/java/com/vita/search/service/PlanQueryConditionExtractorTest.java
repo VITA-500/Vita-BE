@@ -49,11 +49,47 @@ class PlanQueryConditionExtractorTest {
 	}
 
 	@Test
-	void ignoresFeeWhenMoreThanOneAmountIsMentioned() {
-		PlanQueryConditions c = extract("3만원에서 5만원 사이 요금제 있어?");
+	void readsTwoAmountsAsARangeAndIgnoresAmbiguousOnes() {
+		PlanQueryConditions between = extract("3만원에서 5만원 사이 요금제 있어?");
+		assertThat(between.feeMin()).isEqualTo(30_000);
+		assertThat(between.feeMax()).isEqualTo(50_000);
 
-		assertThat(c.feeMin()).isNull();
-		assertThat(c.feeMax()).isNull();
+		PlanQueryConditions fromTo = extract("3만원부터 5만원까지 요금제");
+		assertThat(fromTo.feeMin()).isEqualTo(30_000);
+		assertThat(fromTo.feeMax()).isEqualTo(50_000);
+
+		PlanQueryConditions pair = extract("3만원 이상 5만원 이하 요금제");
+		assertThat(pair.feeMin()).isEqualTo(30_000);
+		assertThat(pair.feeMax()).isEqualTo(50_000);
+
+		// 두 금액이 어떤 관계인지 알 수 없거나 셋 이상이면 읽지 않는다.
+		PlanQueryConditions ambiguous = extract("3만원 이하 5만원 이하 요금제");
+		assertThat(ambiguous.feeMin()).isNull();
+		assertThat(ambiguous.feeMax()).isNull();
+		assertThat(extract("3만원 5만원 7만원 요금제").feeMax()).isNull();
+	}
+
+	@Test
+	void readsKoreanNumeralsAndDecimalAmounts() {
+		assertThat(extract("삼만오천원 요금제 알려줘").feeMax()).isEqualTo(35_000);
+		assertThat(extract("만오천원 이하 요금제").feeMax()).isEqualTo(15_000);
+		assertThat(extract("3.5만원 요금제 있어?").feeMin()).isEqualTo(35_000);
+		assertThat(extract("삼만원대 요금제").feeMax()).isEqualTo(39_999);
+		assertThat(extract("이십기가 요금제").dataMbMin()).isEqualTo(20_480);
+		// 정확한 값이 아닌 말은 숫자로 바꾸지 않는다.
+		assertThat(extract("수천원 요금제").feeMax()).isNull();
+	}
+
+	@Test
+	void readsDataUnitsAndComparisonPhrases() {
+		assertThat(extract("20G 요금제 있어?").dataMbMin()).isEqualTo(20_480);
+		assertThat(extract("1.5기가 요금제").dataMbMin()).isEqualTo(1_536);
+		assertThat(extract("500MB 요금제").dataMbMin()).isEqualTo(500);
+		assertThat(extract("3만원 밑으로 나오는 요금제").feeMax()).isEqualTo(30_000);
+		assertThat(extract("3만원 안 되는 요금제").feeMax()).isEqualTo(29_999);
+		assertThat(extract("3만원보다 비싼 요금제").feeMin()).isEqualTo(30_001);
+		assertThat(extract("3만원 근처 요금제").feeMin()).isEqualTo(27_000);
+		assertThat(extract("요금제는 5만원 넘는 건 부담돼요").feeMax()).isEqualTo(50_000);
 	}
 
 	@Test
