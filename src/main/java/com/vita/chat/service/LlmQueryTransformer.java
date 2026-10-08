@@ -40,7 +40,7 @@ public class LlmQueryTransformer implements QueryTransformer {
         this.systemPrompt = loadPrompt("prompts/query-transform.txt");
     }
 
-    @Value("${query-transform.enabled:true}")
+    @Value("${vita.experiment.query-transform:true}")
     private boolean enabled;
 
     /** 변환 결과만 필요한 호출자(서비스)용. 폴백 동작은 {@link #transformWithStatus}와 같다. */
