@@ -71,7 +71,7 @@ public class LlmQueryTransformer implements QueryTransformer {
                     <user_question>
                     %s
                     </user_question>
-                    """.formatted(history, question);
+                    """.formatted(history, PromptEscaper.escape(question));
 
             raw = bedrockChatClient.complete(systemPrompt, userPrompt);
         } catch (Exception e) {
