@@ -56,8 +56,22 @@
 - min_data_gb, max_data_gb: is_extreme이 true이고 데이터량 범위 조건이 있을 때만 GB 단위 숫자, 없으면 null. "10GB 이상" -> min 10. "5GB 이하" -> max 5.
 </analysis_format>
 
+<store_analysis>
+통신 매장 위치나 제휴 혜택(할인 매장)을 묻는 질문인지 판단한다.
+- store_type: 다음 중 하나
+  PHONE: 통신 매장(대리점, 판매점)의 위치, 영업시간, 상담 가능 여부를 묻는 질문. 예: "근처 매장 어디야", "로밍 상담 되는 곳"
+  PARTNER: 제휴 혜택이나 할인 받을 수 있는 가게를 묻는 질문. 예: "카페 할인 되는 곳", "루나빈 어디 있어", "제휴 혜택 뭐 있어"
+  NONE: 그 외 (요금제, 이용 안내, 인사 등). 매장 방문 예약 방법처럼 절차를 묻는 질문은 NONE이다.
+- benefit_category: PARTNER일 때 업종이 드러나면 카페, 아이스크림, 영화, 외식, 자동차, 쇼핑, 여가 중 하나. 없으면 null.
+- benefit_brand: PARTNER일 때 질문에 나온 브랜드나 가게 이름을 그대로. 없으면 null.
+- store_services: PHONE일 때 질문에 나온 서비스만 다음 값으로. 요금수납, 로밍상담, 분실·정지 신고, 휴대폰상담, 인터넷상담, 요금제변경, 주차 가능, 방문예약 가능. 없으면 [].
+- open_now: "지금 영업 중", "지금 문 연"처럼 현재 영업 조건이 있으면 true, 아니면 false.
+- open_at: "밤 11시에", "18시에 하는"처럼 특정 시각 조건이 있으면 24시간 "HH:mm". 시각이 분명하지 않으면 null.
+- store_type이 PHONE 또는 PARTNER이면 faq_query, plan_query는 질문에 FAQ나 요금제 내용이 함께 있을 때만 작성한다.
+</store_analysis>
+
 <output_format>
-{"faq_query": string|null, "plan_query": string|null, "is_extreme": boolean, "sort_key": string|null, "limit": number|null, "is_structured": boolean, "min_price_won": number|null, "max_price_won": number|null, "min_data_gb": number|null, "max_data_gb": number|null}
+{"faq_query": string|null, "plan_query": string|null, "is_extreme": boolean, "sort_key": string|null, "limit": number|null, "is_structured": boolean, "min_price_won": number|null, "max_price_won": number|null, "min_data_gb": number|null, "max_data_gb": number|null, "store_type": string, "benefit_category": string|null, "benefit_brand": string|null, "store_services": string[], "open_now": boolean, "open_at": string|null}
 </output_format>
 
 <examples>
@@ -84,4 +98,16 @@
 
 질문: 10GB 이상 중에 제일 싼 요금제 알려줘
 출력: {"faq_query": null, "plan_query": "데이터: 10GB 이상\n핵심 키워드: 10GB 이상 최저가 요금제", "is_extreme": true, "sort_key": "CHEAPEST", "limit": 1, "is_structured": true, "min_price_won": null, "max_price_won": null, "min_data_gb": 10, "max_data_gb": null}
+
+질문: 강남역 근처에 로밍 상담 되는 매장 있어?
+출력: {"faq_query": null, "plan_query": null, "is_extreme": false, "sort_key": null, "limit": null, "is_structured": false, "min_price_won": null, "max_price_won": null, "min_data_gb": null, "max_data_gb": null, "store_type": "PHONE", "benefit_category": null, "benefit_brand": null, "store_services": ["로밍상담"], "open_now": false, "open_at": null}
+
+질문: 지금 문 연 카페 중에 할인 되는 곳 알려줘
+출력: {"faq_query": null, "plan_query": null, "is_extreme": false, "sort_key": null, "limit": null, "is_structured": false, "min_price_won": null, "max_price_won": null, "min_data_gb": null, "max_data_gb": null, "store_type": "PARTNER", "benefit_category": "카페", "benefit_brand": null, "store_services": [], "open_now": true, "open_at": null}
+
+질문: 밤 11시에도 하는 루나빈 있어?
+출력: {"faq_query": null, "plan_query": null, "is_extreme": false, "sort_key": null, "limit": null, "is_structured": false, "min_price_won": null, "max_price_won": null, "min_data_gb": null, "max_data_gb": null, "store_type": "PARTNER", "benefit_category": null, "benefit_brand": "루나빈", "store_services": [], "open_now": false, "open_at": "23:00"}
+
+질문: 매장 방문 예약은 어떻게 해요?
+출력: {"faq_query": "질문: 매장 방문 예약은 어떻게 하나요?\n핵심 키워드: 매장, 방문 예약, 예약 방법", "plan_query": null, "is_extreme": false, "sort_key": null, "limit": null, "is_structured": false, "min_price_won": null, "max_price_won": null, "min_data_gb": null, "max_data_gb": null, "store_type": "NONE", "benefit_category": null, "benefit_brand": null, "store_services": [], "open_now": false, "open_at": null}
 </examples>

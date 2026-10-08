@@ -21,6 +21,7 @@ import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -45,6 +46,24 @@ public class BenefitService {
             benefits = benefits.stream().filter(benefit -> benefit.category().equals(target)).toList();
         }
         return new BenefitListResponse(benefits);
+    }
+
+    /**
+     * 브랜드명으로 혜택을 찾는다 (채팅에서 "루나빈 어디 있어?" 같은 질문용).
+     * 띄어쓰기와 대소문자는 무시하고 비교한다. 없으면 빈 값
+     */
+    public Optional<BenefitResponse> findByBrand(String brand){
+        if(brand == null || brand.isBlank()){
+            return Optional.empty();
+        }
+        String target = normalize(brand);
+        return benefitRepository.findAllWithStoreCount().stream()
+                .filter(benefit -> normalize(benefit.brand()).equals(target))
+                .findFirst();
+    }
+
+    private static String normalize(String text){
+        return text.replaceAll("\\s+", "").toLowerCase();
     }
 
     /**

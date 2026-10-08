@@ -3,22 +3,23 @@ package com.vita.chat.service;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.List;
 
+import com.vita.chat.dto.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vita.chat.client.BedrockChatClient;
-import com.vita.chat.dto.QueryTransformResult;
 import com.vita.search.pipeline.TransformInfo;
-import com.vita.chat.dto.PriceRange;
 
 import lombok.extern.slf4j.Slf4j;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.vita.chat.dto.PlanIntent;
 import com.vita.search.service.PlanSortKey;
-import com.vita.chat.dto.DataRange;
 
 /** 사용자 질문을 FAQ 검색용 / 요금제 검색용 쿼리로 변환한다. 실패하면 원문으로 폴백한다. */
 @Slf4j
@@ -105,18 +106,62 @@ public class LlmQueryTransformer implements QueryTransformer {
         boolean structured = node.path("is_structured").asBoolean(false);
         PriceRange priceRange = parsePriceRange(node);
         DataRange dataRange = parseDataRange(node);
+        StoreIntent storeIntent = parseStoreIntent(node);
 
-        // 둘 다 null이면 "무관"이 아니라 변환 실패일 수 있으니 원문으로 검색 (단, 극값 질문이면 그대로 진행)
-        if (faqQuery == null && planQuery == null && !intent.extreme()) {
+        // 둘 다 null이면 "무관"이 아니라 변환 실패일 수 있으니 원문으로 검색 (단, 극값 질문·매장 질문이면 그대로 진행)
+        if (faqQuery == null && planQuery == null && !intent.extreme() && storeIntent.isNone()) {
             return fallback(question, TransformInfo.REASON_BOTH_NULL);
         }
         TransformInfo info = (faqQuery == null || planQuery == null)
                 ? TransformInfo.partialNull(faqQuery == null, planQuery == null)
                 : TransformInfo.changed();
         return new TransformOutcome(
-                new QueryTransformResult(faqQuery, planQuery, intent, structured, priceRange, dataRange), info);
+                new QueryTransformResult(faqQuery, planQuery, intent, structured, priceRange, dataRange, storeIntent), info);
     }
-    
+
+    /** 매장 질문 정보 파싱. 잘못된 값이어도 쿼리 변환 결과는 살리고 "매장 질문 아님"으로만 처리한다. */
+    private static StoreIntent parseStoreIntent(JsonNode node) {
+        String typeText = textOrNull(node, "store_type");
+        if (typeText == null) {
+            return StoreIntent.none();
+        }
+        StoreIntent.Type type;
+        try {
+            type = StoreIntent.Type.valueOf(typeText);
+        } catch (IllegalArgumentException e) {
+            log.warn("store_type 파싱 실패, 매장 질문 아님으로 처리 - node={}", node);
+            return StoreIntent.none();
+        }
+        if (type == StoreIntent.Type.NONE) {
+            return StoreIntent.none();
+        }
+        List<String> services = new ArrayList<>();
+        node.path("store_services").forEach(service -> {
+            if (service.isTextual() && !service.asText().isBlank()) {
+                services.add(service.asText().trim());
+            }
+        });
+        return new StoreIntent(type,
+                blankToNull(textOrNull(node, "benefit_category")),
+                blankToNull(textOrNull(node, "benefit_brand")),
+                List.copyOf(services),
+                node.path("open_now").asBoolean(false),
+                parseTime(textOrNull(node, "open_at")));
+    }
+
+    /** "HH:mm" 시각. 형식이 틀리면 조건 없음(null)으로 처리한다. */
+    private static LocalTime parseTime(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalTime.parse(text.trim());
+        } catch (DateTimeParseException e) {
+            log.warn("open_at 파싱 실패, 시각 조건 없음으로 처리 - openAt={}", text);
+            return null;
+        }
+    }
+
     private static String textOrNull(JsonNode node, String field) {
         return node.hasNonNull(field) ? node.get(field).asText() : null;
     }

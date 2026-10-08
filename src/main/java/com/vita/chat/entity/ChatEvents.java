@@ -1,6 +1,7 @@
 package com.vita.chat.entity;
 
 import com.fasterxml.jackson.annotation.JsonValue;
+import com.vita.chat.dto.StoresPreview;
 
 /**
  * SSE 이벤트 이름과 payload 정의.
@@ -40,7 +41,7 @@ public final class ChatEvents {
     public record Delta(Long sessionId, Long messageId, String delta) {}
 
     /** 생성 완료. 최종 content와 구조화 필드(suggestedActions 등)는 여기에 추가 */
-    public record Done(Long sessionId, Long messageId, String content) {}
+    public record Done(Long sessionId, Long messageId, String content, StoresPreview storesPreview) {}
 
     public record Error(Long sessionId, Long messageId, String code, String message) {}
 }
