@@ -1,6 +1,7 @@
 package com.vita.search.pipeline;
 
 import com.vita.embedding.EmbeddingProvider;
+import com.vita.search.repository.PlanLookupRepository;
 import com.vita.search.service.PlanSearchService;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
@@ -8,9 +9,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 검색 파이프라인 빈을 만든다. 질문 변환기와 FAQ 검색기는 설정에 적은 빈 이름으로 고른다(기본은 변환 없음 + 한국어 벡터 검색).
+ * 검색 파이프라인 빈을 만든다. 질문 변환기, FAQ 검색기, 요금제 검색기는 설정에 적은 빈 이름으로 고른다(기본은 변환 없음 + 한국어 벡터 검색).
  * 다른 팀이 만든 구현체(영어 번역, 질문 재작성, 영어 컬럼·Hybrid 검색)는 {@code @Component("이름")}으로 등록한 뒤
- * {@code search.pipeline.query-transformer} / {@code search.pipeline.faq-retriever}에 그 이름을 적으면 서비스에 적용된다.
+ * {@code search.pipeline.query-transformer} / {@code search.pipeline.faq-retriever} / {@code search.pipeline.plan-retriever}에
+ * 그 이름을 적으면 서비스에 적용된다.
  */
 @Configuration
 public class RetrievalPipelineConfig {
@@ -28,6 +30,18 @@ public class RetrievalPipelineConfig {
 			@Value("${plan.retrieval.matched-limit:20}") int planMatchedLimit) {
 		return new RetrievalSettings(faqThreshold, planThreshold, irrelevantRuleEnabled, categoryBoostBonus, planTopK,
 				planMatchedLimit);
+	}
+
+	/**
+	 * 요금제 검색. 후보를 가져오는 방식은 {@code search.pipeline.plan-retriever}에 적은 빈 이름으로 고른다(기본은 벡터 검색).
+	 */
+	@Bean
+	public PlanSearchService planSearchService(
+			Map<String, PlanRetriever> planRetrievers,
+			PlanLookupRepository planLookupRepository,
+			@Value("${search.pipeline.plan-retriever:" + VectorPlanRetriever.BEAN_NAME + "}") String planRetrieverName) {
+		return new PlanSearchService(
+				pick(planRetrievers, planRetrieverName, "search.pipeline.plan-retriever"), planLookupRepository);
 	}
 
 	@Bean

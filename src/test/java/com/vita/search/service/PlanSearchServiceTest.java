@@ -4,10 +4,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.vita.search.dto.PlanSimilarityResult;
+import com.vita.search.pipeline.PlanRetriever;
+import com.vita.search.pipeline.RetrievalQuery;
+import com.vita.search.pipeline.VectorPlanRetriever;
 import com.vita.search.repository.PlanLookupRepository;
 import com.vita.search.repository.PlanVectorSearchRepository;
 import java.util.List;
@@ -27,7 +33,7 @@ class PlanSearchServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		service = new PlanSearchService(vectorRepository, lookupRepository);
+		service = new PlanSearchService(new VectorPlanRetriever(vectorRepository), lookupRepository);
 		when(lookupRepository.findTargetGroupByPlanCode()).thenReturn(Map.of(
 				"VITA-WATCH-1", "WATCH",
 				"VITA-TABLET-20", "TABLET",
@@ -46,6 +52,36 @@ class PlanSearchServiceTest {
 
 	private List<String> codes(PlanSearchService.PlanSearchOutcome outcome) {
 		return outcome.results().stream().map(PlanSimilarityResult::planCode).toList();
+	}
+
+	@Test
+	void asksTheRetrieverForThePlanQueryTextItsVectorAndTheFullCandidatePool() {
+		PlanRetriever retriever = mock(PlanRetriever.class);
+		when(retriever.retrieve(any(RetrievalQuery.class), anyInt())).thenReturn(List.of(plan("VITA-LITE-10", 31_000, 0.85)));
+		float[] vector = {0.1f};
+
+		new PlanSearchService(retriever, lookupRepository).search("요금제 추천해줘", "핵심 키워드: 요금제 추천", vector, TOP_K, 20);
+
+		// 후보를 가져올 때 요금제용 질문 텍스트와 그 벡터를 넘기고, 후보 풀은 50개다(요금제 15종이 전부 들어오는 크기).
+		verify(retriever).retrieve(new RetrievalQuery("핵심 키워드: 요금제 추천", vector), 50);
+	}
+
+	@Test
+	void withUsesTheGivenRetrieverAndLeavesTheOriginalServiceUntouched() {
+		PlanRetriever original = mock(PlanRetriever.class);
+		PlanRetriever swapped = mock(PlanRetriever.class);
+		when(original.retrieve(any(RetrievalQuery.class), anyInt())).thenReturn(List.of(plan("VITA-LITE-5", 25_000, 0.80)));
+		when(swapped.retrieve(any(RetrievalQuery.class), anyInt())).thenReturn(List.of(plan("VITA-LITE-10", 31_000, 0.85)));
+		PlanSearchService base = new PlanSearchService(original, lookupRepository);
+
+		PlanSearchService.PlanSearchOutcome fromSwapped = base.with(swapped).search("요금제 추천해줘", new float[] {0.1f}, TOP_K);
+		PlanSearchService.PlanSearchOutcome fromBase = base.search("요금제 추천해줘", new float[] {0.1f}, TOP_K);
+
+		assertThat(codes(fromSwapped)).containsExactly("VITA-LITE-10");
+		assertThat(codes(fromBase)).containsExactly("VITA-LITE-5");
+		// 바꿔 끼운 서비스는 새 검색기만, 원래 서비스는 원래 검색기만 한 번씩 부른다.
+		verify(swapped, times(1)).retrieve(any(RetrievalQuery.class), eq(50));
+		verify(original, times(1)).retrieve(any(RetrievalQuery.class), eq(50));
 	}
 
 	@Test
