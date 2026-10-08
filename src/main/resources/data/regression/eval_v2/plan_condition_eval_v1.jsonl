@@ -1,0 +1,144 @@
+{"id": "C001", "category": "금액 표기", "query": "3만5천원 요금제 알려줘", "expect": {"feeMin": 35000, "feeMax": 35000}, "fuzzy": false, "note": ""}
+{"id": "C002", "category": "금액 표기", "query": "35,000원 요금제 있어?", "expect": {"feeMin": 35000, "feeMax": 35000}, "fuzzy": false, "note": ""}
+{"id": "C003", "category": "금액 표기", "query": "35000원짜리 요금제 있나요", "expect": {"feeMin": 35000, "feeMax": 35000}, "fuzzy": false, "note": ""}
+{"id": "C004", "category": "금액 표기", "query": "3만 5천원 요금제", "expect": {"feeMin": 35000, "feeMax": 35000}, "fuzzy": false, "note": "숫자 사이 띄어쓰기"}
+{"id": "C005", "category": "금액 표기", "query": "3만5천 원 요금제", "expect": {"feeMin": 35000, "feeMax": 35000}, "fuzzy": false, "note": "원 앞 띄어쓰기"}
+{"id": "C006", "category": "금액 표기", "query": "삼만오천원 요금제 있어요?", "expect": {"feeMin": 35000, "feeMax": 35000}, "fuzzy": false, "note": "한글 숫자"}
+{"id": "C007", "category": "금액 표기", "query": "3.5만원 요금제 있어?", "expect": {"feeMin": 35000, "feeMax": 35000}, "fuzzy": false, "note": "소수 표기. 5만원으로 잘못 읽을 위험"}
+{"id": "C008", "category": "금액 표기", "query": "월 3만원 요금제", "expect": {"feeMin": 30000, "feeMax": 30000}, "fuzzy": false, "note": ""}
+{"id": "C009", "category": "금액 표기", "query": "5천원 요금제 있어?", "expect": {"feeMin": 5000, "feeMax": 5000}, "fuzzy": false, "note": ""}
+{"id": "C010", "category": "금액 표기", "query": "12,000원 요금제", "expect": {"feeMin": 12000, "feeMax": 12000}, "fuzzy": false, "note": ""}
+{"id": "C011", "category": "금액 표기", "query": "만오천원 요금제 있나요", "expect": {"feeMin": 15000, "feeMax": 15000}, "fuzzy": false, "note": "'만' 앞에 숫자 없음"}
+{"id": "C012", "category": "금액 표기", "query": "1만5천원 요금제 알려줘", "expect": {"feeMin": 15000, "feeMax": 15000}, "fuzzy": false, "note": ""}
+{"id": "C013", "category": "금액 범위", "query": "3만원대 요금제", "expect": {"feeMin": 30000, "feeMax": 39999}, "fuzzy": false, "note": ""}
+{"id": "C014", "category": "금액 범위", "query": "3만 원대 요금제", "expect": {"feeMin": 30000, "feeMax": 39999}, "fuzzy": false, "note": ""}
+{"id": "C015", "category": "금액 범위", "query": "삼만원대 요금제 있어요?", "expect": {"feeMin": 30000, "feeMax": 39999}, "fuzzy": false, "note": "한글 숫자"}
+{"id": "C016", "category": "금액 범위", "query": "3만원대요금제 알려줘", "expect": {"feeMin": 30000, "feeMax": 39999}, "fuzzy": false, "note": "띄어쓰기 없음"}
+{"id": "C017", "category": "금액 범위", "query": "3만원 이하 요금제", "expect": {"feeMax": 30000}, "fuzzy": false, "note": ""}
+{"id": "C018", "category": "금액 범위", "query": "3만원 이내 요금제", "expect": {"feeMax": 30000}, "fuzzy": false, "note": ""}
+{"id": "C019", "category": "금액 범위", "query": "3만원 아래로 되는 요금제", "expect": {"feeMax": 30000}, "fuzzy": false, "note": ""}
+{"id": "C020", "category": "금액 범위", "query": "3만원 밑으로 나오는 요금제", "expect": {"feeMax": 30000}, "fuzzy": false, "note": "'밑'"}
+{"id": "C021", "category": "금액 범위", "query": "3만원 안으로 해결되는 요금제", "expect": {"feeMax": 30000}, "fuzzy": false, "note": "'안으로'"}
+{"id": "C022", "category": "금액 범위", "query": "3만원 안 넘는 요금제", "expect": {"feeMax": 30000}, "fuzzy": false, "note": ""}
+{"id": "C023", "category": "금액 범위", "query": "3만원 넘지 않는 요금제", "expect": {"feeMax": 30000}, "fuzzy": false, "note": ""}
+{"id": "C024", "category": "금액 범위", "query": "3만원 미만 요금제", "expect": {"feeMax": 29999}, "fuzzy": false, "note": ""}
+{"id": "C025", "category": "금액 범위", "query": "3만원 안 되는 요금제", "expect": {"feeMax": 29999}, "fuzzy": false, "note": "'안 되는'"}
+{"id": "C026", "category": "금액 범위", "query": "3만원보다 싼 요금제", "expect": {"feeMax": 29999}, "fuzzy": false, "note": "'보다 싼'"}
+{"id": "C027", "category": "금액 범위", "query": "3만원 이상 요금제", "expect": {"feeMin": 30000}, "fuzzy": false, "note": ""}
+{"id": "C028", "category": "금액 범위", "query": "3만원부터 시작하는 요금제", "expect": {"feeMin": 30000}, "fuzzy": false, "note": ""}
+{"id": "C029", "category": "금액 범위", "query": "3만원 넘는 요금제", "expect": {"feeMin": 30001}, "fuzzy": false, "note": ""}
+{"id": "C030", "category": "금액 범위", "query": "3만원보다 비싼 요금제", "expect": {"feeMin": 30001}, "fuzzy": false, "note": "'보다 비싼'"}
+{"id": "C031", "category": "금액 범위", "query": "3만원 초과 요금제", "expect": {"feeMin": 30001}, "fuzzy": false, "note": ""}
+{"id": "C032", "category": "금액 범위", "query": "3만원 정도 하는 요금제", "expect": {"feeMin": 27000, "feeMax": 33000}, "fuzzy": false, "note": "대략(±10%)"}
+{"id": "C033", "category": "금액 범위", "query": "3만원쯤 하는 요금제", "expect": {"feeMin": 27000, "feeMax": 33000}, "fuzzy": false, "note": "대략(±10%)"}
+{"id": "C034", "category": "금액 범위", "query": "3만원 안팎 요금제", "expect": {"feeMin": 27000, "feeMax": 33000}, "fuzzy": false, "note": "대략(±10%)"}
+{"id": "C035", "category": "금액 범위", "query": "3만원 근처 요금제", "expect": {"feeMin": 27000, "feeMax": 33000}, "fuzzy": true, "note": "대략(±10%), '근처'"}
+{"id": "C036", "category": "금액 범위", "query": "3만원 언저리 요금제", "expect": {"feeMin": 27000, "feeMax": 33000}, "fuzzy": false, "note": "대략(±10%)"}
+{"id": "C037", "category": "금액 범위", "query": "3만원에서 5만원 사이 요금제", "expect": {"feeMin": 30000, "feeMax": 50000}, "fuzzy": false, "note": "두 금액 범위"}
+{"id": "C038", "category": "금액 범위", "query": "3만원부터 5만원까지 요금제", "expect": {"feeMin": 30000, "feeMax": 50000}, "fuzzy": false, "note": "두 금액 범위"}
+{"id": "C039", "category": "금액 범위", "query": "최대 3만원까지 쓸 수 있는 요금제", "expect": {"feeMax": 30000}, "fuzzy": false, "note": ""}
+{"id": "C040", "category": "금액 범위", "query": "월 4만원대 요금제 추천해줘", "expect": {"feeMin": 40000, "feeMax": 49999}, "fuzzy": false, "note": ""}
+{"id": "C041", "category": "데이터량", "query": "데이터 20기가 요금제", "expect": {"dataMbMin": 20480, "dataMbMax": 20480}, "fuzzy": false, "note": ""}
+{"id": "C042", "category": "데이터량", "query": "20 기가 요금제", "expect": {"dataMbMin": 20480, "dataMbMax": 20480}, "fuzzy": false, "note": "띄어쓰기"}
+{"id": "C043", "category": "데이터량", "query": "20GB 요금제", "expect": {"dataMbMin": 20480, "dataMbMax": 20480}, "fuzzy": false, "note": ""}
+{"id": "C044", "category": "데이터량", "query": "20gb 요금제 있어?", "expect": {"dataMbMin": 20480, "dataMbMax": 20480}, "fuzzy": false, "note": "소문자"}
+{"id": "C045", "category": "데이터량", "query": "20G 요금제 있어?", "expect": {"dataMbMin": 20480, "dataMbMax": 20480}, "fuzzy": false, "note": "G만 씀"}
+{"id": "C046", "category": "데이터량", "query": "20기가바이트 요금제", "expect": {"dataMbMin": 20480, "dataMbMax": 20480}, "fuzzy": false, "note": ""}
+{"id": "C047", "category": "데이터량", "query": "이십기가 요금제", "expect": {"dataMbMin": 20480, "dataMbMax": 20480}, "fuzzy": false, "note": "한글 숫자"}
+{"id": "C048", "category": "데이터량", "query": "500MB 요금제 있어?", "expect": {"dataMbMin": 500, "dataMbMax": 500}, "fuzzy": false, "note": "MB 단위"}
+{"id": "C049", "category": "데이터량", "query": "1.5기가 요금제", "expect": {"dataMbMin": 1536, "dataMbMax": 1536}, "fuzzy": false, "note": "소수"}
+{"id": "C050", "category": "데이터량", "query": "100기가 요금제", "expect": {"dataMbMin": 102400, "dataMbMax": 102400}, "fuzzy": false, "note": ""}
+{"id": "C051", "category": "데이터량", "query": "5G 20기가 요금제", "expect": {"dataMbMin": 20480, "dataMbMax": 20480}, "fuzzy": false, "note": "5G(네트워크)와 구분"}
+{"id": "C052", "category": "데이터량", "query": "데이터 20기가 이상 요금제", "expect": {"dataMbMin": 20480}, "fuzzy": false, "note": ""}
+{"id": "C053", "category": "데이터량", "query": "20기가 넘는 요금제", "expect": {"dataMbMin": 20481}, "fuzzy": false, "note": ""}
+{"id": "C054", "category": "데이터량", "query": "20기가 이하 요금제", "expect": {"dataMbMax": 20480}, "fuzzy": false, "note": ""}
+{"id": "C055", "category": "데이터량", "query": "20기가 미만 요금제", "expect": {"dataMbMax": 20479}, "fuzzy": false, "note": ""}
+{"id": "C056", "category": "데이터량", "query": "데이터 20기가 안 넘는 요금제", "expect": {"dataMbMax": 20480}, "fuzzy": false, "note": ""}
+{"id": "C057", "category": "데이터량", "query": "데이터 20기가 정도 주는 요금제", "expect": {"dataMbMin": 15360, "dataMbMax": 25600}, "fuzzy": false, "note": "대략(±25%)"}
+{"id": "C058", "category": "데이터량", "query": "20기가에서 30기가 사이 요금제", "expect": {"dataMbMin": 20480, "dataMbMax": 30720}, "fuzzy": false, "note": "두 데이터량 범위"}
+{"id": "C059", "category": "무제한", "query": "무제한 요금제", "expect": {"dataPolicy": "UNLIMITED"}, "fuzzy": false, "note": ""}
+{"id": "C060", "category": "무제한", "query": "데이터 무제한 요금제 알려줘", "expect": {"dataPolicy": "UNLIMITED"}, "fuzzy": false, "note": ""}
+{"id": "C061", "category": "무제한", "query": "무제한 아닌 요금제", "expect": {"dataPolicy": "LIMITED"}, "fuzzy": false, "note": ""}
+{"id": "C062", "category": "무제한", "query": "무제한 말고 요금제 알려줘", "expect": {"dataPolicy": "LIMITED"}, "fuzzy": false, "note": ""}
+{"id": "C063", "category": "무제한", "query": "무제한은 빼고 요금제 보여줘", "expect": {"dataPolicy": "LIMITED"}, "fuzzy": false, "note": ""}
+{"id": "C064", "category": "무제한", "query": "데이터 걱정 없이 쓸 수 있는 요금제", "expect": {"dataPolicy": "UNLIMITED"}, "fuzzy": false, "note": ""}
+{"id": "C065", "category": "무제한", "query": "데이터 걱정 없는 요금제 추천", "expect": {"dataPolicy": "UNLIMITED"}, "fuzzy": false, "note": "'없는'"}
+{"id": "C066", "category": "무제한", "query": "데이터 마음껏 쓰는 요금제", "expect": {"dataPolicy": "UNLIMITED"}, "fuzzy": false, "note": ""}
+{"id": "C067", "category": "무제한", "query": "맘껏 쓸 수 있는 요금제 있어?", "expect": {"dataPolicy": "UNLIMITED"}, "fuzzy": false, "note": ""}
+{"id": "C068", "category": "무제한", "query": "통화 무제한 요금제", "expect": {}, "fuzzy": false, "note": "데이터가 아니라 통화 무제한"}
+{"id": "C069", "category": "무제한", "query": "문자 무제한 되는 요금제", "expect": {}, "fuzzy": false, "note": "데이터가 아니라 문자 무제한"}
+{"id": "C070", "category": "무제한", "query": "통화랑 문자 마음껏 쓰는 요금제", "expect": {}, "fuzzy": false, "note": "'마음껏'이 데이터가 아님"}
+{"id": "C071", "category": "무제한", "query": "통화도 데이터도 무제한인 요금제", "expect": {"dataPolicy": "UNLIMITED"}, "fuzzy": true, "note": "둘 다 무제한"}
+{"id": "C072", "category": "대상 그룹", "query": "청년 요금제", "expect": {"targetGroup": "YOUTH"}, "fuzzy": false, "note": ""}
+{"id": "C073", "category": "대상 그룹", "query": "청년용 요금제 알려줘", "expect": {"targetGroup": "YOUTH"}, "fuzzy": false, "note": ""}
+{"id": "C074", "category": "대상 그룹", "query": "20대 요금제 추천해줘", "expect": {"targetGroup": "YOUTH"}, "fuzzy": false, "note": "연령대"}
+{"id": "C075", "category": "대상 그룹", "query": "대학생 요금제 있어?", "expect": {"targetGroup": "YOUTH"}, "fuzzy": false, "note": ""}
+{"id": "C076", "category": "대상 그룹", "query": "시니어 요금제", "expect": {"targetGroup": "SENIOR"}, "fuzzy": false, "note": ""}
+{"id": "C077", "category": "대상 그룹", "query": "어르신 요금제 알려줘", "expect": {"targetGroup": "SENIOR"}, "fuzzy": false, "note": ""}
+{"id": "C078", "category": "대상 그룹", "query": "부모님 드릴 요금제 추천해줘", "expect": {"targetGroup": "SENIOR"}, "fuzzy": false, "note": ""}
+{"id": "C079", "category": "대상 그룹", "query": "할머니 폰 요금제 뭐가 좋아요", "expect": {"targetGroup": "SENIOR"}, "fuzzy": false, "note": ""}
+{"id": "C080", "category": "대상 그룹", "query": "60대 요금제 있어?", "expect": {"targetGroup": "SENIOR"}, "fuzzy": false, "note": "연령대"}
+{"id": "C081", "category": "대상 그룹", "query": "키즈 요금제", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": ""}
+{"id": "C082", "category": "대상 그룹", "query": "어린이 요금제 알려줘", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": ""}
+{"id": "C083", "category": "대상 그룹", "query": "초등학생 요금제 추천", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": ""}
+{"id": "C084", "category": "대상 그룹", "query": "중학생 요금제 뭐가 좋아요", "expect": {"targetGroup": "KIDS"}, "fuzzy": true, "note": "만 18세 이하 요금제"}
+{"id": "C085", "category": "대상 그룹", "query": "우리 아이 요금제 추천해줘", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": ""}
+{"id": "C086", "category": "대상 그룹", "query": "애들 요금제 있어요?", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": ""}
+{"id": "C087", "category": "대상 그룹", "query": "워치 요금제", "expect": {"targetGroup": "WATCH"}, "fuzzy": false, "note": ""}
+{"id": "C088", "category": "대상 그룹", "query": "갤럭시 워치 요금제 알려줘", "expect": {"targetGroup": "WATCH"}, "fuzzy": false, "note": ""}
+{"id": "C089", "category": "대상 그룹", "query": "태블릿 요금제", "expect": {"targetGroup": "TABLET"}, "fuzzy": false, "note": ""}
+{"id": "C090", "category": "대상 그룹", "query": "아이패드 요금제 있어?", "expect": {"targetGroup": "TABLET"}, "fuzzy": false, "note": "태블릿을 다른 말로"}
+{"id": "C091", "category": "대상 그룹", "query": "일반 요금제", "expect": {"targetGroup": "GENERAL"}, "fuzzy": false, "note": ""}
+{"id": "C092", "category": "대상 그룹", "query": "일반적인 요금제 추천해줘", "expect": {}, "fuzzy": false, "note": "'일반적'은 대상이 아님"}
+{"id": "C093", "category": "대상 그룹", "query": "워치랑 태블릿 요금제", "expect": {}, "fuzzy": false, "note": "두 그룹이 섞임"}
+{"id": "C094", "category": "대상 그룹", "query": "폰이랑 태블릿 데이터 같이 쓰는 요금제", "expect": {}, "fuzzy": true, "note": "함께 쓰는 요금제(태블릿 전용이 아님)"}
+{"id": "C095", "category": "오탐 유발(수치)", "query": "3만원 할인 쿠폰 주는 요금제", "expect": {}, "fuzzy": false, "note": "할인액이지 요금이 아님"}
+{"id": "C096", "category": "오탐 유발(수치)", "query": "5천원 할인 받는 요금제 있어?", "expect": {}, "fuzzy": false, "note": "할인액"}
+{"id": "C097", "category": "오탐 유발(수치)", "query": "가입하면 10만원 상품권 주는 요금제", "expect": {}, "fuzzy": false, "note": "혜택 금액"}
+{"id": "C098", "category": "오탐 유발(수치)", "query": "요금제 바꾸면 5천원 더 내요?", "expect": {}, "fuzzy": false, "note": "차액 문의"}
+{"id": "C099", "category": "오탐 유발(수치)", "query": "요금제 변경 수수료 3천원이라던데 맞아요?", "expect": {}, "fuzzy": false, "note": "수수료 문의"}
+{"id": "C100", "category": "오탐 유발(수치)", "query": "로밍으로 5기가 쓰면 요금제 어떻게 돼요?", "expect": {}, "fuzzy": false, "note": "로밍 데이터"}
+{"id": "C101", "category": "오탐 유발(수치)", "query": "추가 데이터 2기가 쿠폰 주는 요금제", "expect": {}, "fuzzy": false, "note": "쿠폰 데이터"}
+{"id": "C102", "category": "오탐 유발(수치)", "query": "요금제 3개월 무료 이벤트 있어?", "expect": {}, "fuzzy": false, "note": ""}
+{"id": "C103", "category": "오탐 유발(수치)", "query": "2년 약정 요금제 위약금 얼마예요", "expect": {}, "fuzzy": false, "note": ""}
+{"id": "C104", "category": "오탐 유발(수치)", "query": "5G 요금제 있어?", "expect": {}, "fuzzy": false, "note": "네트워크"}
+{"id": "C105", "category": "오탐 유발(수치)", "query": "LTE 요금제 추천해줘", "expect": {}, "fuzzy": false, "note": "네트워크"}
+{"id": "C106", "category": "오탐 유발(수치)", "query": "100일 동안 무료인 요금제 있어?", "expect": {}, "fuzzy": false, "note": ""}
+{"id": "C107", "category": "오탐 유발(수치)", "query": "3명 같이 쓰는 결합 요금제", "expect": {}, "fuzzy": false, "note": ""}
+{"id": "C108", "category": "오탐 유발(수치)", "query": "1+1 요금제 있어?", "expect": {}, "fuzzy": false, "note": ""}
+{"id": "C109", "category": "오탐 유발(수치)", "query": "20일에 요금제 바꾸면 언제부터 적용돼요?", "expect": {}, "fuzzy": false, "note": ""}
+{"id": "C110", "category": "오탐 유발(대상)", "query": "아이디 없이 요금제 가입돼요?", "expect": {}, "fuzzy": false, "note": "'아이디'의 '아이'"}
+{"id": "C111", "category": "오탐 유발(대상)", "query": "아이돌 굿즈 주는 요금제 있어?", "expect": {}, "fuzzy": false, "note": "'아이돌'의 '아이'"}
+{"id": "C112", "category": "오탐 유발(대상)", "query": "요금제 가입하려는데 부모님 동의 받아야 돼요?", "expect": {}, "fuzzy": false, "note": "'부모님'이 시니어가 아님"}
+{"id": "C113", "category": "오탐 유발(대상)", "query": "일반 전화로도 쓸 수 있는 요금제", "expect": {}, "fuzzy": false, "note": "'일반 전화'"}
+{"id": "C114", "category": "오탐 유발(대상)", "query": "아이폰 요금제 따로 있어요?", "expect": {}, "fuzzy": false, "note": "아이폰"}
+{"id": "C115", "category": "오표기", "query": "3만원대 요금재 알려줘", "expect": {"feeMin": 30000, "feeMax": 39999}, "fuzzy": false, "note": "요금재"}
+{"id": "C116", "category": "오표기", "query": "20기가 요근제 있어?", "expect": {"dataMbMin": 20480, "dataMbMax": 20480}, "fuzzy": false, "note": "요근제"}
+{"id": "C117", "category": "오표기", "query": "무재한 요금제 알려줘", "expect": {"dataPolicy": "UNLIMITED"}, "fuzzy": false, "note": "무재한"}
+{"id": "C118", "category": "오표기", "query": "청년 요금재 추천", "expect": {"targetGroup": "YOUTH"}, "fuzzy": false, "note": "요금재"}
+{"id": "C119", "category": "오표기", "query": "시니어 요금지 알려줘", "expect": {"targetGroup": "SENIOR"}, "fuzzy": false, "note": "요금지"}
+{"id": "C120", "category": "요금제 단어 없음", "query": "3만원대 뭐 있어요?", "expect": {"feeMin": 30000, "feeMax": 39999}, "fuzzy": false, "note": "설계상 FAQ 오탐을 막으려고 요금제 단어를 요구"}
+{"id": "C121", "category": "요금제 단어 없음", "query": "데이터 20기가 주는 거 있어?", "expect": {"dataMbMin": 20480, "dataMbMax": 20480}, "fuzzy": false, "note": ""}
+{"id": "C122", "category": "요금제 단어 없음", "query": "청년이 쓸 만한 거 추천해줘", "expect": {"targetGroup": "YOUTH"}, "fuzzy": false, "note": ""}
+{"id": "C123", "category": "요금제 단어 없음", "query": "무제한 쓸 수 있는 거 뭐 있어?", "expect": {"dataPolicy": "UNLIMITED"}, "fuzzy": false, "note": ""}
+{"id": "C124", "category": "요금제 단어 없음", "query": "5만원 이하로 되는 거 있나요", "expect": {"feeMax": 50000}, "fuzzy": false, "note": ""}
+{"id": "C125", "category": "부정·제외", "query": "청년 말고 일반 요금제", "expect": {"targetGroup": "GENERAL"}, "fuzzy": false, "note": "청년 제외"}
+{"id": "C126", "category": "부정·제외", "query": "시니어 말고 3만원대 요금제", "expect": {"feeMin": 30000, "feeMax": 39999}, "fuzzy": false, "note": "시니어는 제외 조건이라 대상 그룹으로 읽으면 안 됨"}
+{"id": "C127", "category": "부정·제외", "query": "청년 아닌 일반 사용자용 요금제", "expect": {"targetGroup": "GENERAL"}, "fuzzy": false, "note": ""}
+{"id": "C128", "category": "부정·제외", "query": "워치 말고 폰 요금제 알려줘", "expect": {}, "fuzzy": false, "note": "워치 제외"}
+{"id": "C129", "category": "부정·제외", "query": "태블릿 빼고 요금제 알려줘", "expect": {}, "fuzzy": false, "note": "태블릿 제외"}
+{"id": "C130", "category": "복합", "query": "3만원대에 데이터 20기가 이상 요금제", "expect": {"feeMin": 30000, "feeMax": 39999, "dataMbMin": 20480}, "fuzzy": false, "note": ""}
+{"id": "C131", "category": "복합", "query": "5만원 이하 청년 요금제", "expect": {"feeMax": 50000, "targetGroup": "YOUTH"}, "fuzzy": false, "note": ""}
+{"id": "C132", "category": "복합", "query": "무제한이면서 6만원 이하 요금제", "expect": {"feeMax": 60000, "dataPolicy": "UNLIMITED"}, "fuzzy": false, "note": ""}
+{"id": "C133", "category": "복합", "query": "시니어 요금제 중에 3만원 이하", "expect": {"feeMax": 30000, "targetGroup": "SENIOR"}, "fuzzy": false, "note": ""}
+{"id": "C134", "category": "복합", "query": "4만원 안쪽에 30기가 넘는 청년 요금제", "expect": {"feeMax": 40000, "dataMbMin": 30721, "targetGroup": "YOUTH"}, "fuzzy": false, "note": ""}
+{"id": "C135", "category": "복합", "query": "요금제 5만원 이하 무제한 되는 거", "expect": {"feeMax": 50000, "dataPolicy": "UNLIMITED"}, "fuzzy": false, "note": ""}
+{"id": "C136", "category": "실사용 말투", "query": "3만원대 요금제 ㅊㅊ", "expect": {"feeMin": 30000, "feeMax": 39999}, "fuzzy": false, "note": ""}
+{"id": "C137", "category": "실사용 말투", "query": "요금제 삼만원대로 추천좀", "expect": {"feeMin": 30000, "feeMax": 39999}, "fuzzy": false, "note": "한글 숫자"}
+{"id": "C138", "category": "실사용 말투", "query": "싼 요금제 추천", "expect": {}, "fuzzy": false, "note": "수치 없음"}
+{"id": "C139", "category": "실사용 말투", "query": "요금제 3만원이하ㄱㄱ", "expect": {"feeMax": 30000}, "fuzzy": false, "note": ""}
+{"id": "C140", "category": "실사용 말투", "query": "ㅇㅇ 20기가 요금제 ㄱㄱ", "expect": {"dataMbMin": 20480, "dataMbMax": 20480}, "fuzzy": false, "note": ""}
+{"id": "C141", "category": "실사용 말투", "query": "청년요금제 5만원이하", "expect": {"feeMax": 50000, "targetGroup": "YOUTH"}, "fuzzy": false, "note": ""}
+{"id": "C142", "category": "실사용 말투", "query": "40기가 요금제 얼마에요?", "expect": {"dataMbMin": 40960, "dataMbMax": 40960}, "fuzzy": false, "note": ""}
+{"id": "C143", "category": "실사용 말투", "query": "요금제 한달 3만원쯤에 데이터 많이 주는거", "expect": {"feeMin": 27000, "feeMax": 33000}, "fuzzy": false, "note": "'데이터 많이'는 정량 조건 아님"}
+{"id": "C144", "category": "실사용 말투", "query": "요금제 월 3만원 넘는건 부담돼요", "expect": {"feeMax": 30000}, "fuzzy": true, "note": "넘는 요금제를 피하고 싶다는 뜻이라 상한"}
