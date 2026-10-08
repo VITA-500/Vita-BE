@@ -96,7 +96,10 @@ public class ChatContextBuilder {
 				<question>%s</question>
 				<answer>%s</answer>
 				</document>
-				""".formatted(faq.category(), faq.subcategory(), faq.question(), faq.answer());
+				""".formatted(PromptEscaper.escape(faq.category()),
+				PromptEscaper.escape(faq.subcategory()),
+				PromptEscaper.escape(faq.question()),
+				PromptEscaper.escape(faq.answer()));
 	}
 
 	private String toPlanXml(PlanReference p) {
@@ -107,6 +110,9 @@ public class ChatContextBuilder {
 				<summary>%s</summary>
 				<description>%s</description>
 				</plan>
-				""".formatted(p.name(), p.monthlyFee(), p.summary(), p.description());
+				""".formatted(PromptEscaper.escape(p.name()),
+				p.monthlyFee(),
+				PromptEscaper.escape(p.summary()),
+				PromptEscaper.escape(p.description()));
 	}
 }
