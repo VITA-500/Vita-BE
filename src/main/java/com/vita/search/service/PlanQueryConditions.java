@@ -1,5 +1,8 @@
 package com.vita.search.service;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * 사용자 질문에서 뽑아낸 요금제 조건. 값이 null인 항목은 "질문에 그 조건이 없다"는 뜻이다.
  *
@@ -13,6 +16,8 @@ package com.vita.search.service;
  * @param dataPolicy 데이터 정책(plans.data_policy 값: LIMITED/UNLIMITED)
  * @param voicePolicy 통화 정책(plans.voice_policy 값). "통화 무제한"은 UNLIMITED, "통화가 안 되는 요금제"는 NONE
  * @param smsPolicy  문자 정책(plans.sms_policy 값). "문자 무제한"은 UNLIMITED, "문자가 안 되는 요금제"는 NONE
+ * @param excludedGroups 질문이 제외한 대상 그룹("시니어 말고 3만원대 요금제"의 시니어). 요금제를 찾는 조건이 아니라 결과에서 빼는 필터라서
+ *                   {@link #isEmpty()}에는 포함하지 않는다. 비어 있으면 빈 집합
  */
 public record PlanQueryConditions(
 		Integer feeMin,
@@ -22,15 +27,31 @@ public record PlanQueryConditions(
 		String targetGroup,
 		String dataPolicy,
 		String voicePolicy,
-		String smsPolicy) {
+		String smsPolicy,
+		Set<String> excludedGroups) {
 
-	/** 통화·문자 정책 없이 만든다(통화·문자 조건을 추가하기 전부터 쓰던 생성 방식). */
-	public PlanQueryConditions(Integer feeMin, Integer feeMax, Long dataMbMin, Long dataMbMax, String targetGroup,
-			String dataPolicy) {
-		this(feeMin, feeMax, dataMbMin, dataMbMax, targetGroup, dataPolicy, null, null);
+	public PlanQueryConditions {
+		excludedGroups = excludedGroups == null ? Set.of() : Set.copyOf(excludedGroups);
 	}
 
-	/** 추출된 조건이 하나도 없는지. */
+	/** 통화·문자 정책과 제외 그룹 없이 만든다(그 조건을 추가하기 전부터 쓰던 생성 방식). */
+	public PlanQueryConditions(Integer feeMin, Integer feeMax, Long dataMbMin, Long dataMbMax, String targetGroup,
+			String dataPolicy) {
+		this(feeMin, feeMax, dataMbMin, dataMbMax, targetGroup, dataPolicy, null, null, Set.of());
+	}
+
+	/** 제외 그룹 없이 만든다(제외 그룹을 추가하기 전부터 쓰던 생성 방식). */
+	public PlanQueryConditions(Integer feeMin, Integer feeMax, Long dataMbMin, Long dataMbMax, String targetGroup,
+			String dataPolicy, String voicePolicy, String smsPolicy) {
+		this(feeMin, feeMax, dataMbMin, dataMbMax, targetGroup, dataPolicy, voicePolicy, smsPolicy, Set.of());
+	}
+
+	/** 제외한 대상 그룹이 있는지. */
+	public boolean hasExclusions() {
+		return !excludedGroups.isEmpty();
+	}
+
+	/** 요금제를 찾는 조건이 하나도 없는지. 제외한 그룹({@link #excludedGroups})은 결과에서 빼는 필터라서 여기에 포함하지 않는다. */
 	public boolean isEmpty() {
 		return feeMin == null && feeMax == null && dataMbMin == null && dataMbMax == null
 				&& targetGroup == null && dataPolicy == null && voicePolicy == null && smsPolicy == null;
@@ -48,15 +69,21 @@ public record PlanQueryConditions(
 	public PlanQueryConditions orElse(PlanQueryConditions other) {
 		boolean ownFee = feeMin != null || feeMax != null;
 		boolean ownData = dataMbMin != null || dataMbMax != null;
+		String mergedGroup = targetGroup != null ? targetGroup : other.targetGroup;
+		// 제외 그룹은 양쪽에서 읽은 것을 모두 인정한다(질문 변환이 "조건: 시니어 제외"를 만들 수 있다). 대상으로 확정된 그룹은 뺀다.
+		Set<String> mergedExcluded = new HashSet<>(excludedGroups);
+		mergedExcluded.addAll(other.excludedGroups);
+		mergedExcluded.remove(mergedGroup);
 		return new PlanQueryConditions(
 				ownFee ? feeMin : other.feeMin,
 				ownFee ? feeMax : other.feeMax,
 				ownData ? dataMbMin : other.dataMbMin,
 				ownData ? dataMbMax : other.dataMbMax,
-				targetGroup != null ? targetGroup : other.targetGroup,
+				mergedGroup,
 				dataPolicy != null ? dataPolicy : other.dataPolicy,
 				voicePolicy != null ? voicePolicy : other.voicePolicy,
-				smsPolicy != null ? smsPolicy : other.smsPolicy);
+				smsPolicy != null ? smsPolicy : other.smsPolicy,
+				mergedExcluded);
 	}
 
 	/**
@@ -64,7 +91,8 @@ public record PlanQueryConditions(
 	 * 가장 덜 확실한 조건(무제한 여부)을 포기하고 다시 찾기 위해 쓴다.
 	 */
 	public PlanQueryConditions withoutDataPolicy() {
-		return new PlanQueryConditions(feeMin, feeMax, dataMbMin, dataMbMax, targetGroup, null, voicePolicy, smsPolicy);
+		return new PlanQueryConditions(feeMin, feeMax, dataMbMin, dataMbMax, targetGroup, null, voicePolicy, smsPolicy,
+				excludedGroups);
 	}
 
 	/**
@@ -72,6 +100,7 @@ public record PlanQueryConditions(
 	 * 포기한 뒤에도 일치가 없으면 통화·문자 조건까지 포기하고 가까운 요금제(키즈 요금제)를 찾기 위해 쓴다.
 	 */
 	public PlanQueryConditions withoutVoiceSmsPolicy() {
-		return new PlanQueryConditions(feeMin, feeMax, dataMbMin, dataMbMax, targetGroup, dataPolicy, null, null);
+		return new PlanQueryConditions(feeMin, feeMax, dataMbMin, dataMbMax, targetGroup, dataPolicy, null, null,
+				excludedGroups);
 	}
 }

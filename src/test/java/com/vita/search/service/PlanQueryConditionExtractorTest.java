@@ -191,6 +191,32 @@ class PlanQueryConditionExtractorTest {
 	}
 
 	@Test
+	void reportsTheGroupsTheQuestionExcludes() {
+		assertThat(extract("시니어 말고 3만원대 요금제").excludedGroups()).containsExactly("SENIOR");
+		assertThat(extract("청년 말고 일반 요금제").excludedGroups()).containsExactly("YOUTH");
+		assertThat(extract("청년 아닌 일반 사용자용 요금제").excludedGroups()).containsExactly("YOUTH");
+		assertThat(extract("워치나 태블릿 말고 폰 요금제 알려줘").excludedGroups()).containsExactlyInAnyOrder("WATCH", "TABLET");
+		assertThat(extract("청년 요금제 알려줘").excludedGroups()).isEmpty();
+	}
+
+	@Test
+	void treatsAnExclusionAsAFilterNotAsAConditionToSearchBy() {
+		PlanQueryConditions c = extract("시니어 말고 요금제 추천해줘");
+
+		assertThat(c.isEmpty()).isTrue(); // 찾을 조건은 없고
+		assertThat(c.hasExclusions()).isTrue(); // 뺄 그룹만 있다
+	}
+
+	@Test
+	void doesNotCountADeviceThatTheQuestionExcludesAsAMentionOfDevicePlans() {
+		assertThat(PlanQueryConditionExtractor.mentionsDevicePlan("워치 말고 폰 요금제 알려줘")).isFalse();
+		assertThat(PlanQueryConditionExtractor.mentionsDevicePlan("워치나 태블릿 말고 폰 요금제")).isFalse();
+		assertThat(PlanQueryConditionExtractor.mentionsDevicePlan("워치 요금제 알려줘")).isTrue();
+		assertThat(PlanQueryConditionExtractor.mentionsDevicePlan("워치 말고 태블릿 요금제 알려줘")).isTrue();
+		assertThat(PlanQueryConditionExtractor.mentionsDevicePlan("아이패드에 쓸 수 있어?")).isTrue();
+	}
+
+	@Test
 	void doesNotReadADeviceGroupWhenThePhoneAndTheDeviceShareOnePlan() {
 		assertThat(extract("폰이랑 태블릿 데이터 같이 쓰는 요금제").targetGroup()).isNull();
 		assertThat(extract("스마트폰이랑 워치 함께 쓸 수 있는 요금제").targetGroup()).isNull();

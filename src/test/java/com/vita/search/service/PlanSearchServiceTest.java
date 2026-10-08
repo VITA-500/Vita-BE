@@ -233,6 +233,62 @@ class PlanSearchServiceTest {
 		assertThat(codes(outcome)).containsExactly("VITA-LITE-10", "VITA-LITE-5");
 	}
 
+	// ---- 제외한 대상 그룹 ----
+
+	private void stubGroups() {
+		when(lookupRepository.findTargetGroupByPlanCode()).thenReturn(Map.of(
+				"VITA-WATCH-1", "WATCH",
+				"VITA-TABLET-20", "TABLET",
+				"VITA-LITE-10", "GENERAL",
+				"VITA-SENIOR-20", "SENIOR",
+				"VITA-YOUTH-30", "YOUTH"));
+	}
+
+	@Test
+	void dropsTheExcludedGroupFromTheMatchedPlans() {
+		stubGroups();
+		stubPool(plan("VITA-LITE-10", 31_000, 0.90), plan("VITA-SENIOR-20", 33_000, 0.85), plan("VITA-YOUTH-30", 35_000, 0.80));
+		when(lookupRepository.findPlanCodesByConditions(any())).thenReturn(Set.of("VITA-LITE-10", "VITA-SENIOR-20", "VITA-YOUTH-30"));
+
+		PlanSearchService.PlanSearchOutcome outcome = service.search("시니어 말고 3만원대 요금제 알려줘", new float[] {0.1f}, TOP_K);
+
+		assertThat(outcome.conditionMatched()).isTrue();
+		assertThat(codes(outcome)).containsExactly("VITA-LITE-10", "VITA-YOUTH-30");
+	}
+
+	@Test
+	void dropsTheExcludedGroupFromTheVectorResultsToo() {
+		stubGroups();
+		stubPool(plan("VITA-SENIOR-20", 33_000, 0.90), plan("VITA-LITE-10", 31_000, 0.85), plan("VITA-YOUTH-30", 35_000, 0.80));
+
+		PlanSearchService.PlanSearchOutcome outcome = service.search("시니어 말고 요금제 추천해줘", new float[] {0.1f}, TOP_K);
+
+		assertThat(outcome.conditionMatched()).isFalse();
+		assertThat(codes(outcome)).containsExactly("VITA-LITE-10", "VITA-YOUTH-30");
+	}
+
+	@Test
+	void fallsBackToTheVectorResultsWhenEveryMatchedPlanIsExcluded() {
+		stubGroups();
+		stubPool(plan("VITA-SENIOR-20", 33_000, 0.90), plan("VITA-LITE-10", 31_000, 0.85));
+		when(lookupRepository.findPlanCodesByConditions(any())).thenReturn(Set.of("VITA-SENIOR-20"));
+
+		PlanSearchService.PlanSearchOutcome outcome = service.search("시니어 말고 3만원대 요금제 알려줘", new float[] {0.1f}, TOP_K);
+
+		assertThat(outcome.conditionMatched()).isFalse();
+		assertThat(codes(outcome)).containsExactly("VITA-LITE-10");
+	}
+
+	@Test
+	void keepsTheDeviceOnlyPlansOutWhenTheDeviceWordIsAnExclusion() {
+		stubGroups();
+		stubPool(plan("VITA-WATCH-1", 11_000, 0.90), plan("VITA-TABLET-20", 22_000, 0.85), plan("VITA-LITE-10", 31_000, 0.80));
+
+		PlanSearchService.PlanSearchOutcome outcome = service.search("워치 말고 폰 요금제 알려줘", new float[] {0.1f}, TOP_K);
+
+		assertThat(codes(outcome)).containsExactly("VITA-LITE-10");
+	}
+
 	// ---- 원문과 요금제용 질문 양쪽에서 조건 읽기 ----
 
 	private PlanQueryConditions searchAndCaptureConditions(String original, String planQuery) {

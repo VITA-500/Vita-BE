@@ -192,7 +192,18 @@ public final class PlanQueryConditionExtractor {
 	 * 판단한다. 언급이 없으면 기기 전용 요금제는 기본 검색 결과에서 뺀다.
 	 */
 	public static boolean mentionsDevicePlan(String query) {
-		return query != null && DEVICE_PLAN_MENTION.matcher(query).find();
+		if (query == null) {
+			return false;
+		}
+		GroupScan scan = scanGroups(query);
+		Matcher device = DEVICE_PLAN_MENTION.matcher(query);
+		while (device.find()) {
+			// "워치 말고 폰 요금제"의 워치는 기기 요금제를 찾는다는 뜻이 아니라 빼 달라는 뜻이다.
+			if (!scan.negatesDeviceAt(device.start())) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -213,16 +224,18 @@ public final class PlanQueryConditionExtractor {
 		Range fee = extractFee(query);
 		Range data = extractData(query);
 		Policies policies = extractPolicies(query);
+		GroupRead groups = readTargetGroups(query);
 
 		return new PlanQueryConditions(
 				fee == null || fee.min() == null ? null : fee.min().intValue(),
 				fee == null || fee.max() == null ? null : fee.max().intValue(),
 				data == null ? null : data.min(),
 				data == null ? null : data.max(),
-				extractTargetGroup(query),
+				groups.group(),
 				policies.data(),
 				policies.voice(),
-				policies.sms());
+				policies.sms(),
+				groups.excluded());
 	}
 
 	/**
@@ -363,17 +376,54 @@ public final class PlanQueryConditionExtractor {
 	 * @return GENERAL/YOUTH/SENIOR/KIDS/WATCH/TABLET 중 하나. 대상 표현이 없거나 여러 그룹이 섞이면 null
 	 */
 	public static String targetGroupOf(String query) {
-		return query == null ? null : extractTargetGroup(query);
+		return query == null ? null : readTargetGroups(query).group();
+	}
+
+	/** 대상 그룹 읽기 결과. group은 대상으로 확정된 그룹(없으면 null), excluded는 질문이 제외한 그룹들. */
+	private record GroupRead(String group, Set<String> excluded) {
+	}
+
+	/** 질문 속 대상 그룹 말과, 그 말이 제외 표현("말고", "아닌" 등)에 걸렸는지. */
+	private record GroupScan(List<GroupMention> mentions, boolean[] negated) {
+
+		/** 질문의 start 위치에 있는 워치·태블릿 말이 제외 표현에 걸려 있는지. */
+		boolean negatesDeviceAt(int start) {
+			for (int i = 0; i < mentions.size(); i++) {
+				GroupMention mention = mentions.get(i);
+				boolean device = mention.group().equals("WATCH") || mention.group().equals("TABLET");
+				if (device && negated[i] && mention.start() <= start && start < mention.end()) {
+					return true;
+				}
+			}
+			return false;
+		}
 	}
 
 	/**
 	 * 대상 그룹 말이 정확히 한 그룹만 가리킬 때만 채택한다(여러 그룹이 섞이면 null).
 	 *
-	 * <p>"시니어 말고", "청년 아닌"처럼 제외하는 말은 그 그룹으로 세지 않는다. "청년 말고 일반 요금제"는 일반 하나만 남아 일반으로 읽고,
-	 * "시니어 말고 3만원대 요금제"는 남는 그룹이 없어 대상 조건이 없다("워치나 태블릿 말고"처럼 제외 표현이 이어진 말들에 같이 걸린다).
-	 * 또 "폰이랑 태블릿 데이터 같이 쓰는 요금제"는 태블릿 전용 요금제를 찾는 질문이 아니라서 기기 그룹(워치·태블릿)을 대상으로 읽지 않는다.
+	 * <p>"시니어 말고", "청년 아닌"처럼 제외하는 말은 대상으로 세지 않고 제외한 그룹으로 따로 돌려준다. "청년 말고 일반 요금제"는 일반
+	 * 하나만 남아 일반으로 읽고 청년을 제외하며, "시니어 말고 3만원대 요금제"는 남는 대상이 없어 대상 조건이 없고 시니어를 제외한다
+	 * ("워치나 태블릿 말고"처럼 제외 표현이 이어진 말들에 같이 걸린다). 또 "폰이랑 태블릿 데이터 같이 쓰는 요금제"는 태블릿 전용 요금제를
+	 * 찾는 질문이 아니라서 기기 그룹(워치·태블릿)을 대상으로 읽지 않는다.
 	 */
-	private static String extractTargetGroup(String query) {
+	private static GroupRead readTargetGroups(String query) {
+		GroupScan scan = scanGroups(query);
+		Set<String> groups = new LinkedHashSet<>();
+		Set<String> excluded = new LinkedHashSet<>();
+		for (int i = 0; i < scan.mentions().size(); i++) {
+			(scan.negated()[i] ? excluded : groups).add(scan.mentions().get(i).group());
+		}
+		if (SHARED_USE_WORD.matcher(query).find() && PHONE_WORD.matcher(query).find()) {
+			groups.remove("WATCH");
+			groups.remove("TABLET");
+		}
+		excluded.removeAll(groups);
+		return new GroupRead(groups.size() == 1 ? groups.iterator().next() : null, excluded);
+	}
+
+	/** 질문에서 대상 그룹 말을 모두 찾고, 각각이 제외 표현에 걸렸는지 정한다. */
+	private static GroupScan scanGroups(String query) {
 		List<GroupMention> mentions = new ArrayList<>();
 		for (GroupWord word : TARGET_GROUP_WORDS) {
 			Matcher matcher = word.pattern().matcher(query);
@@ -397,18 +447,7 @@ public final class PlanQueryConditionExtractor {
 			}
 			negated[i] = direct || chained;
 		}
-
-		Set<String> groups = new LinkedHashSet<>();
-		for (int i = 0; i < mentions.size(); i++) {
-			if (!negated[i]) {
-				groups.add(mentions.get(i).group());
-			}
-		}
-		if (SHARED_USE_WORD.matcher(query).find() && PHONE_WORD.matcher(query).find()) {
-			groups.remove("WATCH");
-			groups.remove("TABLET");
-		}
-		return groups.size() == 1 ? groups.iterator().next() : null;
+		return new GroupScan(mentions, negated);
 	}
 
 	/** 무제한·불가 표현이 가리키는 대상. */

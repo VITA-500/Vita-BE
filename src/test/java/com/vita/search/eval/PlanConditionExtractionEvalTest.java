@@ -40,11 +40,11 @@ class PlanConditionExtractionEvalTest {
 	record EvalCase(String id, String category, String query, Map<String, Object> expect, boolean fuzzy, String note) {
 	}
 
-	/** 조건 항목 8개. 추출기 결과에서 값을 꺼내는 방법을 함께 둔다. 통화·문자 정책은 plans.voice_policy, plans.sms_policy와 비교하는 조건이다. */
+	/** 조건 항목 9개. 추출기 결과에서 값을 꺼내는 방법을 함께 둔다. 통화·문자 정책은 plans.voice_policy, plans.sms_policy와 비교하는 조건이다. */
 	private enum Field {
 		FEE_MIN("feeMin", "금액"), FEE_MAX("feeMax", "금액"), DATA_MB_MIN("dataMbMin", "데이터량"),
 		DATA_MB_MAX("dataMbMax", "데이터량"), TARGET_GROUP("targetGroup", "대상"), DATA_POLICY("dataPolicy", "무제한"),
-		VOICE_POLICY("voicePolicy", "통화·문자"), SMS_POLICY("smsPolicy", "통화·문자");
+		VOICE_POLICY("voicePolicy", "통화·문자"), SMS_POLICY("smsPolicy", "통화·문자"), EXCLUDED_GROUPS("excludedGroups", "대상");
 
 		final String key;
 		final String group;
@@ -65,6 +65,7 @@ class PlanConditionExtractionEvalTest {
 				case DATA_POLICY -> c.dataPolicy();
 				case VOICE_POLICY -> c.voicePolicy();
 				case SMS_POLICY -> c.smsPolicy();
+				case EXCLUDED_GROUPS -> c.excludedGroups().isEmpty() ? null : new java.util.TreeSet<>(c.excludedGroups()).stream().toList();
 			};
 		}
 	}
@@ -103,12 +104,14 @@ class PlanConditionExtractionEvalTest {
 	}
 
 	@Test
+	@SuppressWarnings("unchecked")
 	void evalSetFollowsItsOwnRules() {
 		assertThat(cases).hasSizeGreaterThanOrEqualTo(100);
 		assertThat(cases.stream().map(EvalCase::id).distinct().count()).isEqualTo(cases.size());
 		assertThat(cases.stream().map(EvalCase::query).distinct().count()).isEqualTo(cases.size());
 
-		Set<String> keys = Set.of("feeMin", "feeMax", "dataMbMin", "dataMbMax", "targetGroup", "dataPolicy", "voicePolicy", "smsPolicy");
+		Set<String> keys = Set.of("feeMin", "feeMax", "dataMbMin", "dataMbMax", "targetGroup", "dataPolicy", "voicePolicy", "smsPolicy",
+				"excludedGroups");
 		for (EvalCase c : cases) {
 			assertThat(c.query()).as(c.id() + " 질문").isNotBlank();
 			assertThat(keys).as(c.id() + " 정답 항목 이름").containsAll(c.expect().keySet());
@@ -119,6 +122,11 @@ class PlanConditionExtractionEvalTest {
 			Object policy = c.expect().get("dataPolicy");
 			if (policy != null) {
 				assertThat(POLICIES).as(c.id() + " 무제한 여부 값").contains((String) policy);
+			}
+			Object excluded = c.expect().get("excludedGroups");
+			if (excluded != null) {
+				assertThat(excluded).as(c.id() + " 제외 그룹은 목록").isInstanceOf(List.class);
+				assertThat(GROUPS).as(c.id() + " 제외 그룹 값").containsAll((List<String>) excluded);
 			}
 			for (String key : List.of("voicePolicy", "smsPolicy")) {
 				Object value = c.expect().get(key);
@@ -199,8 +207,11 @@ class PlanConditionExtractionEvalTest {
 		return Objects.equals(e, a) ? Verdict.OK : Verdict.WRONG_VALUE;
 	}
 
-	/** JSON에서 읽은 숫자(Integer/Long)와 추출 결과(Long)를 같은 타입으로 맞춘다. */
+	/** JSON에서 읽은 숫자(Integer/Long)와 추출 결과(Long)를 같은 타입으로 맞추고, 목록은 정렬해서 비교한다. */
 	private static Object normalize(Object value) {
+		if (value instanceof List<?> list) {
+			return list.stream().map(Object::toString).sorted().toList();
+		}
 		return value instanceof Number number ? Long.valueOf(number.longValue()) : value;
 	}
 

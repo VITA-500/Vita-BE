@@ -122,11 +122,11 @@
 {"id": "C122", "category": "요금제 단어 없음", "query": "청년이 쓸 만한 거 추천해줘", "expect": {"targetGroup": "YOUTH"}, "fuzzy": false, "note": ""}
 {"id": "C123", "category": "요금제 단어 없음", "query": "무제한 쓸 수 있는 거 뭐 있어?", "expect": {"dataPolicy": "UNLIMITED"}, "fuzzy": false, "note": ""}
 {"id": "C124", "category": "요금제 단어 없음", "query": "5만원 이하로 되는 거 있나요", "expect": {"feeMax": 50000}, "fuzzy": false, "note": ""}
-{"id": "C125", "category": "부정·제외", "query": "청년 말고 일반 요금제", "expect": {"targetGroup": "GENERAL"}, "fuzzy": false, "note": "청년 제외"}
-{"id": "C126", "category": "부정·제외", "query": "시니어 말고 3만원대 요금제", "expect": {"feeMin": 30000, "feeMax": 39999}, "fuzzy": false, "note": "시니어는 제외 조건이라 대상 그룹으로 읽으면 안 됨"}
-{"id": "C127", "category": "부정·제외", "query": "청년 아닌 일반 사용자용 요금제", "expect": {"targetGroup": "GENERAL"}, "fuzzy": false, "note": ""}
-{"id": "C128", "category": "부정·제외", "query": "워치 말고 폰 요금제 알려줘", "expect": {}, "fuzzy": false, "note": "워치 제외"}
-{"id": "C129", "category": "부정·제외", "query": "태블릿 빼고 요금제 알려줘", "expect": {}, "fuzzy": false, "note": "태블릿 제외"}
+{"id": "C125", "category": "부정·제외", "query": "청년 말고 일반 요금제", "expect": {"targetGroup": "GENERAL", "excludedGroups": ["YOUTH"]}, "fuzzy": false, "note": "청년 제외 / 제외한 그룹(excludedGroups)은 결과에서 빼는 필터"}
+{"id": "C126", "category": "부정·제외", "query": "시니어 말고 3만원대 요금제", "expect": {"feeMin": 30000, "feeMax": 39999, "excludedGroups": ["SENIOR"]}, "fuzzy": false, "note": "시니어는 제외 조건이라 대상 그룹으로 읽으면 안 됨 / 제외한 그룹(excludedGroups)은 결과에서 빼는 필터"}
+{"id": "C127", "category": "부정·제외", "query": "청년 아닌 일반 사용자용 요금제", "expect": {"targetGroup": "GENERAL", "excludedGroups": ["YOUTH"]}, "fuzzy": false, "note": "제외한 그룹(excludedGroups)은 결과에서 빼는 필터"}
+{"id": "C128", "category": "부정·제외", "query": "워치 말고 폰 요금제 알려줘", "expect": {"excludedGroups": ["WATCH"]}, "fuzzy": false, "note": "워치 제외 / 제외한 그룹(excludedGroups)은 결과에서 빼는 필터"}
+{"id": "C129", "category": "부정·제외", "query": "태블릿 빼고 요금제 알려줘", "expect": {"excludedGroups": ["TABLET"]}, "fuzzy": false, "note": "태블릿 제외 / 제외한 그룹(excludedGroups)은 결과에서 빼는 필터"}
 {"id": "C130", "category": "복합", "query": "3만원대에 데이터 20기가 이상 요금제", "expect": {"feeMin": 30000, "feeMax": 39999, "dataMbMin": 20480}, "fuzzy": false, "note": ""}
 {"id": "C131", "category": "복합", "query": "5만원 이하 청년 요금제", "expect": {"feeMax": 50000, "targetGroup": "YOUTH"}, "fuzzy": false, "note": ""}
 {"id": "C132", "category": "복합", "query": "무제한이면서 6만원 이하 요금제", "expect": {"feeMax": 60000, "dataPolicy": "UNLIMITED"}, "fuzzy": false, "note": ""}

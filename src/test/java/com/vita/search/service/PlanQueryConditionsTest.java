@@ -78,6 +78,32 @@ class PlanQueryConditionsTest {
 		assertThat(all.withoutDataPolicy().voicePolicy()).isEqualTo("UNLIMITED");
 	}
 
+	private static PlanQueryConditions excluding(String group, java.util.Set<String> excluded) {
+		return new PlanQueryConditions(null, null, null, null, group, null, null, null, excluded);
+	}
+
+	@Test
+	void unitesTheExcludedGroupsOfBothSidesButNeverExcludesTheChosenGroup() {
+		PlanQueryConditions original = excluding(null, java.util.Set.of("SENIOR"));
+		PlanQueryConditions fallback = excluding("YOUTH", java.util.Set.of("YOUTH", "KIDS"));
+
+		PlanQueryConditions merged = original.orElse(fallback);
+
+		assertThat(merged.targetGroup()).isEqualTo("YOUTH");
+		assertThat(merged.excludedGroups()).containsExactlyInAnyOrder("SENIOR", "KIDS");
+	}
+
+	@Test
+	void doesNotCountExcludedGroupsAsConditionsAndKeepsThemWhenRelaxing() {
+		PlanQueryConditions conditions = new PlanQueryConditions(null, 50_000, null, null, null, "UNLIMITED", "UNLIMITED", null,
+				java.util.Set.of("SENIOR"));
+
+		assertThat(excluding(null, java.util.Set.of("SENIOR")).isEmpty()).isTrue();
+		assertThat(excluding(null, java.util.Set.of("SENIOR")).hasExclusions()).isTrue();
+		assertThat(conditions.withoutDataPolicy().excludedGroups()).containsExactly("SENIOR");
+		assertThat(conditions.withoutVoiceSmsPolicy().excludedGroups()).containsExactly("SENIOR");
+	}
+
 	@Test
 	void keepsTheOwnConditionsWhenTheFallbackAddsNothing() {
 		PlanQueryConditions own = of(30_000, 39_999, null, null, "GENERAL", "UNLIMITED");

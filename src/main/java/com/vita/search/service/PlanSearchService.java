@@ -96,12 +96,15 @@ public class PlanSearchService {
 	 */
 	public PlanSearchOutcome search(String originalQuery, String planQuery, float[] queryVector, int topK, int matchedLimit) {
 		List<PlanSimilarityResult> pool = planRetriever.retrieve(new RetrievalQuery(planQuery, queryVector), CANDIDATE_POOL);
-		Set<String> deviceOnlyCodes = deviceOnlyCodesToExclude(originalQuery, planQuery);
-
 		PlanQueryConditions conditions = PlanQueryConditionExtractor.extract(originalQuery)
 				.orElse(PlanQueryConditionExtractor.extract(planQuery));
+		Set<String> deviceOnlyCodes = deviceOnlyCodesToExclude(originalQuery, planQuery);
+		Set<String> excludedCodes = excludedGroupCodes(conditions);
+
 		if (!conditions.isEmpty()) {
-			Set<String> matched = findMatching(conditions);
+			// "시니어 말고 3만원대"처럼 질문이 제외한 그룹의 요금제는 어떤 경우에도 결과에서 뺀다.
+			Set<String> matched = new HashSet<>(findMatching(conditions));
+			matched.removeAll(excludedCodes);
 			if (!matched.isEmpty()) {
 				Set<String> scoped = new HashSet<>(matched);
 				scoped.removeAll(deviceOnlyCodes);
@@ -126,11 +129,29 @@ public class PlanSearchService {
 			}
 		}
 
-		List<PlanSimilarityResult> scopedPool = pool.stream()
+		// 조건으로 좁히지 못한 질문은 벡터 유사도 상위를 돌려주되, 제외한 그룹은 여기서도 뺀다.
+		List<PlanSimilarityResult> allowedPool = pool.stream()
+				.filter(candidate -> !excludedCodes.contains(candidate.planCode()))
+				.toList();
+		if (allowedPool.isEmpty()) {
+			allowedPool = pool;
+		}
+		List<PlanSimilarityResult> scopedPool = allowedPool.stream()
 				.filter(candidate -> !deviceOnlyCodes.contains(candidate.planCode()))
 				.toList();
-		List<PlanSimilarityResult> base = scopedPool.isEmpty() ? pool : scopedPool;
+		List<PlanSimilarityResult> base = scopedPool.isEmpty() ? allowedPool : scopedPool;
 		return new PlanSearchOutcome(base.stream().limit(topK).toList(), false);
+	}
+
+	/** 질문이 제외한 대상 그룹("시니어 말고")에 속하는 요금제의 plan_code 집합. 제외한 그룹이 없으면 조회하지 않는다. */
+	private Set<String> excludedGroupCodes(PlanQueryConditions conditions) {
+		if (!conditions.hasExclusions()) {
+			return Set.of();
+		}
+		return planLookupRepository.findTargetGroupByPlanCode().entrySet().stream()
+				.filter(entry -> conditions.excludedGroups().contains(entry.getValue()))
+				.map(Map.Entry::getKey)
+				.collect(Collectors.toSet());
 	}
 
 	/**
