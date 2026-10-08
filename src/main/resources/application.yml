@@ -126,6 +126,8 @@ search:
   pipeline:
     query-transformer: ${SEARCH_PIPELINE_QUERY_TRANSFORMER:identityQueryTransformer}
     faq-retriever: ${SEARCH_PIPELINE_FAQ_RETRIEVER:vectorFaqRetriever}
+    # 요금제 후보 검색기의 빈 이름. 기본은 벡터 검색이고, Hybrid 같은 구현은 그 빈 이름을 적는다.
+    plan-retriever: ${SEARCH_PIPELINE_PLAN_RETRIEVER:vectorPlanRetriever}
   # 요금제 평가셋(plan_eval_v1)으로 BE4에 전달되는 요금제 목록의 품질을 재는 수동 도구. 로컬 도커(DB+임베딩 서버)가 떠 있고
   # 요금제 15종이 DB에 있을 때만 켠다. top-ks는 한 번에 비교할 요금제 개수(plan.retrieval.top-k 후보).
   plan-eval:
@@ -134,11 +136,15 @@ search:
     top-ks: ${SEARCH_PLAN_EVAL_TOP_KS:3,10}
     query-transformer: ${SEARCH_PLAN_EVAL_QUERY_TRANSFORMER:identityQueryTransformer}
     faq-retriever: ${SEARCH_PLAN_EVAL_FAQ_RETRIEVER:vectorFaqRetriever}
+    plan-retriever: ${SEARCH_PLAN_EVAL_PLAN_RETRIEVER:vectorPlanRetriever}
     # 질문 변환 결과를 저장·재사용할 JSONL 파일(비우면 매번 변환기를 부른다). 같은 변환 결과로 요금제 개수 등을 바꿔 비교하려면 같은 파일을 쓰고,
     # 변환기·프롬프트를 바꾸면 다른 파일을 쓴다.
     transform-cache: ${SEARCH_PLAN_EVAL_TRANSFORM_CACHE:}
     # 최상급 질문에서 정형 조회가 돌려줄 요금제 개수. BE4는 개수를 따로 말하지 않은 질문에 1을 쓴다.
     extreme-limit: ${SEARCH_PLAN_EVAL_EXTREME_LIMIT:1}
+    # 단계별 응답 시간을 질문마다 몇 번 반복해 잴지(0이면 건너뜀)와, 결과를 버리고 먼저 돌려 둘 예열 횟수. 변환기가 LLM이면 반복 횟수만큼 호출한다.
+    timing-repeats: ${SEARCH_PLAN_EVAL_TIMING_REPEATS:3}
+    timing-warmup: ${SEARCH_PLAN_EVAL_TIMING_WARMUP:5}
   # 검색 평가셋(v2)으로 Recall·Precision·nDCG·MRR을 재는 수동 도구. 로컬 도커(DB+임베딩 서버)가 떠 있고
   # 평가셋의 정답 FAQ가 DB에 적재돼 있을 때만 켠다(데이터가 다르면 바로 중단한다).
   eval:

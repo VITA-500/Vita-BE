@@ -95,7 +95,7 @@ public class ChatMessageService {
 	    Collections.reverse(recent);  // DESC로 가져왔으니 시간순(ASC)으로 복원
 
 	    return recent.stream()
-	            .map(m -> "%s: %s".formatted(m.getRole(), m.getContent()))
+	            .map(m -> "%s: %s".formatted(m.getRole(), PromptEscaper.escape(m.getContent())))
 	            .collect(Collectors.joining("\n"));
 		
 	}

@@ -40,12 +40,14 @@ public class StoreController {
             @RequestParam(required = false) Double radius,
             @RequestParam(required = false) String storeType,
             @RequestParam(required = false) String category,
-            @RequestParam(required = false) Long benefitId){
+            @RequestParam(required = false) Long benefitId,
+            @RequestParam(required = false) Boolean openNow,
+            @RequestParam(required = false) String openAt){
         requireLocation(lat, lng);
         if(radius == null){
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "반경(radius)은 필수입니다.");
         }
-        return storeService.findNearby(lat, lng, radius, storeType, category, benefitId);
+        return storeService.findNearby(lat, lng, radius, storeType, category, benefitId, openNow, openAt);
     }
 
     @GetMapping("/stores/{storeId}")

@@ -429,6 +429,23 @@ class RetrievalPipelineTest {
 	}
 
 	@Test
+	void withPlanRetrieverRunsThePlanSearchOfTheSwappedServiceAndKeepsTheOriginalServiceUntouched() {
+		stubFaqPool(faqOf(1, "요금 및 납부", "요금조회", 0.9));
+		PlanRetriever planRetriever = mock(PlanRetriever.class);
+		PlanSearchService swappedService = mock(PlanSearchService.class);
+		when(planSearchService.with(planRetriever)).thenReturn(swappedService);
+		when(swappedService.search(any(), any(), any(float[].class), anyInt(), anyInt()))
+				.thenReturn(new PlanSearchService.PlanSearchOutcome(List.of(), false));
+
+		pipeline.with(new IdentityQueryTransformer(), new VectorFaqRetriever(faqRepository), planRetriever)
+				.run("자동이체 계좌를 변경하고 싶어요", RetrievalOptions.forEval(3, 30, true));
+
+		// 요금제 검색은 바꿔 끼운 서비스가 하고, 서비스 빈(원래 서비스)은 호출되지 않는다.
+		verify(swappedService).search(any(), any(), any(float[].class), anyInt(), anyInt());
+		verify(planSearchService, never()).search(any(), any(), any(float[].class), anyInt(), anyInt());
+	}
+
+	@Test
 	void thePlanCountOptionOverridesTheSettingForEvaluationRuns() {
 		stubFaqPool(faqOf(1, "요금 및 납부", "요금조회", 0.9));
 

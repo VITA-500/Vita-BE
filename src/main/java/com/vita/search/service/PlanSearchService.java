@@ -1,15 +1,15 @@
 package com.vita.search.service;
 
 import com.vita.search.dto.PlanSimilarityResult;
+import com.vita.search.pipeline.PlanRetriever;
+import com.vita.search.pipeline.RetrievalQuery;
 import com.vita.search.repository.PlanLookupRepository;
-import com.vita.search.repository.PlanVectorSearchRepository;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.springframework.stereotype.Service;
 
 /**
  * 요금제 검색 한 번을 담당한다. 벡터 유사도 검색에 더해, 질문에서 가격·데이터량·대상 그룹·무제한 여부를
@@ -23,8 +23,10 @@ import org.springframework.stereotype.Service;
  * 안 남는 경우("1만1천원짜리 요금제": 그 가격은 워치 요금제뿐)에는 뺀 것을 되돌려서 답을 준다.
  *
  * <p>검색 파이프라인(RetrievalPipeline, 실서비스)과 회귀 테스트 러너가 같은 로직을 쓰도록 한곳에 모았다.
+ *
+ * <p>후보를 가져오는 방식(기본은 벡터 유사도, 평가·실험에서는 영어 컬럼이나 Hybrid)은 {@link PlanRetriever}로 갈아끼운다.
+ * 어떤 구현을 쓸지는 {@code RetrievalPipelineConfig}가 설정({@code search.pipeline.plan-retriever})으로 골라 빈으로 만든다.
  */
-@Service
 public class PlanSearchService {
 
 	/** 조건 매칭 결과를 유사도 순으로 정렬하기 위해 벡터 검색에서 넉넉히 가져오는 후보 수(요금제는 15종 규모). */
@@ -40,13 +42,20 @@ public class PlanSearchService {
 	/** 워치·태블릿처럼 특정 기기에서만 쓸 수 있는 요금제의 대상 그룹(plans.target_group). */
 	private static final Set<String> DEVICE_ONLY_GROUPS = Set.of("WATCH", "TABLET");
 
-	private final PlanVectorSearchRepository planVectorSearchRepository;
+	private final PlanRetriever planRetriever;
 	private final PlanLookupRepository planLookupRepository;
 
-	public PlanSearchService(PlanVectorSearchRepository planVectorSearchRepository,
-			PlanLookupRepository planLookupRepository) {
-		this.planVectorSearchRepository = planVectorSearchRepository;
+	public PlanSearchService(PlanRetriever planRetriever, PlanLookupRepository planLookupRepository) {
+		this.planRetriever = planRetriever;
 		this.planLookupRepository = planLookupRepository;
+	}
+
+	/**
+	 * 후보 검색기만 바꾼 같은 설정의 요금제 검색을 만든다. 평가 러너가 실험 변형(Hybrid, 영어)을 이 방법으로 갈아끼운다.
+	 * 서비스 빈은 바뀌지 않는다.
+	 */
+	public PlanSearchService with(PlanRetriever retriever) {
+		return new PlanSearchService(retriever, planLookupRepository);
 	}
 
 	/**
@@ -86,7 +95,7 @@ public class PlanSearchService {
 	 * @param matchedLimit  조건에 매칭된 요금제를 돌려줄 최대 개수
 	 */
 	public PlanSearchOutcome search(String originalQuery, String planQuery, float[] queryVector, int topK, int matchedLimit) {
-		List<PlanSimilarityResult> pool = planVectorSearchRepository.searchBySimilarity(queryVector, 0.0, CANDIDATE_POOL);
+		List<PlanSimilarityResult> pool = planRetriever.retrieve(new RetrievalQuery(planQuery, queryVector), CANDIDATE_POOL);
 		Set<String> deviceOnlyCodes = deviceOnlyCodesToExclude(originalQuery, planQuery);
 
 		PlanQueryConditions conditions = PlanQueryConditionExtractor.extract(originalQuery)

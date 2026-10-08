@@ -11,6 +11,7 @@ public record StoreNearestResponse(
         BigDecimal lng,
         Double distanceKm,
         String businessHours,
+        Boolean openNow,
         String phone,
         List<String> consultServices,
         List<String> providedServices) { }

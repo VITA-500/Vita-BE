@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -49,6 +50,7 @@ public class StoreService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "등록된 매장이 없습니다."));
         return new StoreNearestResponse(nearest.getId(), nearest.getName(), nearest.getAddress(),
                 nearest.getLat(), nearest.getLng(), round2(nearest.getDistanceKm()), nearest.getBusinessHours(),
+                BusinessHours.openAt(nearest.getBusinessHours(), BusinessHours.nowInKorea()),
                 nearest.getPhone(), splitServices(nearest.getConsultServices()), splitServices(nearest.getProvidedServices()));
     }
 
@@ -57,10 +59,14 @@ public class StoreService {
      * PARTNER일 경우 제휴 매장을 혜택 정보와 돌려줌
      * 업종 및 브랜드로 필터 가능
      * 제휴 매장 반경이 클 때를 대비해 개수 상한 100개
+     * openNow=true면 지금 영업 중인 매장만
+     * openAt("HH:mm")이면 그 시각에 영업 중인 매장만
      */
-    public StoreNearbyListResponse findNearby(BigDecimal lat, BigDecimal lng, double radiusKm,
-                                              String storeType, String category, Long benefitId) {
+    public StoreNearbyListResponse findNearby(BigDecimal lat, BigDecimal lng, double radiusKm, String storeType,
+                                              String category, Long benefitId, Boolean openNow, String openAt) {
         StoreType type = StoreType.fromNullable(storeType);
+        LocalTime filterTime = BusinessHours.filterTime(openNow, openAt);
+        LocalTime now = BusinessHours.nowInKorea();
         String targetCategory = (category == null || category.isBlank()) ? null : category.trim();
 
         if (type != StoreType.PARTNER) {
@@ -68,19 +74,21 @@ public class StoreService {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR,
                         "업종(category) 및 브랜드(benefitId) 필터는 storeType=PARTNER에서만 사용할 수 있습니다.");
             }
-            List<StoreNearbyItemResponse> stores = storeRepository.findNearBy(lat, lng, radiusKm).stream()
+            List<StoreNearbyItemResponse> stores = storeRepository.findNearBy(lat, lng, radiusKm, filterTime).stream()
                 .map(p -> new StoreNearbyItemResponse(p.getId(), p.getName(), StoreType.PHONE.name(), p.getAddress(),
-                        p.getPhone(), p.getLat(), p.getLng(), round2(p.getDistanceKm()), p.getBusinessHours(), splitServices(p.getConsultServices()),
-                        splitServices(p.getProvidedServices()),null, null, null, null, null))
+                        p.getPhone(), p.getLat(), p.getLng(), round2(p.getDistanceKm()), p.getBusinessHours(), BusinessHours.openAt(p.getBusinessHours(), now),
+                        splitServices(p.getConsultServices()), splitServices(p.getProvidedServices()),
+                        null, null, null, null, null))
                     .toList();
         return new StoreNearbyListResponse(stores);
         }
 
         List<StoreNearbyItemResponse> stores = storeRepository.findPartnersNearby(
-                lat, lng, targetCategory, benefitId, radiusKm, PARTNER_NEARBY_LIMIT).stream()
+                lat, lng, targetCategory, benefitId, radiusKm, filterTime, PARTNER_NEARBY_LIMIT).stream()
                 .map(p -> new StoreNearbyItemResponse(p.getId(), p.getName(), StoreType.PARTNER.name(),
-                        p.getAddress(), p.getPhone(), p.getLat(), p.getLng(), round2(p.getDistanceKm()), p.getBusinessHours(), List.of(), List.of(),
-                        p.getBenefitId(), p.getBrand(), p.getCategory(), p.getBenefitName(), p.getBenefitDescription()))
+                        p.getAddress(), p.getPhone(), p.getLat(), p.getLng(), round2(p.getDistanceKm()), p.getBusinessHours(),
+                        BusinessHours.openAt(p.getBusinessHours(), now), List.of(), List.of(), p.getBenefitId(), p.getBrand(),
+                        p.getCategory(), p.getBenefitName(), p.getBenefitDescription()))
                 .toList();
         return new StoreNearbyListResponse(stores);
     }
@@ -91,6 +99,12 @@ public class StoreService {
      * limit 생략 시 4개, 최대 20개
      */
     public List<StoreChatItemResponse> findNearbyForChat(BigDecimal lat, BigDecimal lng, double radiusKm, Integer limit, List<String> services){
+        return findNearbyForChat(lat, lng, radiusKm, limit, services, null);
+    }
+
+    /** openAt을 주면 그 시각에 영업 중인 매장만 (지금 영업 중: BusinessHours.nowInKorea()) */
+    public List<StoreChatItemResponse> findNearbyForChat(BigDecimal lat, BigDecimal lng, double radiusKm, Integer limit,
+                                                         List<String> services, LocalTime openAt){
         if(lat == null || lng == null){
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
                     "위치(lat, lng)는 필수입니다.");
@@ -108,9 +122,11 @@ public class StoreService {
                 .filter(Objects::nonNull).map(String::trim).filter(s -> !s.isEmpty())
                 .distinct().reduce((a, b) -> a + "||" + b).orElse(null);
 
-        return storeRepository.findNearbyForChat(lat, lng, radiusKm, joinedServices, size).stream()
+        LocalTime now = BusinessHours.nowInKorea();
+        return storeRepository.findNearbyForChat(lat, lng, radiusKm, joinedServices, openAt, size).stream()
                 .map(p -> new StoreChatItemResponse(p.getId(), p.getName(), p.getAddress(),
                         p.getPhone(), p.getLat(), p.getLng(), round2(p.getDistanceKm()), p.getBusinessHours(),
+                        BusinessHours.openAt(p.getBusinessHours(), now),
                         splitServices(p.getConsultServices()), splitServices(p.getProvidedServices()))).toList();
     }
 
@@ -151,7 +167,8 @@ public class StoreService {
         Store store = findStoreOrThrow(storeId);
         Benefit benefit = benefitsOf(List.of(store)).get(store.getId());
         return new StoreDetailResponse(store.getId(), store.getName(), store.getAddress(),
-                store.getLat(), store.getLng(), store.getBusinessHours(), store.getPhone(),
+                store.getLat(), store.getLng(), store.getBusinessHours(),
+                BusinessHours.openAt(store.getBusinessHours(), BusinessHours.nowInKorea()), store.getPhone(),
                 store.getConsultServices(), store.getProvidedServices(), store.getStoreType().name(),
                 benefit != null ? benefit.getId() : null,
                 benefit != null ? benefit.getBrand() : null,
