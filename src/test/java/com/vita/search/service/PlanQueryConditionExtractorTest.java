@@ -280,6 +280,42 @@ class PlanQueryConditionExtractorTest {
 	}
 
 	@Test
+	void doesNotReadDiscountCouponGiftOrFeeAmountsAsTheMonthlyFee() {
+		assertThat(extract("3만원 할인 쿠폰 주는 요금제").isEmpty()).isTrue();
+		assertThat(extract("5천원 할인 받는 요금제 있어?").isEmpty()).isTrue();
+		assertThat(extract("가입하면 10만원 상품권 주는 요금제").isEmpty()).isTrue();
+		assertThat(extract("요금제 바꾸면 5천원 더 내요?").isEmpty()).isTrue();
+		assertThat(extract("요금제 변경 수수료 3천원이라던데 맞아요?").isEmpty()).isTrue();
+		assertThat(extract("수수료 3,000원 드는 요금제 변경").isEmpty()).isTrue();
+	}
+
+	@Test
+	void readsTheMonthlyFeeThatRemainsAfterIgnoringADiscountAmount() {
+		PlanQueryConditions c = extract("3만원 할인 쿠폰 주는 5만원 이하 요금제");
+
+		assertThat(c.feeMax()).isEqualTo(50_000);
+		assertThat(c.feeMin()).isNull();
+	}
+
+	@Test
+	void keepsReadingAFeeWhenADiscountWordOnlyAppearsAfterTheComparison() {
+		assertThat(extract("3만원 이하 쿠폰 주는 요금제").feeMax()).isEqualTo(30_000);
+		assertThat(extract("3만원대 요금제 중에 할인 되는 거").feeMin()).isEqualTo(30_000);
+	}
+
+	@Test
+	void doesNotReadRoamingCouponOrAddOnDataAsTheBaseData() {
+		assertThat(extract("로밍으로 5기가 쓰면 요금제 어떻게 돼요?").isEmpty()).isTrue();
+		assertThat(extract("추가 데이터 2기가 쿠폰 주는 요금제").isEmpty()).isTrue();
+		assertThat(extract("쿠폰 2기가 주는 요금제").isEmpty()).isTrue();
+	}
+
+	@Test
+	void keepsReadingBaseDataWhenRoamingIsOnlyMentionedElsewhere() {
+		assertThat(extract("로밍 가능한 20기가 요금제").dataMbMin()).isEqualTo(20_480L);
+	}
+
+	@Test
 	void combinesConditions() {
 		PlanQueryConditions c = extract("3만5천원짜리 청년 요금제 있어?");
 

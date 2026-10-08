@@ -23,6 +23,33 @@ public final class PlanQueryConditionExtractor {
 	private static final Pattern PLAN_CONTEXT = Pattern.compile(
 			"요금제|플랜|비타\\s*(?:라이트|밸런스|플러스|맥스|유스|시니어|키즈|워치|태블릿)");
 
+	/**
+	 * 금액 바로 앞에 붙어 그 금액이 요금제 월 요금이 아님을 알려 주는 말(할인액·수수료·상품권 등). "수수료 3천원", "상품권 10만원".
+	 * 금액 바로 앞(조사만 사이에 허용)에 올 때만 보므로 "할인 받은 뒤 3만원대"처럼 떨어져 있으면 영향이 없다.
+	 */
+	private static final Pattern FEE_NON_FILTER_BEFORE = Pattern.compile(
+			"(?:수수료|위약금|연체료|연체|할인액|할인|캐시백|환급|적립|상품권|쿠폰|포인트|사은품|지원금|보조금|혜택|부가세|보증금|가입비|개통비|설치비|해지비"
+					+ "|추가\\s*요금)\\s*(?:은|는|이|가|을|를|으로|로)?\\s*$");
+
+	/**
+	 * 금액 바로 뒤에 붙어 월 요금이 아님을 알려 주는 말. "3만원 할인 쿠폰", "10만원 상품권", "5천원 더 내요?"(차액). 뒤에 "이하/이상/대"가
+	 * 오면 이 패턴에 걸리지 않아("3만원 이하 쿠폰 주는 요금제") 요금 조건으로 읽는다.
+	 */
+	private static final Pattern FEE_NON_FILTER_AFTER = Pattern.compile(
+			"^\\s*(?:짜리|의)?\\s*(?:할인|깎|인하|감면|환급|캐시백|적립|페이백|쿠폰|상품권|포인트|사은품|기프티콘|혜택|지원금|보조금|선물|수수료|위약금|연체"
+					+ "|부가세|보증금|가입비|개통비|설치비|해지비|(?:정도|쯤)?\\s*더\\s*(?:내|낸|나오|붙|받|드|들))");
+
+	/** 데이터량 바로 앞에 붙어 요금제 기본 데이터가 아님을 알려 주는 말. "로밍으로 5기가", "추가 데이터 2기가", "쿠폰 2기가". */
+	private static final Pattern DATA_NON_FILTER_BEFORE = Pattern.compile(
+			"(?:로밍(?:으로|에서|할\\s*때|중에?|시)?|리필|쿠폰|선물|충전|추가(?:로|해서)?)\\s*(?:데이터)?\\s*$");
+
+	/** 데이터량 바로 뒤에 붙어 기본 데이터가 아님을 알려 주는 말. "2기가 쿠폰", "5기가 선물". */
+	private static final Pattern DATA_NON_FILTER_AFTER = Pattern.compile(
+			"^\\s*(?:짜리|의)?\\s*(?:쿠폰|선물|리필|충전|추가|덤|보너스|이벤트)");
+
+	/** 금액·데이터량 앞뒤에서 월 요금·기본 데이터가 아닌 용도(할인·쿠폰 등)를 알아볼 때 뒤쪽으로 볼 글자 수. */
+	private static final int AMOUNT_CONTEXT_LOOKAHEAD = 12;
+
 	/** "3만1천원", "3만원", "5천원"처럼 한글 단위가 섞인 금액. 그룹1=만 단위 수, 그룹2=천 단위 수. */
 	private static final Pattern KOREAN_FEE = Pattern.compile("(?:(\\d+)\\s*만)?\\s*(?:(\\d+)\\s*천)?\\s*원");
 
@@ -171,6 +198,10 @@ public final class PlanQueryConditionExtractor {
 
 		Matcher digit = DIGIT_FEE.matcher(query);
 		while (digit.find()) {
+			// 할인액·수수료·상품권처럼 월 요금이 아닌 금액은 세지 않는다("3만원 할인 쿠폰 주는 요금제"에서 3만원은 요금이 아니다).
+			if (isNonFilterAmount(query, digit.start(), digit.end(), FEE_NON_FILTER_BEFORE, FEE_NON_FILTER_AFTER)) {
+				continue;
+			}
 			count++;
 			amount = Long.parseLong(digit.group(1).replace(",", ""));
 			end = digit.end();
@@ -185,6 +216,9 @@ public final class PlanQueryConditionExtractor {
 			if (overlapsDigitFee(query, korean.start())) {
 				continue;
 			}
+			if (isNonFilterAmount(query, korean.start(), korean.end(), FEE_NON_FILTER_BEFORE, FEE_NON_FILTER_AFTER)) {
+				continue;
+			}
 			count++;
 			long man = korean.group(1) == null ? 0 : Long.parseLong(korean.group(1));
 			long cheon = korean.group(2) == null ? 0 : Long.parseLong(korean.group(2));
@@ -196,6 +230,13 @@ public final class PlanQueryConditionExtractor {
 			return null;
 		}
 		return toRange(amount, boundAfter(query, end), true);
+	}
+
+	/** 금액·데이터량(start~end) 바로 앞이나 뒤에 월 요금·기본 데이터가 아님을 알려 주는 말이 있는지. */
+	private static boolean isNonFilterAmount(String query, int start, int end, Pattern before, Pattern after) {
+		String head = query.substring(0, start);
+		String tail = query.substring(end, Math.min(query.length(), end + AMOUNT_CONTEXT_LOOKAHEAD));
+		return before.matcher(head).find() || after.matcher(tail).find();
 	}
 
 	private static boolean overlapsDigitFee(String query, int start) {
@@ -215,6 +256,10 @@ public final class PlanQueryConditionExtractor {
 		int end = -1;
 		int count = 0;
 		while (matcher.find()) {
+			// 로밍·쿠폰·추가 데이터처럼 요금제 기본 데이터가 아닌 데이터량은 세지 않는다.
+			if (isNonFilterAmount(query, matcher.start(), matcher.end(), DATA_NON_FILTER_BEFORE, DATA_NON_FILTER_AFTER)) {
+				continue;
+			}
 			count++;
 			amountMb = Long.parseLong(matcher.group(1)) * MB_PER_GB;
 			end = matcher.end();
