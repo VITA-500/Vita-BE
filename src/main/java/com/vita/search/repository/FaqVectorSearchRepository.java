@@ -5,6 +5,7 @@ import com.vita.search.dto.FaqSimilarityResult;
 import com.vita.search.entity.FaqStatus;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -73,14 +74,7 @@ public class FaqVectorSearchRepository {
 				List<FaqSimilarityResult> results = new ArrayList<>();
 				try (ResultSet resultSet = statement.executeQuery()) {
 					while (resultSet.next()) {
-						results.add(new FaqSimilarityResult(
-								resultSet.getLong("id"),
-								resultSet.getString("category"),
-								resultSet.getString("subcategory"),
-								resultSet.getString("question"),
-								resultSet.getString("answer"),
-								resultSet.getDouble("similarity"),
-								resultSet.getObject("updated_at", LocalDateTime.class)));
+						results.add(mapRow(resultSet));
 					}
 				}
 				return results;
@@ -88,5 +82,17 @@ public class FaqVectorSearchRepository {
 		};
 
 		return jdbcTemplate.execute(action);
+	}
+
+	/** 검색 결과 한 행을 {@link FaqSimilarityResult}로 바꾼다. 같은 컬럼을 돌려주는 다른 검색(Hybrid)이 함께 쓴다. */
+	public static FaqSimilarityResult mapRow(ResultSet resultSet) throws SQLException {
+		return new FaqSimilarityResult(
+				resultSet.getLong("id"),
+				resultSet.getString("category"),
+				resultSet.getString("subcategory"),
+				resultSet.getString("question"),
+				resultSet.getString("answer"),
+				resultSet.getDouble("similarity"),
+				resultSet.getObject("updated_at", LocalDateTime.class));
 	}
 }

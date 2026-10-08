@@ -4,6 +4,7 @@ import com.pgvector.PGvector;
 import com.vita.search.dto.PlanSimilarityResult;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -66,26 +67,7 @@ public class PlanVectorSearchRepository {
 				List<PlanSimilarityResult> results = new ArrayList<>();
 				try (ResultSet resultSet = statement.executeQuery()) {
 					while (resultSet.next()) {
-						results.add(new PlanSimilarityResult(
-								resultSet.getLong("id"),
-								resultSet.getString("plan_code"),
-								resultSet.getString("name"),
-								resultSet.getString("summary"),
-								resultSet.getInt("monthly_fee"),
-								resultSet.getString("description"),
-								resultSet.getDouble("similarity"),
-								resultSet.getObject("updated_at", LocalDateTime.class),
-								resultSet.getString("network_type"),
-								resultSet.getString("target_group"),
-								resultSet.getObject("min_age", Integer.class),
-								resultSet.getObject("max_age", Integer.class),
-								resultSet.getString("data_policy"),
-								resultSet.getObject("base_data_mb", Long.class),
-								resultSet.getObject("exhausted_speed_kbps", Integer.class),
-								resultSet.getString("voice_policy"),
-								resultSet.getObject("voice_minutes", Integer.class),
-								resultSet.getString("sms_policy"),
-								resultSet.getObject("sms_count", Integer.class)));
+						results.add(mapRow(resultSet));
 					}
 				}
 				return results;
@@ -93,5 +75,29 @@ public class PlanVectorSearchRepository {
 		};
 
 		return jdbcTemplate.execute(action);
+	}
+
+	/** 검색 결과 한 행을 {@link PlanSimilarityResult}로 바꾼다. 같은 컬럼을 돌려주는 다른 검색(Hybrid)이 함께 쓴다. */
+	public static PlanSimilarityResult mapRow(ResultSet resultSet) throws SQLException {
+		return new PlanSimilarityResult(
+				resultSet.getLong("id"),
+				resultSet.getString("plan_code"),
+				resultSet.getString("name"),
+				resultSet.getString("summary"),
+				resultSet.getInt("monthly_fee"),
+				resultSet.getString("description"),
+				resultSet.getDouble("similarity"),
+				resultSet.getObject("updated_at", LocalDateTime.class),
+				resultSet.getString("network_type"),
+				resultSet.getString("target_group"),
+				resultSet.getObject("min_age", Integer.class),
+				resultSet.getObject("max_age", Integer.class),
+				resultSet.getString("data_policy"),
+				resultSet.getObject("base_data_mb", Long.class),
+				resultSet.getObject("exhausted_speed_kbps", Integer.class),
+				resultSet.getString("voice_policy"),
+				resultSet.getObject("voice_minutes", Integer.class),
+				resultSet.getString("sms_policy"),
+				resultSet.getObject("sms_count", Integer.class));
 	}
 }
