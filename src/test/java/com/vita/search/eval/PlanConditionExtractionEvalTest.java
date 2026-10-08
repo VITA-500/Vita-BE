@@ -40,10 +40,15 @@ class PlanConditionExtractionEvalTest {
 	record EvalCase(String id, String category, String query, Map<String, Object> expect, boolean fuzzy, String note) {
 	}
 
-	/** 조건 항목 6개. 추출기 결과에서 값을 꺼내는 방법을 함께 둔다. */
+	/**
+	 * 조건 항목 8개. 추출기 결과에서 값을 꺼내는 방법을 함께 둔다. 통화·문자 정책(VOICE_POLICY, SMS_POLICY)은 plans.voice_policy,
+	 * plans.sms_policy와 비교하는 조건("통화 무제한" 등, 검수에서 확정)인데 추출기가 아직 읽지 못해 항상 비어 있다. 추출기가
+	 * 이 조건을 지원하면 {@link #valueOf}가 실제 값을 돌려주게 고친다.
+	 */
 	private enum Field {
 		FEE_MIN("feeMin", "금액"), FEE_MAX("feeMax", "금액"), DATA_MB_MIN("dataMbMin", "데이터량"),
-		DATA_MB_MAX("dataMbMax", "데이터량"), TARGET_GROUP("targetGroup", "대상"), DATA_POLICY("dataPolicy", "무제한");
+		DATA_MB_MAX("dataMbMax", "데이터량"), TARGET_GROUP("targetGroup", "대상"), DATA_POLICY("dataPolicy", "무제한"),
+		VOICE_POLICY("voicePolicy", "통화·문자"), SMS_POLICY("smsPolicy", "통화·문자");
 
 		final String key;
 		final String group;
@@ -62,6 +67,7 @@ class PlanConditionExtractionEvalTest {
 				case DATA_MB_MAX -> c.dataMbMax();
 				case TARGET_GROUP -> c.targetGroup();
 				case DATA_POLICY -> c.dataPolicy();
+				case VOICE_POLICY, SMS_POLICY -> null; // 추출기가 아직 읽지 않는 조건
 			};
 		}
 	}
@@ -70,13 +76,16 @@ class PlanConditionExtractionEvalTest {
 	private enum Verdict { OK, FALSE_POSITIVE, MISSED, WRONG_VALUE }
 
 	/**
-	 * 지금 추출기의 점수(2026-10-08, 커밋 d016189 기준). 모든 조건이 정답과 같은 문항 수가 이보다 줄어들면 추출기가 나빠진 것이다.
+	 * 지금 추출기의 점수(2026-10-08, 커밋 d016189 기준, 검수 반영 후 147문항). 모든 조건이 정답과 같은 문항 수가 이보다 줄어들면
+	 * 추출기가 나빠진 것이다.
 	 * 추출기를 개선해 점수가 오르면 이 값을 새 점수로 올려서 그 이상을 지키게 한다.
 	 */
-	private static final int BASELINE_EXACT_CASES = 88;
+	private static final int BASELINE_EXACT_CASES = 86;
 
 	private static final Set<String> GROUPS = Set.of("GENERAL", "YOUTH", "SENIOR", "KIDS", "WATCH", "TABLET");
 	private static final Set<String> POLICIES = Set.of("LIMITED", "UNLIMITED");
+	/** plans.voice_policy, plans.sms_policy 값. */
+	private static final Set<String> VOICE_SMS_POLICIES = Set.of("NONE", "LIMITED", "UNLIMITED");
 
 	private static List<EvalCase> cases;
 
@@ -102,7 +111,7 @@ class PlanConditionExtractionEvalTest {
 		assertThat(cases.stream().map(EvalCase::id).distinct().count()).isEqualTo(cases.size());
 		assertThat(cases.stream().map(EvalCase::query).distinct().count()).isEqualTo(cases.size());
 
-		Set<String> keys = Set.of("feeMin", "feeMax", "dataMbMin", "dataMbMax", "targetGroup", "dataPolicy");
+		Set<String> keys = Set.of("feeMin", "feeMax", "dataMbMin", "dataMbMax", "targetGroup", "dataPolicy", "voicePolicy", "smsPolicy");
 		for (EvalCase c : cases) {
 			assertThat(c.query()).as(c.id() + " 질문").isNotBlank();
 			assertThat(keys).as(c.id() + " 정답 항목 이름").containsAll(c.expect().keySet());
@@ -113,6 +122,12 @@ class PlanConditionExtractionEvalTest {
 			Object policy = c.expect().get("dataPolicy");
 			if (policy != null) {
 				assertThat(POLICIES).as(c.id() + " 무제한 여부 값").contains((String) policy);
+			}
+			for (String key : List.of("voicePolicy", "smsPolicy")) {
+				Object value = c.expect().get(key);
+				if (value != null) {
+					assertThat(VOICE_SMS_POLICIES).as(c.id() + " " + key + " 값").contains((String) value);
+				}
 			}
 			Number feeMin = (Number) c.expect().get("feeMin");
 			Number feeMax = (Number) c.expect().get("feeMax");

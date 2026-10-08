@@ -32,7 +32,7 @@
 {"id": "C032", "category": "금액 범위", "query": "3만원 정도 하는 요금제", "expect": {"feeMin": 27000, "feeMax": 33000}, "fuzzy": false, "note": "대략(±10%)"}
 {"id": "C033", "category": "금액 범위", "query": "3만원쯤 하는 요금제", "expect": {"feeMin": 27000, "feeMax": 33000}, "fuzzy": false, "note": "대략(±10%)"}
 {"id": "C034", "category": "금액 범위", "query": "3만원 안팎 요금제", "expect": {"feeMin": 27000, "feeMax": 33000}, "fuzzy": false, "note": "대략(±10%)"}
-{"id": "C035", "category": "금액 범위", "query": "3만원 근처 요금제", "expect": {"feeMin": 27000, "feeMax": 33000}, "fuzzy": true, "note": "대략(±10%), '근처'"}
+{"id": "C035", "category": "금액 범위", "query": "3만원 근처 요금제", "expect": {"feeMin": 27000, "feeMax": 33000}, "fuzzy": false, "note": "대략(±10%), '근처'는 '정도'와 같은 대략(검수)"}
 {"id": "C036", "category": "금액 범위", "query": "3만원 언저리 요금제", "expect": {"feeMin": 27000, "feeMax": 33000}, "fuzzy": false, "note": "대략(±10%)"}
 {"id": "C037", "category": "금액 범위", "query": "3만원에서 5만원 사이 요금제", "expect": {"feeMin": 30000, "feeMax": 50000}, "fuzzy": false, "note": "두 금액 범위"}
 {"id": "C038", "category": "금액 범위", "query": "3만원부터 5만원까지 요금제", "expect": {"feeMin": 30000, "feeMax": 50000}, "fuzzy": false, "note": "두 금액 범위"}
@@ -65,10 +65,10 @@
 {"id": "C065", "category": "무제한", "query": "데이터 걱정 없는 요금제 추천", "expect": {"dataPolicy": "UNLIMITED"}, "fuzzy": false, "note": "'없는'"}
 {"id": "C066", "category": "무제한", "query": "데이터 마음껏 쓰는 요금제", "expect": {"dataPolicy": "UNLIMITED"}, "fuzzy": false, "note": ""}
 {"id": "C067", "category": "무제한", "query": "맘껏 쓸 수 있는 요금제 있어?", "expect": {"dataPolicy": "UNLIMITED"}, "fuzzy": false, "note": ""}
-{"id": "C068", "category": "무제한", "query": "통화 무제한 요금제", "expect": {}, "fuzzy": false, "note": "데이터가 아니라 통화 무제한"}
-{"id": "C069", "category": "무제한", "query": "문자 무제한 되는 요금제", "expect": {}, "fuzzy": false, "note": "데이터가 아니라 문자 무제한"}
-{"id": "C070", "category": "무제한", "query": "통화랑 문자 마음껏 쓰는 요금제", "expect": {}, "fuzzy": false, "note": "'마음껏'이 데이터가 아님"}
-{"id": "C071", "category": "무제한", "query": "통화도 데이터도 무제한인 요금제", "expect": {"dataPolicy": "UNLIMITED"}, "fuzzy": true, "note": "둘 다 무제한"}
+{"id": "C068", "category": "무제한", "query": "통화 무제한 요금제", "expect": {"voicePolicy": "UNLIMITED"}, "fuzzy": false, "note": "통화 무제한은 plans.voice_policy=UNLIMITED(검수). 데이터 무제한이 아님"}
+{"id": "C069", "category": "무제한", "query": "문자 무제한 되는 요금제", "expect": {"smsPolicy": "UNLIMITED"}, "fuzzy": false, "note": "문자 무제한은 plans.sms_policy=UNLIMITED(검수). 데이터 무제한이 아님"}
+{"id": "C070", "category": "무제한", "query": "통화랑 문자 마음껏 쓰는 요금제", "expect": {"voicePolicy": "UNLIMITED", "smsPolicy": "UNLIMITED"}, "fuzzy": false, "note": "'마음껏'은 통화·문자 무제한. 데이터 무제한으로 읽으면 오탐"}
+{"id": "C071", "category": "무제한", "query": "통화도 데이터도 무제한인 요금제", "expect": {"dataPolicy": "UNLIMITED", "voicePolicy": "UNLIMITED"}, "fuzzy": false, "note": "통화 무제한(voice_policy)과 데이터 무제한(data_policy)을 함께 말함"}
 {"id": "C072", "category": "대상 그룹", "query": "청년 요금제", "expect": {"targetGroup": "YOUTH"}, "fuzzy": false, "note": ""}
 {"id": "C073", "category": "대상 그룹", "query": "청년용 요금제 알려줘", "expect": {"targetGroup": "YOUTH"}, "fuzzy": false, "note": ""}
 {"id": "C074", "category": "대상 그룹", "query": "20대 요금제 추천해줘", "expect": {"targetGroup": "YOUTH"}, "fuzzy": false, "note": "연령대"}
@@ -81,7 +81,7 @@
 {"id": "C081", "category": "대상 그룹", "query": "키즈 요금제", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": ""}
 {"id": "C082", "category": "대상 그룹", "query": "어린이 요금제 알려줘", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": ""}
 {"id": "C083", "category": "대상 그룹", "query": "초등학생 요금제 추천", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": ""}
-{"id": "C084", "category": "대상 그룹", "query": "중학생 요금제 뭐가 좋아요", "expect": {"targetGroup": "KIDS"}, "fuzzy": true, "note": "만 18세 이하 요금제"}
+{"id": "C084", "category": "대상 그룹", "query": "중학생 요금제 뭐가 좋아요", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": "중학생은 만 15세 이하 요금제로 봄(검수)"}
 {"id": "C085", "category": "대상 그룹", "query": "우리 아이 요금제 추천해줘", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": ""}
 {"id": "C086", "category": "대상 그룹", "query": "애들 요금제 있어요?", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": ""}
 {"id": "C087", "category": "대상 그룹", "query": "워치 요금제", "expect": {"targetGroup": "WATCH"}, "fuzzy": false, "note": ""}
@@ -91,7 +91,7 @@
 {"id": "C091", "category": "대상 그룹", "query": "일반 요금제", "expect": {"targetGroup": "GENERAL"}, "fuzzy": false, "note": ""}
 {"id": "C092", "category": "대상 그룹", "query": "일반적인 요금제 추천해줘", "expect": {}, "fuzzy": false, "note": "'일반적'은 대상이 아님"}
 {"id": "C093", "category": "대상 그룹", "query": "워치랑 태블릿 요금제", "expect": {}, "fuzzy": false, "note": "두 그룹이 섞임"}
-{"id": "C094", "category": "대상 그룹", "query": "폰이랑 태블릿 데이터 같이 쓰는 요금제", "expect": {}, "fuzzy": true, "note": "함께 쓰는 요금제(태블릿 전용이 아님)"}
+{"id": "C094", "category": "대상 그룹", "query": "폰이랑 태블릿 데이터 같이 쓰는 요금제", "expect": {}, "fuzzy": false, "note": "태블릿 전용은 plans.target_group=TABLET인 요금제만(검수). 함께 쓰는 요금제는 대상 조건이 아님"}
 {"id": "C095", "category": "오탐 유발(수치)", "query": "3만원 할인 쿠폰 주는 요금제", "expect": {}, "fuzzy": false, "note": "할인액이지 요금이 아님"}
 {"id": "C096", "category": "오탐 유발(수치)", "query": "5천원 할인 받는 요금제 있어?", "expect": {}, "fuzzy": false, "note": "할인액"}
 {"id": "C097", "category": "오탐 유발(수치)", "query": "가입하면 10만원 상품권 주는 요금제", "expect": {}, "fuzzy": false, "note": "혜택 금액"}
@@ -141,4 +141,7 @@
 {"id": "C141", "category": "실사용 말투", "query": "청년요금제 5만원이하", "expect": {"feeMax": 50000, "targetGroup": "YOUTH"}, "fuzzy": false, "note": ""}
 {"id": "C142", "category": "실사용 말투", "query": "40기가 요금제 얼마에요?", "expect": {"dataMbMin": 40960, "dataMbMax": 40960}, "fuzzy": false, "note": ""}
 {"id": "C143", "category": "실사용 말투", "query": "요금제 한달 3만원쯤에 데이터 많이 주는거", "expect": {"feeMin": 27000, "feeMax": 33000}, "fuzzy": false, "note": "'데이터 많이'는 정량 조건 아님"}
-{"id": "C144", "category": "실사용 말투", "query": "요금제 월 3만원 넘는건 부담돼요", "expect": {"feeMax": 30000}, "fuzzy": true, "note": "넘는 요금제를 피하고 싶다는 뜻이라 상한"}
+{"id": "C144", "category": "실사용 말투", "query": "요금제 월 3만원 넘는건 부담돼요", "expect": {"feeMax": 30000}, "fuzzy": false, "note": "'넘는 건 부담'은 그 금액을 넘는 요금제를 피하고 싶다는 뜻(검수)"}
+{"id": "C145", "category": "무제한", "query": "통화 문자 무제한 요금제 알려줘", "expect": {"voicePolicy": "UNLIMITED", "smsPolicy": "UNLIMITED"}, "fuzzy": false, "note": "통화·문자 무제한"}
+{"id": "C146", "category": "무제한", "query": "음성통화 무제한 요금제", "expect": {"voicePolicy": "UNLIMITED"}, "fuzzy": false, "note": "음성통화=통화"}
+{"id": "C147", "category": "무제한", "query": "SMS 무제한 요금제 있어?", "expect": {"smsPolicy": "UNLIMITED"}, "fuzzy": false, "note": "영문 표기"}
