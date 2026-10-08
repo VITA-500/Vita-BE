@@ -181,7 +181,7 @@ public class PlanSearchService {
 				matched = planLookupRepository.findPlanCodesByConditions(relaxed);
 			}
 		}
-		if (matched.isEmpty() && (conditions.voicePolicy() != null || conditions.smsPolicy() != null)) {
+		if (matched.isEmpty() && conditions.hasVoiceSmsConditions()) {
 			PlanQueryConditions relaxed = conditions.withoutDataPolicy().withoutVoiceSmsPolicy();
 			if (!relaxed.isEmpty()) {
 				matched = planLookupRepository.findPlanCodesByConditions(relaxed);

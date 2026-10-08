@@ -78,6 +78,43 @@ class PlanQueryConditionsTest {
 		assertThat(all.withoutDataPolicy().voicePolicy()).isEqualTo("UNLIMITED");
 	}
 
+	private static PlanQueryConditions withUsage(Integer voiceMin, Integer voiceMax, Integer smsMin, Integer smsMax) {
+		return new PlanQueryConditions(null, null, null, null, null, null, null, null, java.util.Set.of(), voiceMin, voiceMax, smsMin, smsMax);
+	}
+
+	@Test
+	void isNotEmptyWhenOnlyAVoiceMinutesOrSmsCountIsSet() {
+		assertThat(withUsage(100, 100, null, null).isEmpty()).isFalse();
+		assertThat(withUsage(null, null, null, 200).isEmpty()).isFalse();
+		assertThat(withUsage(100, 100, null, null).hasVoiceSmsConditions()).isTrue();
+	}
+
+	@Test
+	void fillsVoiceMinutesAndSmsCountAsOneGroupEach() {
+		PlanQueryConditions original = withUsage(300, null, null, null);
+		PlanQueryConditions fallback = withUsage(null, 100, 100, 100);
+
+		PlanQueryConditions merged = original.orElse(fallback);
+
+		// 한쪽 끝만 섞으면 사용자가 하지 않은 범위가 되므로 통화 분은 원문 묶음을 그대로 쓰고, 문자 건수는 비어 있어 보충한다.
+		assertThat(merged.voiceMinutesMin()).isEqualTo(300);
+		assertThat(merged.voiceMinutesMax()).isNull();
+		assertThat(merged.smsCountMin()).isEqualTo(100);
+		assertThat(merged.smsCountMax()).isEqualTo(100);
+	}
+
+	@Test
+	void dropsVoiceMinutesAndSmsCountTogetherWithThePoliciesWhenRelaxing() {
+		PlanQueryConditions all = new PlanQueryConditions(null, 50_000, null, null, "KIDS", null, null, null, java.util.Set.of(),
+				100, 100, 100, 100);
+
+		PlanQueryConditions relaxed = all.withoutVoiceSmsPolicy();
+
+		assertThat(relaxed.hasVoiceSmsConditions()).isFalse();
+		assertThat(relaxed.feeMax()).isEqualTo(50_000);
+		assertThat(all.withoutDataPolicy().voiceMinutesMin()).isEqualTo(100);
+	}
+
 	private static PlanQueryConditions excluding(String group, java.util.Set<String> excluded) {
 		return new PlanQueryConditions(null, null, null, null, group, null, null, null, excluded);
 	}

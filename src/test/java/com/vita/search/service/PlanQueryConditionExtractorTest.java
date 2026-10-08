@@ -150,6 +150,57 @@ class PlanQueryConditionExtractorTest {
 	}
 
 	@Test
+	void readsVoiceMinutesAndSmsCountLikeAmounts() {
+		PlanQueryConditions exact = extract("통화 100분 주는 요금제 있어?");
+		assertThat(exact.voiceMinutesMin()).isEqualTo(100);
+		assertThat(exact.voiceMinutesMax()).isEqualTo(100);
+		assertThat(exact.voicePolicy()).isNull();
+
+		PlanQueryConditions atLeast = extract("통화 300분 이상 요금제");
+		assertThat(atLeast.voiceMinutesMin()).isEqualTo(300);
+		assertThat(atLeast.voiceMinutesMax()).isNull();
+
+		PlanQueryConditions atMost = extract("문자 200건 이하 요금제");
+		assertThat(atMost.smsCountMin()).isNull();
+		assertThat(atMost.smsCountMax()).isEqualTo(200);
+
+		PlanQueryConditions range = extract("통화 100분에서 300분 사이 요금제");
+		assertThat(range.voiceMinutesMin()).isEqualTo(100);
+		assertThat(range.voiceMinutesMax()).isEqualTo(300);
+
+		// 한글 숫자와 오표기도 읽는다.
+		PlanQueryConditions korean = extract("문자 백건 요금재");
+		assertThat(korean.smsCountMin()).isEqualTo(100);
+		assertThat(korean.smsCountMax()).isEqualTo(100);
+	}
+
+	@Test
+	void keepsVoiceSmsFeeAndDataAmountsApart() {
+		PlanQueryConditions c = extract("3만원 이하 데이터 10기가 통화 300분 이상 문자 100건 요금제");
+
+		assertThat(c.feeMax()).isEqualTo(30_000);
+		assertThat(c.dataMbMin()).isEqualTo(10_240);
+		assertThat(c.voiceMinutesMin()).isEqualTo(300);
+		assertThat(c.smsCountMin()).isEqualTo(100);
+		assertThat(c.smsCountMax()).isEqualTo(100);
+	}
+
+	@Test
+	void readsAUsageStatementAsALowerBound() {
+		PlanQueryConditions c = extract("한 달에 통화 300분 쓰는데 맞는 요금제 추천해줘");
+
+		assertThat(c.voiceMinutesMin()).isEqualTo(300);
+		assertThat(c.voiceMinutesMax()).isNull();
+	}
+
+	@Test
+	void doesNotReadMinutesOrCountsThatAreNotAProvidedAmount() {
+		assertThat(extract("요금제 바꿨는데 통화가 5분 만에 끊겨요").voiceMinutesMin()).isNull();
+		assertThat(extract("문자 요금제 3개월 약정 있어?").smsCountMin()).isNull();
+		assertThat(extract("요금제 10분 안에 개통돼요?").voiceMinutesMin()).isNull();
+	}
+
+	@Test
 	void extractsTargetGroup() {
 		assertThat(extract("청년 전용 요금제 있어?").targetGroup()).isEqualTo("YOUTH");
 		assertThat(extract("부모님 드릴 시니어 요금제 추천해줘").targetGroup()).isEqualTo("SENIOR");

@@ -81,14 +81,50 @@ public final class PlanQueryConditionExtractor {
 	private static final Pattern RANGE_CONNECTOR = Pattern.compile("\\s*(?:에서부터|에서|부터|~|-|–)\\s*");
 
 	/**
-	 * "삼만오천원", "만오천원", "이십기가"처럼 한글 숫자로 쓴 금액·데이터량. 십·백·천·만 중 하나를 포함하고 바로 뒤에 원·기가·메가 같은 단위가 올 때만
+	 * "삼만오천원", "만오천원", "이십기가", "백건"처럼 한글 숫자로 쓴 금액·데이터량·통화 분·문자 건수. 십·백·천·만 중 하나를 포함하고 바로 뒤에 원·기가·메가·분·건 같은 단위가 올 때만
 	 * 숫자로 바꾼다. "수천원", "몇만원"처럼 앞에 한글이 붙은 말은 정확한 값이 아니라서 바꾸지 않는다.
 	 */
 	private static final Pattern KOREAN_NUMERAL_BEFORE_UNIT = Pattern.compile(
-			"(?<![가-힣\\d.])((?:[일이삼사오육칠팔구]?[십백천만])+[일이삼사오육칠팔구]?)(?=\\s*(?:원|기가바이트|기가|GB|gb|Gb|메가바이트|메가|MB|mb|Mb))");
+			"(?<![가-힣\\d.])((?:[일이삼사오육칠팔구]?[십백천만])+[일이삼사오육칠팔구]?)(?=\\s*(?:원|기가바이트|기가|GB|gb|Gb|메가바이트|메가|MB|mb|Mb|분|건|개))");
 
 	/** "3.5만원"처럼 소수에 만 단위가 붙은 금액. 그대로 두면 소수점 뒤의 "5만원"만 읽혀 5만원으로 잘못 읽는다. */
 	private static final Pattern DECIMAL_MAN = Pattern.compile("(?<![\\d.])(\\d+)\\.(\\d+)\\s*만(?=\\s*원)");
+
+	/** "100분", "300 분". 앞에 통화 말이 붙은 것만 통화 제공량으로 읽는다({@link #VOICE_NOUN_BEFORE}). */
+	private static final Pattern VOICE_MINUTES = Pattern.compile("(?<![\\d.])(\\d+)\\s*분(?!\\s*(?:만에|째|동안|뒤|후|전(?!화)|마다|간격))");
+
+	/** "100건", "100개", "100통". 앞에 문자 말이 붙은 것만 문자 제공량으로 읽는다({@link #SMS_NOUN_BEFORE}). */
+	private static final Pattern SMS_COUNT = Pattern.compile("(?<![\\d.])(\\d+)\\s*(?:건|개(?!월)|통)");
+
+	/**
+	 * 통화 분 바로 앞에 붙는 통화 말. "통화 100분", "통화는 한 달에 100분", "음성통화 약 300분". 사이에 조사와 "한 달에" 같은 기간 표현만 허용해
+	 * "통화 무제한이고 데이터 5기가, 분..."처럼 멀리 떨어진 수치를 통화 분으로 읽지 않는다.
+	 */
+	private static final Pattern VOICE_NOUN_BEFORE = Pattern.compile(
+			"(?:음성\s*통화|통화|음성|전화)\s*(?:은|는|이|가|을|를|도|량|시간|제공량)?\s*(?:(?:월|한\s*달|매월|매달)\s*(?:에는|에)?\s*)?(?:약|총|최소|최대)?\s*$");
+
+	/** 통화 분 바로 뒤에 붙는 통화 말. "100분 통화", "100분 주는 통화". */
+	private static final Pattern VOICE_NOUN_AFTER = Pattern.compile(
+			"^\s*(?:이상|이하|이내|미만|초과|정도|쯤)?\s*(?:짜리|주는|제공하는|되는|있는)?\s*(?:음성\s*통화|통화|전화)");
+
+	/** 문자 건수 바로 앞에 붙는 문자 말. */
+	private static final Pattern SMS_NOUN_BEFORE = Pattern.compile(
+			"(?:문자\s*메시지|문자|SMS|sms|메시지)\s*(?:은|는|이|가|을|를|도|량|제공량)?\s*(?:(?:월|한\s*달|매월|매달)\s*(?:에는|에)?\s*)?(?:약|총|최소|최대)?\s*$");
+
+	/** 문자 건수 바로 뒤에 붙는 문자 말. */
+	private static final Pattern SMS_NOUN_AFTER = Pattern.compile(
+			"^\s*(?:이상|이하|이내|미만|초과|정도|쯤)?\s*(?:짜리|주는|제공하는|되는|있는)?\s*(?:문자\s*메시지|문자|SMS|sms|메시지)");
+
+	/** 통화 분·문자 건수 수치 둘 사이에 범위를 잇는 말만 있는지("100분에서 300분", "100분 이상 300분"). */
+	private static final Pattern USAGE_RANGE_GAP = Pattern.compile(
+			"\\s*(?:이상|이하|이내|초과|미만)?\\s*(?:에서부터|에서|부터|~|-|–)?\\s*");
+
+	/**
+	 * 쓰는 양을 말하는 표현("통화 300분 쓰는데", "문자 200건 사용해요"). 필요한 만큼 이상을 제공하는 요금제를 찾는 뜻이라서 정확 일치가 아니라
+	 * 하한으로 읽는다. 요금제가 "주는/제공하는" 양을 말하는 표현은 정확 일치로 읽는다.
+	 */
+	private static final Pattern USAGE_VERB_AFTER = Pattern.compile(
+			"^\s*(?:정도|쯤|가량|씩)?\s*(?:을|를)?\s*(?:쓰|써|쓴|사용)");
 
 	/** 무제한 부정("무제한 아니고", "무제한은 빼고", "무제한 말고" 등). */
 	private static final Pattern UNLIMITED_NEGATED = Pattern.compile(
@@ -258,6 +294,8 @@ public final class PlanQueryConditionExtractor {
 		Range data = extractData(query);
 		Policies policies = extractPolicies(query);
 		GroupRead groups = readTargetGroups(query);
+		Range voiceMinutes = extractUsage(query, VOICE_MINUTES, VOICE_NOUN_BEFORE, VOICE_NOUN_AFTER);
+		Range smsCount = extractUsage(query, SMS_COUNT, SMS_NOUN_BEFORE, SMS_NOUN_AFTER);
 
 		return new PlanQueryConditions(
 				fee == null || fee.min() == null ? null : fee.min().intValue(),
@@ -268,7 +306,15 @@ public final class PlanQueryConditionExtractor {
 				policies.data(),
 				policies.voice(),
 				policies.sms(),
-				groups.excluded());
+				groups.excluded(),
+				toInt(voiceMinutes == null ? null : voiceMinutes.min()),
+				toInt(voiceMinutes == null ? null : voiceMinutes.max()),
+				toInt(smsCount == null ? null : smsCount.min()),
+				toInt(smsCount == null ? null : smsCount.max()));
+	}
+
+	private static Integer toInt(Long value) {
+		return value == null ? null : Math.toIntExact(value);
 	}
 
 	/**
@@ -423,6 +469,39 @@ public final class PlanQueryConditionExtractor {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * 통화 분·문자 건수 조건을 읽는다. 수치 뒤에 단위("분", "건")가 붙고 그 앞이나 뒤에 통화·문자 말이 붙은 것만 센다. 수치가 하나면 비교
+	 * 표현으로 구간을 정하고("통화 300분 이상"), 둘이면 범위로 읽는다. 쓰는 양을 말하는 표현("300분 쓰는데")은 비교 표현이 없어도 하한이다.
+	 *
+	 * @param amount     수치+단위 패턴(그룹1=수치)
+	 * @param nounBefore 수치 바로 앞에 와야 하는 통화·문자 말
+	 * @param nounAfter  수치 바로 뒤에 올 수 있는 통화·문자 말(앞에 없을 때)
+	 */
+	private static Range extractUsage(String query, Pattern amount, Pattern nounBefore, Pattern nounAfter) {
+		List<AmountToken> tokens = new ArrayList<>();
+		Matcher matcher = amount.matcher(query);
+		while (matcher.find()) {
+			String head = query.substring(0, matcher.start());
+			String tail = query.substring(matcher.end(), Math.min(query.length(), matcher.end() + BOUND_LOOKAHEAD));
+			// "통화 100분에서 300분 사이"의 300분처럼 통화·문자 말 없이 앞의 수치와 이어진 수치도 같은 항목의 범위 끝으로 센다.
+			boolean continuesRange = !tokens.isEmpty()
+					&& USAGE_RANGE_GAP.matcher(query.substring(tokens.get(tokens.size() - 1).end(), matcher.start())).matches();
+			if (nounBefore.matcher(head).find() || nounAfter.matcher(tail).find() || continuesRange) {
+				tokens.add(new AmountToken(Long.parseLong(matcher.group(1)), matcher.start(), matcher.end()));
+			}
+		}
+		if (tokens.size() == 1) {
+			AmountToken token = tokens.get(0);
+			String tail = query.substring(token.end(), Math.min(query.length(), token.end() + BOUND_LOOKAHEAD));
+			Bound bound = boundAfter(query, token.end());
+			if (bound == Bound.EXACT && USAGE_VERB_AFTER.matcher(tail).find()) {
+				bound = Bound.MIN;
+			}
+			return toRange(token.value(), bound, false);
+		}
+		return rangeOf(query, tokens, false);
 	}
 
 	/**

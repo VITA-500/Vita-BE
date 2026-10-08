@@ -40,11 +40,13 @@ class PlanConditionExtractionEvalTest {
 	record EvalCase(String id, String category, String query, Map<String, Object> expect, boolean fuzzy, String note) {
 	}
 
-	/** 조건 항목 9개. 추출기 결과에서 값을 꺼내는 방법을 함께 둔다. 통화·문자 정책은 plans.voice_policy, plans.sms_policy와 비교하는 조건이다. */
+	/** 조건 항목 13개. 추출기 결과에서 값을 꺼내는 방법을 함께 둔다. 통화·문자 정책은 plans.voice_policy, plans.sms_policy와 비교하는 조건이다. */
 	private enum Field {
 		FEE_MIN("feeMin", "금액"), FEE_MAX("feeMax", "금액"), DATA_MB_MIN("dataMbMin", "데이터량"),
 		DATA_MB_MAX("dataMbMax", "데이터량"), TARGET_GROUP("targetGroup", "대상"), DATA_POLICY("dataPolicy", "무제한"),
-		VOICE_POLICY("voicePolicy", "통화·문자"), SMS_POLICY("smsPolicy", "통화·문자"), EXCLUDED_GROUPS("excludedGroups", "대상");
+		VOICE_POLICY("voicePolicy", "통화·문자"), SMS_POLICY("smsPolicy", "통화·문자"), EXCLUDED_GROUPS("excludedGroups", "대상"),
+		VOICE_MINUTES_MIN("voiceMinutesMin", "통화·문자 수치"), VOICE_MINUTES_MAX("voiceMinutesMax", "통화·문자 수치"),
+		SMS_COUNT_MIN("smsCountMin", "통화·문자 수치"), SMS_COUNT_MAX("smsCountMax", "통화·문자 수치");
 
 		final String key;
 		final String group;
@@ -65,6 +67,10 @@ class PlanConditionExtractionEvalTest {
 				case DATA_POLICY -> c.dataPolicy();
 				case VOICE_POLICY -> c.voicePolicy();
 				case SMS_POLICY -> c.smsPolicy();
+				case VOICE_MINUTES_MIN -> c.voiceMinutesMin() == null ? null : c.voiceMinutesMin().longValue();
+				case VOICE_MINUTES_MAX -> c.voiceMinutesMax() == null ? null : c.voiceMinutesMax().longValue();
+				case SMS_COUNT_MIN -> c.smsCountMin() == null ? null : c.smsCountMin().longValue();
+				case SMS_COUNT_MAX -> c.smsCountMax() == null ? null : c.smsCountMax().longValue();
 				case EXCLUDED_GROUPS -> c.excludedGroups().isEmpty() ? null : new java.util.TreeSet<>(c.excludedGroups()).stream().toList();
 			};
 		}
@@ -78,7 +84,7 @@ class PlanConditionExtractionEvalTest {
 	 * 추출기가 나빠진 것이다.
 	 * 추출기를 개선해 점수가 오르면 이 값을 새 점수로 올려서 그 이상을 지키게 한다.
 	 */
-	private static final int BASELINE_EXACT_CASES = 142;
+	private static final int BASELINE_EXACT_CASES = 154;
 
 	private static final Set<String> GROUPS = Set.of("GENERAL", "YOUTH", "SENIOR", "KIDS", "WATCH", "TABLET");
 	private static final Set<String> POLICIES = Set.of("LIMITED", "UNLIMITED");
@@ -111,7 +117,7 @@ class PlanConditionExtractionEvalTest {
 		assertThat(cases.stream().map(EvalCase::query).distinct().count()).isEqualTo(cases.size());
 
 		Set<String> keys = Set.of("feeMin", "feeMax", "dataMbMin", "dataMbMax", "targetGroup", "dataPolicy", "voicePolicy", "smsPolicy",
-				"excludedGroups");
+				"excludedGroups", "voiceMinutesMin", "voiceMinutesMax", "smsCountMin", "smsCountMax");
 		for (EvalCase c : cases) {
 			assertThat(c.query()).as(c.id() + " 질문").isNotBlank();
 			assertThat(keys).as(c.id() + " 정답 항목 이름").containsAll(c.expect().keySet());

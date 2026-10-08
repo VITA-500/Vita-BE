@@ -199,6 +199,22 @@ class PlanSearchServiceTest {
 	}
 
 	@Test
+	void passesVoiceMinutesToTheLookupAndFallsBackToVectorResultsWhenNothingMatches() {
+		stubPool(plan("VITA-LITE-10", 31_000, 0.90));
+		when(lookupRepository.findPlanCodesByConditions(any())).thenReturn(Set.of());
+
+		PlanSearchService.PlanSearchOutcome outcome = service.search("통화 100분 주는 요금제 있어?", new float[] {0.1f}, TOP_K);
+
+		org.mockito.ArgumentCaptor<PlanQueryConditions> captor = org.mockito.ArgumentCaptor.forClass(PlanQueryConditions.class);
+		// 통화 분 조건 하나뿐이라 완화하면 조건이 없어지므로 다시 찾지 않고 벡터 검색 결과로 돌아간다.
+		verify(lookupRepository, times(1)).findPlanCodesByConditions(captor.capture());
+		assertThat(captor.getValue().voiceMinutesMin()).isEqualTo(100);
+		assertThat(captor.getValue().voiceMinutesMax()).isEqualTo(100);
+		assertThat(outcome.conditionMatched()).isFalse();
+		assertThat(codes(outcome)).containsExactly("VITA-LITE-10");
+	}
+
+	@Test
 	void dropsTheDataPolicyBeforeTheVoiceCondition() {
 		// 데이터 무제한 + 통화 무제한이 없고, 데이터 정책만 빼도 없으면 그다음에 통화 조건까지 뺀다.
 		stubPool(plan("VITA-LITE-10", 31_000, 0.90));

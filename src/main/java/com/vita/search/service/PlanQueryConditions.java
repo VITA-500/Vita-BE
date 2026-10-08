@@ -18,6 +18,10 @@ import java.util.Set;
  * @param smsPolicy  문자 정책(plans.sms_policy 값). "문자 무제한"은 UNLIMITED, "문자가 안 되는 요금제"는 NONE
  * @param excludedGroups 질문이 제외한 대상 그룹("시니어 말고 3만원대 요금제"의 시니어). 요금제를 찾는 조건이 아니라 결과에서 빼는 필터라서
  *                   {@link #isEmpty()}에는 포함하지 않는다. 비어 있으면 빈 집합
+ * @param voiceMinutesMin 통화 제공량 하한(분). "통화 100분"처럼 분을 지정한 질문. 무제한 요금제는 하한만 있을 때 포함된다
+ * @param voiceMinutesMax 통화 제공량 상한(분). 값이 있으면 무제한 요금제는 조건에서 빠진다
+ * @param smsCountMin    문자 제공량 하한(건). "문자 100건"처럼 건수를 지정한 질문
+ * @param smsCountMax    문자 제공량 상한(건)
  */
 public record PlanQueryConditions(
 		Integer feeMin,
@@ -28,7 +32,11 @@ public record PlanQueryConditions(
 		String dataPolicy,
 		String voicePolicy,
 		String smsPolicy,
-		Set<String> excludedGroups) {
+		Set<String> excludedGroups,
+		Integer voiceMinutesMin,
+		Integer voiceMinutesMax,
+		Integer smsCountMin,
+		Integer smsCountMax) {
 
 	public PlanQueryConditions {
 		excludedGroups = excludedGroups == null ? Set.of() : Set.copyOf(excludedGroups);
@@ -40,10 +48,23 @@ public record PlanQueryConditions(
 		this(feeMin, feeMax, dataMbMin, dataMbMax, targetGroup, dataPolicy, null, null, Set.of());
 	}
 
+	/** 통화 분·문자 건수 조건 없이 만든다(그 조건을 추가하기 전부터 쓰던 생성 방식). */
+	public PlanQueryConditions(Integer feeMin, Integer feeMax, Long dataMbMin, Long dataMbMax, String targetGroup,
+			String dataPolicy, String voicePolicy, String smsPolicy, Set<String> excludedGroups) {
+		this(feeMin, feeMax, dataMbMin, dataMbMax, targetGroup, dataPolicy, voicePolicy, smsPolicy, excludedGroups,
+				null, null, null, null);
+	}
+
 	/** 제외 그룹 없이 만든다(제외 그룹을 추가하기 전부터 쓰던 생성 방식). */
 	public PlanQueryConditions(Integer feeMin, Integer feeMax, Long dataMbMin, Long dataMbMax, String targetGroup,
 			String dataPolicy, String voicePolicy, String smsPolicy) {
 		this(feeMin, feeMax, dataMbMin, dataMbMax, targetGroup, dataPolicy, voicePolicy, smsPolicy, Set.of());
+	}
+
+	/** 통화·문자 조건(정책이나 분·건수)이 하나라도 있는지. 데이터 정책을 포기해도 일치가 없을 때 이 조건까지 포기할지 정하는 데 쓴다. */
+	public boolean hasVoiceSmsConditions() {
+		return voicePolicy != null || smsPolicy != null
+				|| voiceMinutesMin != null || voiceMinutesMax != null || smsCountMin != null || smsCountMax != null;
 	}
 
 	/** 제외한 대상 그룹이 있는지. */
@@ -54,7 +75,7 @@ public record PlanQueryConditions(
 	/** 요금제를 찾는 조건이 하나도 없는지. 제외한 그룹({@link #excludedGroups})은 결과에서 빼는 필터라서 여기에 포함하지 않는다. */
 	public boolean isEmpty() {
 		return feeMin == null && feeMax == null && dataMbMin == null && dataMbMax == null
-				&& targetGroup == null && dataPolicy == null && voicePolicy == null && smsPolicy == null;
+				&& targetGroup == null && dataPolicy == null && !hasVoiceSmsConditions();
 	}
 
 	/**
@@ -69,6 +90,8 @@ public record PlanQueryConditions(
 	public PlanQueryConditions orElse(PlanQueryConditions other) {
 		boolean ownFee = feeMin != null || feeMax != null;
 		boolean ownData = dataMbMin != null || dataMbMax != null;
+		boolean ownVoice = voiceMinutesMin != null || voiceMinutesMax != null;
+		boolean ownSms = smsCountMin != null || smsCountMax != null;
 		String mergedGroup = targetGroup != null ? targetGroup : other.targetGroup;
 		// 제외 그룹은 양쪽에서 읽은 것을 모두 인정한다(질문 변환이 "조건: 시니어 제외"를 만들 수 있다). 대상으로 확정된 그룹은 뺀다.
 		Set<String> mergedExcluded = new HashSet<>(excludedGroups);
@@ -83,7 +106,11 @@ public record PlanQueryConditions(
 				dataPolicy != null ? dataPolicy : other.dataPolicy,
 				voicePolicy != null ? voicePolicy : other.voicePolicy,
 				smsPolicy != null ? smsPolicy : other.smsPolicy,
-				mergedExcluded);
+				mergedExcluded,
+				ownVoice ? voiceMinutesMin : other.voiceMinutesMin,
+				ownVoice ? voiceMinutesMax : other.voiceMinutesMax,
+				ownSms ? smsCountMin : other.smsCountMin,
+				ownSms ? smsCountMax : other.smsCountMax);
 	}
 
 	/**
@@ -92,11 +119,11 @@ public record PlanQueryConditions(
 	 */
 	public PlanQueryConditions withoutDataPolicy() {
 		return new PlanQueryConditions(feeMin, feeMax, dataMbMin, dataMbMax, targetGroup, null, voicePolicy, smsPolicy,
-				excludedGroups);
+				excludedGroups, voiceMinutesMin, voiceMinutesMax, smsCountMin, smsCountMax);
 	}
 
 	/**
-	 * 통화·문자 정책 조건만 뺀 사본. "키즈 요금제 통화 무제한 있어?"처럼 조건을 모두 만족하는 요금제가 없을 때, 데이터 무제한 여부를
+	 * 통화·문자 조건(정책과 분·건수)만 뺀 사본. "키즈 요금제 통화 무제한 있어?"처럼 조건을 모두 만족하는 요금제가 없을 때, 데이터 무제한 여부를
 	 * 포기한 뒤에도 일치가 없으면 통화·문자 조건까지 포기하고 가까운 요금제(키즈 요금제)를 찾기 위해 쓴다.
 	 */
 	public PlanQueryConditions withoutVoiceSmsPolicy() {

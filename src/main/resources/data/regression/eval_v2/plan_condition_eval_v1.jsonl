@@ -145,3 +145,15 @@
 {"id": "C145", "category": "무제한", "query": "통화 문자 무제한 요금제 알려줘", "expect": {"voicePolicy": "UNLIMITED", "smsPolicy": "UNLIMITED"}, "fuzzy": false, "note": "통화·문자 무제한"}
 {"id": "C146", "category": "무제한", "query": "음성통화 무제한 요금제", "expect": {"voicePolicy": "UNLIMITED"}, "fuzzy": false, "note": "음성통화=통화"}
 {"id": "C147", "category": "무제한", "query": "SMS 무제한 요금제 있어?", "expect": {"smsPolicy": "UNLIMITED"}, "fuzzy": false, "note": "영문 표기"}
+{"id": "C148", "category": "통화·문자 수치", "query": "통화 100분 주는 요금제 있어?", "expect": {"voiceMinutesMin": 100, "voiceMinutesMax": 100}, "fuzzy": false, "note": "통화 100분 제공(plans.voice_minutes). 요금제 평가 P072"}
+{"id": "C149", "category": "통화·문자 수치", "query": "문자 백건 요금재", "expect": {"smsCountMin": 100, "smsCountMax": 100}, "fuzzy": false, "note": "한글 숫자+오표기. 요금제 평가 P074"}
+{"id": "C150", "category": "통화·문자 수치", "query": "통화 300분 이상 요금제 알려줘", "expect": {"voiceMinutesMin": 300}, "fuzzy": false, "note": "하한만 있으면 무제한 요금제도 포함"}
+{"id": "C151", "category": "통화·문자 수치", "query": "문자 200건 이하 요금제", "expect": {"smsCountMax": 200}, "fuzzy": false, "note": "상한"}
+{"id": "C152", "category": "통화·문자 수치", "query": "통화 100분 문자 100건 요금제", "expect": {"voiceMinutesMin": 100, "voiceMinutesMax": 100, "smsCountMin": 100, "smsCountMax": 100}, "fuzzy": false, "note": "통화·문자 수치를 함께 말함"}
+{"id": "C153", "category": "통화·문자 수치", "query": "한 달에 통화 300분 쓰는데 맞는 요금제 추천해줘", "expect": {"voiceMinutesMin": 300}, "fuzzy": false, "note": "쓰는 양을 말하면 그만큼 이상을 제공하는 요금제"}
+{"id": "C154", "category": "통화·문자 수치", "query": "3만원 이하 통화 300분 이상 요금제", "expect": {"feeMax": 30000, "voiceMinutesMin": 300}, "fuzzy": false, "note": "금액과 통화 분 조합"}
+{"id": "C155", "category": "통화·문자 수치", "query": "통화 삼백분 요금제", "expect": {"voiceMinutesMin": 300, "voiceMinutesMax": 300}, "fuzzy": false, "note": "한글 숫자"}
+{"id": "C156", "category": "통화·문자 수치", "query": "요금제 바꿨는데 통화가 5분 만에 끊겨요", "expect": {}, "fuzzy": false, "note": "통화 품질 문의의 '5분'은 제공량이 아님"}
+{"id": "C157", "category": "통화·문자 수치", "query": "문자 요금제 3개월 약정 있어?", "expect": {}, "fuzzy": false, "note": "'3개월'은 문자 건수가 아님"}
+{"id": "C158", "category": "통화·문자 수치", "query": "통화 100분 이하 요금제 알려줘", "expect": {"voiceMinutesMax": 100}, "fuzzy": false, "note": "상한만 있으면 무제한 요금제는 빠짐"}
+{"id": "C159", "category": "통화·문자 수치", "query": "통화 100분에서 300분 사이 요금제", "expect": {"voiceMinutesMin": 100, "voiceMinutesMax": 300}, "fuzzy": false, "note": "두 수치 범위"}
