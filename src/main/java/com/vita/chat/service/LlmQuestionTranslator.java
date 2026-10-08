@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
+import com.vita.chat.FallbackType;
 import com.vita.chat.client.BedrockChatClient;
 import com.vita.chat.dto.CompletionResult;
 import com.vita.search.dto.PlanReference;
@@ -84,10 +85,10 @@ public class LlmQuestionTranslator implements QuestionTranslator {
     @Override
     public TranslationOutcome translateWithStatus(String question) {
         if (question == null || question.isBlank()) {
-            return fallback(question, "blank input");
+        	return fallback(question, FallbackType.INPUT, "blank input");
         }
         if (question.length() > MAX_INPUT_LENGTH) {
-            return fallback(question, "input too long");
+        	return fallback(question, FallbackType.INPUT, "input too long");
         }
 
         List<String> planNames = planNames();
@@ -100,7 +101,7 @@ public class LlmQuestionTranslator implements QuestionTranslator {
         } catch (Exception e) {
             long failedMs = (System.nanoTime() - start) / 1_000_000;
             log.warn("질문 번역 LLM 호출 실패 (elapsedMs={}): {}", failedMs, e.toString());
-            return fallback(question, "llm error: " + e.getClass().getSimpleName());
+            return fallback(question, FallbackType.LLM_ERROR, "llm error: " + e.getClass().getSimpleName());
         }
         long elapsedMs = (System.nanoTime() - start) / 1_000_000;
         String raw = completion.text();
@@ -113,7 +114,7 @@ public class LlmQuestionTranslator implements QuestionTranslator {
         if (violation != null) {
             log.warn("질문 번역 검증 실패 - reason={}, original={}, translated={}",
                     violation, question, translated);
-            return fallback(question, violation);
+            return fallback(question, FallbackType.VALIDATION, violation);
         }
 
         // 검증을 통과한 근거: 숫자·요금제명이 실제로 보존됐는지 한눈에 확인
@@ -121,7 +122,13 @@ public class LlmQuestionTranslator implements QuestionTranslator {
                 numbers(question), numbers(translated),
                 planNames.stream().filter(question::contains).toList());
         log.info("질문 번역 완료 - original={}, translated={}", question, translated);
-        return new TranslationOutcome(question, translated, false, null);
+        return new TranslationOutcome(question, translated, false, null, null);
+    }
+    
+ // 헬퍼
+    private TranslationOutcome fallback(String original, FallbackType type, String reason) {
+        log.info("질문 번역 폴백(원문 사용) - type={}, reason={}, original={}", type, reason, original);
+        return new TranslationOutcome(original, original, true, type, reason);
     }
 
     // ------------------------------------------------------------ plan names
@@ -259,10 +266,5 @@ public class LlmQuestionTranslator implements QuestionTranslator {
     /** 토큰 수가 없으면(모델이 usage를 안 주는 경우) 0이 아니라 "n/a"로 찍어 구분한다 */
     private static String tokenText(Long tokens) {
         return tokens == null ? "n/a" : String.valueOf(tokens);
-    }
-
-    private TranslationOutcome fallback(String original, String reason) {
-        log.info("질문 번역 폴백(원문 사용) - reason={}, original={}", reason, original);
-        return new TranslationOutcome(original, original, true, reason);
     }
 }
