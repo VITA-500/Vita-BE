@@ -82,7 +82,7 @@ class PlanConditionExtractionEvalTest {
 	 */
 	private static final int BASELINE_EXACT_CASES = 86;
 
-	private static final Set<String> GROUPS = Set.of("GENERAL", "YOUTH", "SENIOR", "KIDS", "WATCH", "TABLET");
+	private static final Set<String> GROUPS = Set.of("GENERAL", "TEEN", "YOUTH", "SENIOR", "KIDS", "WATCH", "TABLET");
 	private static final Set<String> POLICIES = Set.of("LIMITED", "UNLIMITED");
 	/** plans.voice_policy, plans.sms_policy 값. */
 	private static final Set<String> VOICE_SMS_POLICIES = Set.of("NONE", "LIMITED", "UNLIMITED");

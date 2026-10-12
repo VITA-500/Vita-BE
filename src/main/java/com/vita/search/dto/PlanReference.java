@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
  * 컬럼을 그대로 전달한다. 무제한·해당 없음은 null이 의미 있는 값이라 래퍼 타입(Integer/Long)을 쓴다.
  *
  * @param networkType        LTE / 5G / LTE_5G
- * @param targetGroup        GENERAL / YOUTH / SENIOR / KIDS / TABLET / WATCH
+ * @param targetGroup        GENERAL / TEEN / YOUTH / SENIOR / KIDS / TABLET / WATCH
  * @param minAge             가입 가능 최소 나이. 제한 없으면 null
  * @param maxAge             가입 가능 최대 나이. 제한 없으면 null
  * @param dataPolicy         LIMITED / UNLIMITED
