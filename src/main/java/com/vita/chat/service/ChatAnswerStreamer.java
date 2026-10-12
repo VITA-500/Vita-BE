@@ -136,7 +136,6 @@ public class ChatAnswerStreamer {
             List<Long> faqIds = context.faqs().stream().map(FaqReference::faqId).toList();
 
             // DB 저장을 먼저 하고 done 발행: FE가 done 직후 재조회해도 COMPLETED로 보이게
-            chatMessagePersistence.markCompleted(messageId, full.toString(), faqIds);
             // 매장 지도가 있으면 지도 화면으로 가는 버튼을 함께 보낸다
             List<ChatAction> actions = stores.storeMap() != null ? List.of(ChatAction.storeMap()) : List.of();
             chatMessagePersistence.markCompleted(messageId, full.toString(), faqIds, stores.storeMap(), actions);
