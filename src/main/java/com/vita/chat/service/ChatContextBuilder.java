@@ -71,7 +71,7 @@ public class ChatContextBuilder {
 			  .append(extremePlans.stream().map(this::toPlanXml).collect(Collectors.joining("\n")))
 			  .append("\n</comparison_result>\n");
 		} else if (noMatch) {
-		    sb.append("<comparison_result>\n확인 결과: 사용자가 요청한 가격 조건에 해당하는 요금제가 없음. 이 사실을 그대로 안내할 것.\n</comparison_result>\n");
+			sb.append("<comparison_result>\n확인 결과: 사용자가 요청한 조건에 해당하는 요금제가 없음. 이 사실을 그대로 안내할 것.\n</comparison_result>\n");
 		}
 
 		generalPlans.stream().map(this::toPlanXml).forEach(xml -> sb.append(xml).append("\n"));
