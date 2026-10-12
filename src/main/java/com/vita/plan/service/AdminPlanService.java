@@ -27,7 +27,8 @@ public class AdminPlanService {
 
     private static final Set<String> SORT_FIELDS = Set.of("createdAt", "updatedAt", "price");
     private static final Set<String> NETWORK_TYPES = Set.of("LTE", "5G", "LTE_5G");
-    private static final Set<String> TARGET_GROUPS = Set.of("GENERAL", "YOUTH", "SENIOR", "KIDS", "TABLET", "WATCH");
+    private static final Set<String> TARGET_GROUPS = Set.of(
+        "GENERAL", "TEEN", "YOUTH", "SENIOR", "KIDS", "TABLET", "WATCH");
     private static final Set<String> DATA_POLICIES = Set.of("LIMITED", "UNLIMITED");
     private static final Set<String> USAGE_POLICIES = Set.of("NONE", "LIMITED", "UNLIMITED");
 
