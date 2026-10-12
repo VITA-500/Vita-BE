@@ -5,6 +5,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.vita.chat.UnresolvedReason;
 import com.vita.chat.dto.ChatAction;
 import com.vita.chat.dto.ChatStoreMap;
 import com.vita.chat.ChatMessageFeedback;
@@ -73,7 +74,16 @@ public class ChatMessage {
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(columnDefinition = "jsonb")
 	private List<ChatAction> actions;
-	
+
+	// 미해결 이유
+	@Enumerated(EnumType.STRING)
+	@Column(name = "unresolved_reason", length = 30)
+	private UnresolvedReason unresolvedReason;
+
+	// 검색 최고 유사도
+	@Column(name = "top_similarity")
+	private Double topSimilarity;
+
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
 	
@@ -103,14 +113,19 @@ public class ChatMessage {
 		markCompleted(content, null, null);
 	}
 
-	/**
-	 * 매장 지도 및 추천 버튼과 함께 완료 처리
-	 */
-	public void markCompleted(String content, ChatStoreMap storeMap, List<ChatAction> actions){
+	public void markCompleted(String content, ChatStoreMap storeMap, List<ChatAction> actions) {
+		markCompleted(content, storeMap, actions, null, null);
+	}
+
+	/** 매장 지도·추천 버튼·미해결 여부와 함께 완료 처리. 빈 버튼 목록은 null로 저장 */
+	public void markCompleted(String content, ChatStoreMap storeMap, List<ChatAction> actions,
+	                          UnresolvedReason unresolvedReason, Double topSimilarity) {
 		this.content = content;
 		this.status = ChatMessageStatus.COMPLETED;
 		this.storeMap = storeMap;
 		this.actions = (actions == null || actions.isEmpty()) ? null : actions;
+		this.unresolvedReason = unresolvedReason;
+		this.topSimilarity = topSimilarity;
 	}
 	
 	/**
@@ -119,6 +134,7 @@ public class ChatMessage {
 	public void markFailed(String errorMessage) {
 		this.status = ChatMessageStatus.FAILED;
 		this.errorMessage = errorMessage;
+		this.unresolvedReason = UnresolvedReason.ANSWER_FAILED;
 	}
 	
 	/**

@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.vita.chat.UnresolvedReason;
 import com.vita.chat.client.LlmStreamClient;
 import com.vita.chat.dto.QueryTransformResult;
 import com.vita.chat.entity.ChatEvents;
@@ -138,7 +139,14 @@ public class ChatAnswerStreamer {
             // DB 저장을 먼저 하고 done 발행: FE가 done 직후 재조회해도 COMPLETED로 보이게
             // 매장 지도가 있으면 지도 화면으로 가는 버튼을 함께 보낸다
             List<ChatAction> actions = stores.storeMap() != null ? List.of(ChatAction.storeMap()) : List.of();
-            chatMessagePersistence.markCompleted(messageId, full.toString(), faqIds, stores.storeMap(), actions);
+            // 미해결 질문 자동 감지
+            UnresolvedReason unresolved = UnresolvedReason.judge(
+                    !q.storeIntent().isNone(), !context.text().isBlank(), retrieved.topSimilarity());
+            if (unresolved != null) {
+                log.info("미해결 질문 - question={}, reason={}, topSimilarity={}", question, unresolved, retrieved.topSimilarity());
+            }
+            chatMessagePersistence.markCompleted(messageId, full.toString(), faqIds, stores.storeMap(), actions,
+                    unresolved, retrieved.topSimilarity());
             registry.publish(sessionId, ChatEvents.ASSISTANT_DONE,
                     new ChatEvents.Done(sessionId, messageId, full.toString(), stores.storeMap(), actions));
 
@@ -156,8 +164,8 @@ public class ChatAnswerStreamer {
         }
     }
     
-    private record Retrieved(List<FaqReference> faqs, List<PlanReference> plans) {
-        static final Retrieved EMPTY = new Retrieved(List.of(), List.of());
+    private record Retrieved(List<FaqReference> faqs, List<PlanReference> plans, Double topSimilarity) {
+        static final Retrieved EMPTY = new Retrieved(List.of(), List.of(), null);
     }
 
     /**
@@ -192,7 +200,7 @@ public class ChatAnswerStreamer {
         FaqRetrievalContext c = faqRetrievalService.search(question, faqSearch, planSearch, TOP_K);
         List<FaqReference> faqs = (faqQuery != null && c.hasRelevantFaq()) ? c.references() : List.of();
         List<PlanReference> plans = (planQuery != null) ? c.planReferences() : List.of();
-        return new Retrieved(faqs, plans);
+        return new Retrieved(faqs, plans, c.topSimilarity());
     }
 
     private void publishStatus(Long sessionId, Long messageId, AssistantStatus status) {
