@@ -115,6 +115,7 @@ class PlanQueryConditionExtractorTest {
 
 	@Test
 	void extractsTargetGroup() {
+		assertThat(extract("중학생이 쓸 청소년 요금제 있어?").targetGroup()).isEqualTo("TEEN");
 		assertThat(extract("청년 전용 요금제 있어?").targetGroup()).isEqualTo("YOUTH");
 		assertThat(extract("부모님 드릴 시니어 요금제 추천해줘").targetGroup()).isEqualTo("SENIOR");
 		assertThat(extract("아이 쓰기 좋은 요금제 있어?").targetGroup()).isEqualTo("KIDS");
@@ -181,6 +182,7 @@ class PlanQueryConditionExtractorTest {
 
 	@Test
 	void targetGroupOfFindsTheGroupEvenWithoutThePlanWord() {
+		assertThat(PlanQueryConditionExtractor.targetGroupOf("고등학생 중에 데이터 많은 거 알려줘")).isEqualTo("TEEN");
 		assertThat(PlanQueryConditionExtractor.targetGroupOf("워치 중에 제일 싼 거 알려줘")).isEqualTo("WATCH");
 		assertThat(PlanQueryConditionExtractor.targetGroupOf("태블릿 데이터 가장 많이 주는 건?")).isEqualTo("TABLET");
 		assertThat(PlanQueryConditionExtractor.targetGroupOf("청년 요금제 중에 가장 저렴한 거")).isEqualTo("YOUTH");
