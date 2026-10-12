@@ -65,6 +65,8 @@ public class ChatMessageService {
 		        sessionId,
 		        assistantId,
 		        request.content(),
+				request.lat(),
+				request.lng(),
 		        conversationHistory   // 위에서 현재 질문 저장 전에 조회해 둔 이력
 		);
 
