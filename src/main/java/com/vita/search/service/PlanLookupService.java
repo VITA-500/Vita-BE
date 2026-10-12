@@ -45,7 +45,7 @@ public interface PlanLookupService {
 	 * 조회 범위를 지정하는 버전. 질문에 "청년", "시니어", "워치"처럼 대상이 나오면 BE4가 그 그룹을 넘겨서
 	 * "청년 요금제 중 가장 저렴한 것"을 정확히 답할 수 있다.
 	 *
-	 * @param targetGroup 대상 그룹(GENERAL/YOUTH/SENIOR/KIDS/WATCH/TABLET). null이면 전체 요금제.
+	 * @param targetGroup 대상 그룹(GENERAL/TEEN/YOUTH/SENIOR/KIDS/WATCH/TABLET). null이면 전체 요금제.
 	 */
 	List<PlanReference> findExtreme(PlanSortKey sortKey, int limit, String targetGroup);
 }

@@ -1,5 +1,6 @@
 package com.vita.chat.service;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.concurrent.Executor;
 
@@ -12,6 +13,7 @@ import com.vita.chat.dto.QueryTransformResult;
 import com.vita.chat.entity.ChatEvents;
 import com.vita.chat.entity.ChatEvents.AssistantStatus;
 import com.vita.chat.service.ChatContextBuilder.ChatContext;
+import com.vita.chat.service.ChatStoreFinder.StoreLookup;
 import com.vita.search.dto.FaqReference;
 import com.vita.search.dto.FaqRetrievalContext;
 import com.vita.search.dto.PlanReference;
@@ -34,6 +36,7 @@ public class ChatAnswerStreamer {
     private final QueryTransformer queryTransformer;
     private final QuestionTranslator questionTranslator;
     private final ChatContextBuilder chatContextBuilder;
+    private final ChatStoreFinder chatStoreFinder;
     private final LlmStreamClient llmStreamClient;
     private final ChatMessagePersistence chatMessagePersistence;
     private final Executor executor;
@@ -46,6 +49,7 @@ public class ChatAnswerStreamer {
             QueryTransformer queryTransformer,
             QuestionTranslator questionTranslator,
             ChatContextBuilder chatContextBuilder,
+            ChatStoreFinder chatStoreFinder,
             LlmStreamClient llmStreamClient,
             ChatMessagePersistence chatMessagePersistence,
             @Qualifier("chatStreamExecutor") Executor executor,
@@ -55,6 +59,7 @@ public class ChatAnswerStreamer {
         this.queryTransformer = queryTransformer;
         this.questionTranslator = questionTranslator;
         this.chatContextBuilder = chatContextBuilder;
+        this.chatStoreFinder = chatStoreFinder;
         this.llmStreamClient = llmStreamClient;
         this.chatMessagePersistence = chatMessagePersistence;
         this.executor = executor;
@@ -62,11 +67,13 @@ public class ChatAnswerStreamer {
     }
 
     /** POST /messages에서 PENDING 메시지 저장 후 호출. 즉시 리턴하고 실제 작업은 비동기로 실행 */
-    public void startAsync(Long sessionId, Long messageId, String question, String history) {
-        executor.execute(() -> run(sessionId, messageId, question, history));
+    public void startAsync(Long sessionId, Long messageId, String question,
+                           BigDecimal lat, BigDecimal lng, String history) {
+        executor.execute(() -> run(sessionId, messageId, question, lat, lng, history));
     }
 
-    private void run(Long sessionId, Long messageId, String question, String history) {
+    private void run(Long sessionId, Long messageId, String question,
+                     BigDecimal lat, BigDecimal lng, String history) {
     	log.info("실험 플래그 - translateEnabled={}", translateEnabled);
         try {
             // 1) 질문 변환 (FAQ용 / 요금제용)
@@ -75,18 +82,23 @@ public class ChatAnswerStreamer {
             log.info("query transform - original={}, faqQuery={}, planQuery={}, extreme={}, sortKey={}, limit={}, structured={}, priceRange={}, dataRange={}",
                     question, q.faqQuery(), q.planQuery(),
                     q.planIntent().extreme(), q.planIntent().sortKey(), q.planIntent().limit(), q.structured(), q.priceRange(), q.dataRange());
+            log.info("store intent - question={}, storeIntent={}", question, q.storeIntent());
 
-          // 2) 검색 (정형 질문은 DB 조회만 사용하고 벡터 검색을 생략)
+            // 2) 검색 (정형 질문은 DB 조회만 사용하고 벡터 검색을 생략)
             publishStatus(sessionId, messageId, AssistantStatus.RETRIEVING_FAQ);
 
             // 정형 질문 = 요금제 극값 조회로 끝나는 질문 (FAQ/벡터 검색 불필요)
             boolean extreme = q.planIntent().extreme();
             boolean dbOnly = q.structured() && extreme;                                   // 극값: DB 조회만
             boolean planOnly = q.structured() && !extreme && q.planQuery() != null;       // 조건만 있는 정형: 요금제만 검색
+            boolean storeOnly = !q.storeIntent().isNone() && q.faqQuery() == null && q.planQuery() == null; // 매장 질문: 매장 조회만
 
             Retrieved retrieved;
             if (dbOnly) {
                 log.info("정형(극값) 질문: 검색 생략, DB 조회 결과만 사용 - question={}", question);
+                retrieved = Retrieved.EMPTY;
+            } else if (storeOnly) {
+                log.info("매장 질문: FAQ/요금제 검색 생략, 매장 조회만 사용 - question={}", question);
                 retrieved = Retrieved.EMPTY;
             } else if (planOnly) {
                 log.info("정형(조건) 질문: FAQ 검색 생략, 요금제만 검색 - question={}", question);
@@ -94,7 +106,7 @@ public class ChatAnswerStreamer {
             } else {
                 retrieved = retrieve(question, q.faqQuery(), q.planQuery(), translateForSearch(question));
             }
-            
+
             // 3) context 조립 (극값 분기는 원문 질문 기준)
             ChatContext context = chatContextBuilder.build(
                     question, retrieved.faqs(), retrieved.plans(), q.planIntent(), q.priceRange(), q.dataRange());
@@ -106,11 +118,15 @@ public class ChatAnswerStreamer {
                 context = chatContextBuilder.build(
                         question, retrieved.faqs(), retrieved.plans(), q.planIntent(), q.priceRange(), q.dataRange());
             }
-            
+
+            // 매장 질문이면 BE5 매장 조회 결과를 context 뒤에 붙인다 (실패해도 답변은 계속)
+            StoreLookup stores = chatStoreFinder.find(q.storeIntent(), lat, lng);
+            String contextText = context.text() + stores.text();
+
             // 4) 답변 생성 (원문 질문으로 호출)
             publishStatus(sessionId, messageId, AssistantStatus.GENERATING);
             StringBuilder full = new StringBuilder();
-            llmStreamClient.stream(question, context.text(), history, delta -> {
+            llmStreamClient.stream(question, contextText, history, delta -> {
                 full.append(delta);
                 registry.publish(sessionId, ChatEvents.ASSISTANT_DELTA,
                         new ChatEvents.Delta(sessionId, messageId, delta));
@@ -121,7 +137,7 @@ public class ChatAnswerStreamer {
             // DB 저장을 먼저 하고 done 발행: FE가 done 직후 재조회해도 COMPLETED로 보이게
             chatMessagePersistence.markCompleted(messageId, full.toString(), faqIds);
             registry.publish(sessionId, ChatEvents.ASSISTANT_DONE,
-                    new ChatEvents.Done(sessionId, messageId, full.toString()));
+                    new ChatEvents.Done(sessionId, messageId, full.toString(), stores.preview()));
 
         } catch (Exception e) {
             log.error("답변 생성 실패. sessionId={}, messageId={}", sessionId, messageId, e);

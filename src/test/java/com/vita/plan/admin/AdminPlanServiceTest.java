@@ -64,6 +64,19 @@ class AdminPlanServiceTest {
     }
 
     @Test
+    void createAcceptsTeenTargetGroup() {
+        var vector = new float[768];
+        when(provider.embedDocument("청소년 설명")).thenReturn(vector);
+        var request = new PlanCreateRequest("VITA-TEEN", "청소년 요금제", "요약", 24000,
+            "LTE_5G", "TEEN", 14, 18, "LIMITED", 10240L, 1000,
+            "UNLIMITED", null, "UNLIMITED", null, "청소년 설명");
+
+        service.create(request);
+
+        verify(repository).create(any(), eq(vector));
+    }
+
+    @Test
     void duplicateCodeAndEmbeddingFailureNeverWrite() {
         var request = createRequest("VITA-NEW", "설명");
         when(repository.existsByPlanCodeExcludingId("VITA-NEW", 0)).thenReturn(true);
