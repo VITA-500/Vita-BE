@@ -1,7 +1,7 @@
 package com.vita.chat.service;
 
+import com.vita.chat.dto.ChatStoreMap;
 import com.vita.chat.dto.StoreIntent;
-import com.vita.chat.dto.StoresPreview;
 import com.vita.store.dto.response.BenefitResponse;
 import com.vita.store.dto.response.BenefitStoreListResponse;
 import com.vita.store.dto.response.StoreChatItemResponse;
@@ -42,9 +42,9 @@ public class ChatStoreFinder {
 
     /**
      * @param text      <store_result> 문자열
-     * @param preview   미니맵 데이터
+     * @param storeMap 매장 지도
      */
-    public record StoreLookup(String text, StoresPreview preview) {
+    public record StoreLookup(String text, ChatStoreMap storeMap) {
         public static StoreLookup empty() { return new StoreLookup("", null); }
     }
 
@@ -76,7 +76,8 @@ public class ChatStoreFinder {
                 }
                 String xml = stores.stream()
                         .map(this::toPhoneStoreXml).collect(Collectors.joining());
-                return new StoreLookup(result(ON_MAP + xml), StoresPreview.ofPhoneStores(stores));
+                return new StoreLookup(result(ON_MAP + xml),
+                        ChatStoreMap.ofPhoneStores(stores, intent.services(), lat, lng));
     }
 
     private StoreLookup findPartnerStores(StoreIntent intent, BigDecimal lat, BigDecimal lng) {
@@ -115,7 +116,7 @@ public class ChatStoreFinder {
         xml.append(ON_MAP);
         stores.forEach(store -> xml.append(toPartnerStoreXml(store)));
         return new StoreLookup(result(xml.toString()),
-                StoresPreview.ofPartnerStores(category, benefitId, stores));
+                ChatStoreMap.ofPartnerStores(category, benefitId, stores, lat, lng));
     }
 
     /** 지금 영업 중이면 현재 시각, 특정 시각이면 그 시각 */
