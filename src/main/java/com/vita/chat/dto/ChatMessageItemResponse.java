@@ -1,6 +1,7 @@
 package com.vita.chat.dto;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import com.vita.chat.ChatMessageRole;
 import com.vita.chat.ChatMessageStatus;
@@ -11,7 +12,9 @@ public record ChatMessageItemResponse(
 		ChatMessageRole role,
 		String content, 
 		LocalDateTime createdAt,
-		ChatMessageStatus status
+		ChatMessageStatus status,
+		ChatStoreMap storeMap,
+		List<ChatAction> actions
 		) {
 	public static ChatMessageItemResponse from(ChatMessage message) {
 		return new ChatMessageItemResponse(
@@ -19,7 +22,9 @@ public record ChatMessageItemResponse(
 				message.getRole(),
 				message.getContent(),
 				message.getCreatedAt(),
-				message.getStatus()
+				message.getStatus(),
+				message.getStoreMap(),
+				message.getActions()
 				);
 		
 	}

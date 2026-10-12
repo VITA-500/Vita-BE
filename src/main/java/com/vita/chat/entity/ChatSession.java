@@ -52,6 +52,15 @@ public class ChatSession {
         this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
         this.updatedAt = this.createdAt;
     }
+
+    /** 첫 질문으로 제목을 정한다 */
+    public void initTitle(String firstQuestion){
+        if(this.title != null || firstQuestion == null || firstQuestion.isBlank()) {
+            return;
+        }
+        String q = firstQuestion.trim();
+        this.title = q.length() > 18 ? q.substring(0, 18) + "..." : q;
+    }
     
     public void update() {
     	this.updatedAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));

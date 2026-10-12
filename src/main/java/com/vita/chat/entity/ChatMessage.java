@@ -5,6 +5,8 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.vita.chat.dto.ChatAction;
+import com.vita.chat.dto.ChatStoreMap;
 import com.vita.chat.ChatMessageFeedback;
 import com.vita.chat.ChatMessageRole;
 import com.vita.chat.ChatMessageStatus;
@@ -61,6 +63,16 @@ public class ChatMessage {
 	@JdbcTypeCode(SqlTypes.NAMED_ENUM)
 	@Column(columnDefinition = "feedback_type")
 	private ChatMessageFeedback feedback;
+
+	// 답변과 함께 보낸 매장 지도
+	@JdbcTypeCode(SqlTypes.JSON)
+	@Column(name = "store_map", columnDefinition = "jsonb")
+	private ChatStoreMap storeMap;
+
+	// 답변 아래 추천 버튼
+	@JdbcTypeCode(SqlTypes.JSON)
+	@Column(columnDefinition = "jsonb")
+	private List<ChatAction> actions;
 	
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
@@ -87,13 +99,18 @@ public class ChatMessage {
 		this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
 	}
 
-	/**
-	 * 오류 없이 메시지 응답 받을 때
-	 * @param content
-	 */
 	public void markCompleted(String content) {
+		markCompleted(content, null, null);
+	}
+
+	/**
+	 * 매장 지도 및 추천 버튼과 함께 완료 처리
+	 */
+	public void markCompleted(String content, ChatStoreMap storeMap, List<ChatAction> actions){
 		this.content = content;
 		this.status = ChatMessageStatus.COMPLETED;
+		this.storeMap = storeMap;
+		this.actions = (actions == null || actions.isEmpty()) ? null : actions;
 	}
 	
 	/**

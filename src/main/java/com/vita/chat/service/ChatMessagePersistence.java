@@ -2,6 +2,8 @@ package com.vita.chat.service;
 
 import java.util.List;
 
+import com.vita.chat.dto.ChatAction;
+import com.vita.chat.dto.ChatStoreMap;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,7 +34,8 @@ class ChatMessagePersistence {
 	public ChatMessage saveUserAndPendingAssistant(Long sessionId, ChatMessageSendRequest request) {
 		ChatSession session = chatSessionRepository.findById(sessionId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "세션을 찾을 수 없습니다."));
-		
+		// 첫 질문이면 세션 제목으로 저장
+		session.initTitle(request.content());
 		// 1) 사용자 질문 저장
 		ChatMessage userMessage = ChatMessage.builder()
 				.session(session)
@@ -54,12 +57,18 @@ class ChatMessagePersistence {
 		
 		return chatMessage;
 	}
-	
+
 	@Transactional
-    public void markCompleted(Long messageId, String answer, List<Long> faqIds) {
-        ChatMessage message = chatMessageRepository.findById(messageId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "메시지를 찾을 수 없습니다."));
-        message.markCompleted(answer);
+	public void markCompleted(Long messageId, String answer, List<Long> faqIds) {
+		markCompleted(messageId, answer, faqIds, null, null);
+	}
+
+	@Transactional
+	public void markCompleted(Long messageId, String answer, List<Long> faqIds,
+	                          ChatStoreMap storeMap, List<ChatAction> actions) {
+		ChatMessage message = chatMessageRepository.findById(messageId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "메시지를 찾을 수 없습니다."));
+		message.markCompleted(answer, storeMap, actions);
         message.getSession().update();
         
         List<ChatMessageFaqRef> refs = faqIds.stream()
