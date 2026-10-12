@@ -26,7 +26,7 @@ public final class PlanQueryConditionExtractor {
 
 	/** 요금제를 가리키는 말. "비타"만 쓰면 "비타민"까지 걸리므로 실제 요금제 이름(비타 라이트 등)일 때만 인정한다. */
 	private static final Pattern PLAN_CONTEXT = Pattern.compile(
-			"요금제|플랜|비타\\s*(?:라이트|밸런스|플러스|맥스|유스|시니어|키즈|워치|태블릿)");
+			"요금제|플랜|비타\\s*(?:라이트|밸런스|플러스|맥스|유스|시니어|키즈|틴(?!더)|워치|태블릿)");
 
 	/**
 	 * 금액 바로 앞에 붙어 그 금액이 요금제 월 요금이 아님을 알려 주는 말(할인액·수수료·상품권 등). "수수료 3천원", "상품권 10만원".
@@ -208,20 +208,22 @@ public final class PlanQueryConditionExtractor {
 	/**
 	 * 대상 그룹을 가리키는 말. 오탐을 막으려고 뒤에 오는 글자나 문맥을 함께 본다.
 	 * <ul>
+	 *   <li>틴: 청소년과 중·고등학생(만 14~18세) 요금제 대상이다. "틴더" 같은 앱 이름은 뺀다.</li>
 	 *   <li>청년: 연령대("20대")와 대학생·사회초년생도 청년 요금제(만 19~34세) 대상이다.</li>
 	 *   <li>시니어: "부모님"은 뒤에 동의·허락·명의 같은 말이 오면 어르신이 아니라 가입 절차 이야기("부모님 동의 받아야 돼요")라 뺀다.</li>
-	 *   <li>키즈: 초·중·고등학생(만 18세 이하)과 어린이를 뜻하는 말. "아이"는 "아이디", "아이돌", "아이폰"처럼 다른 단어의 앞부분일 수
+	 *   <li>키즈: 초등학생(만 13세 이하)과 어린이를 뜻하는 말. "아이"는 "아이디", "아이돌", "아이폰"처럼 다른 단어의 앞부분일 수
 	 *       있어서, 단독으로 쓰이거나 조사가 붙을 때만 인정한다. "아기자기"의 "아기"도 뺀다.</li>
 	 *   <li>태블릿: "아이패드", "갤럭시 탭"도 태블릿이다.</li>
 	 *   <li>일반: "일반적인", "일반 전화/문자/통화"의 "일반"은 대상 그룹 표현이 아니다.</li>
 	 * </ul>
 	 */
 	private static final List<GroupWord> TARGET_GROUP_WORDS = List.of(
+			new GroupWord("TEEN", Pattern.compile("청소년|중학생|고등학생|중딩|고딩|틴(?!더)")),
 			new GroupWord("YOUTH", Pattern.compile("청년|유스|(?<![\\d가-힣])20대|대학생|대학원생|사회초년생")),
 			new GroupWord("SENIOR", Pattern.compile(
 					"시니어|어르신|할머니|할아버지|노인|실버|고령|(?<![\\d가-힣])[678]0대|부모님(?!\\s*(?:동의|허락|승인|명의|서류|확인|인증))")),
 			new GroupWord("KIDS", Pattern.compile(
-					"키즈|어린이|초등학생|중학생|고등학생|초딩|중딩|고딩|애들|아기(?!자기)|유아"
+					"키즈|어린이|초등학생|초딩|애들|아기(?!자기)|유아"
 							+ "|(?<![가-힣])아이(?=$|[^가-힣]|(?:가|는|은|도|를|을|랑|와|과|한테|에게|의|들|용|께서?)+(?![가-힣]))")),
 			new GroupWord("WATCH", Pattern.compile("워치")),
 			new GroupWord("TABLET", Pattern.compile("태블릿|아이패드|갤럭시\\s*탭")),
@@ -585,7 +587,7 @@ public final class PlanQueryConditionExtractor {
 	 * 질문이 가리키는 대상 그룹(plans.target_group 값)을 찾는다. {@link #extract}와 달리 "요금제" 같은 말이
 	 * 없어도 동작한다 — 극값 조회처럼 이미 요금제 질문이라고 확정된 뒤에 호출하는 용도다.
 	 *
-	 * @return GENERAL/YOUTH/SENIOR/KIDS/WATCH/TABLET 중 하나. 대상 표현이 없거나 여러 그룹이 섞이면 null
+	 * @return GENERAL/TEEN/YOUTH/SENIOR/KIDS/WATCH/TABLET 중 하나. 대상 표현이 없거나 여러 그룹이 섞이면 null
 	 */
 	public static String targetGroupOf(String query) {
 		return query == null ? null : readTargetGroups(query).group();

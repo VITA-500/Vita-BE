@@ -202,6 +202,7 @@ class PlanQueryConditionExtractorTest {
 
 	@Test
 	void extractsTargetGroup() {
+		assertThat(extract("중학생이 쓸 청소년 요금제 있어?").targetGroup()).isEqualTo("TEEN");
 		assertThat(extract("청년 전용 요금제 있어?").targetGroup()).isEqualTo("YOUTH");
 		assertThat(extract("부모님 드릴 시니어 요금제 추천해줘").targetGroup()).isEqualTo("SENIOR");
 		assertThat(extract("아이 쓰기 좋은 요금제 있어?").targetGroup()).isEqualTo("KIDS");
@@ -223,10 +224,32 @@ class PlanQueryConditionExtractorTest {
 		assertThat(extract("대학생 요금제 있어?").targetGroup()).isEqualTo("YOUTH");
 		assertThat(extract("60대 요금제 있어?").targetGroup()).isEqualTo("SENIOR");
 		assertThat(extract("할머니 폰 요금제 뭐가 좋아요").targetGroup()).isEqualTo("SENIOR");
-		assertThat(extract("중학생 요금제 뭐가 좋아요").targetGroup()).isEqualTo("KIDS");
+		assertThat(extract("초등학생 요금제 뭐가 좋아요").targetGroup()).isEqualTo("KIDS");
 		assertThat(extract("애들 요금제 있어요?").targetGroup()).isEqualTo("KIDS");
 		assertThat(extract("아이패드 요금제 있어?").targetGroup()).isEqualTo("TABLET");
 		assertThat(extract("갤럭시 탭 요금제 있어?").targetGroup()).isEqualTo("TABLET");
+	}
+
+	@Test
+	void readsMiddleAndHighSchoolStudentsAsTheTeenGroup() {
+		// 요금제 데이터가 연령대별로 나뉘어 키즈는 만 13세 이하, 틴은 만 14~18세다.
+		assertThat(extract("중학생 요금제 뭐가 좋아요").targetGroup()).isEqualTo("TEEN");
+		assertThat(extract("고등학생 요금제 추천해줘").targetGroup()).isEqualTo("TEEN");
+		assertThat(extract("중딩 요금제 있어?").targetGroup()).isEqualTo("TEEN");
+		assertThat(extract("고딩 요금제 있어요?").targetGroup()).isEqualTo("TEEN");
+		assertThat(extract("청소년 요금제 있어?").targetGroup()).isEqualTo("TEEN");
+		// 초등학생(키즈)과 섞이면 한 그룹으로 정할 수 없다.
+		assertThat(extract("초등학생이랑 중학생 요금제 비교해줘").targetGroup()).isNull();
+		// "틴더" 같은 앱 이름의 "틴"은 청소년이 아니다.
+		assertThat(extract("틴더 쓰는 요금제 있어?").targetGroup()).isNull();
+	}
+
+	@Test
+	void treatsTheTeenPlanNameAsAPlanWord() {
+		// "요금제"라는 말 없이 비타 틴만 써도 요금제 질문으로 읽어 조건을 추출한다.
+		PlanQueryConditions conditions = extract("비타 틴처럼 데이터 20기가 이상 주는 거 있어?");
+		assertThat(conditions.dataMbMin()).isEqualTo(20_480);
+		assertThat(conditions.targetGroup()).isEqualTo("TEEN");
 	}
 
 	@Test
@@ -532,6 +555,7 @@ class PlanQueryConditionExtractorTest {
 
 	@Test
 	void targetGroupOfFindsTheGroupEvenWithoutThePlanWord() {
+		assertThat(PlanQueryConditionExtractor.targetGroupOf("고등학생 중에 데이터 많은 거 알려줘")).isEqualTo("TEEN");
 		assertThat(PlanQueryConditionExtractor.targetGroupOf("워치 중에 제일 싼 거 알려줘")).isEqualTo("WATCH");
 		assertThat(PlanQueryConditionExtractor.targetGroupOf("태블릿 데이터 가장 많이 주는 건?")).isEqualTo("TABLET");
 		assertThat(PlanQueryConditionExtractor.targetGroupOf("청년 요금제 중에 가장 저렴한 거")).isEqualTo("YOUTH");

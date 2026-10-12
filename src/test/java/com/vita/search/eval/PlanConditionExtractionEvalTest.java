@@ -80,13 +80,13 @@ class PlanConditionExtractionEvalTest {
 	private enum Verdict { OK, FALSE_POSITIVE, MISSED, WRONG_VALUE }
 
 	/**
-	 * 지금 추출기의 점수(2026-10-08, 커밋 d016189 기준, 검수 반영 후 147문항). 모든 조건이 정답과 같은 문항 수가 이보다 줄어들면
-	 * 추출기가 나빠진 것이다.
+	 * 지금 추출기의 점수(2026-10-12, develop의 연령대별 요금제 확장(틴 대상 그룹) 반영 후 165문항). 모든 조건이 정답과 같은 문항 수가
+	 * 이보다 줄어들면 추출기가 나빠진 것이다.
 	 * 추출기를 개선해 점수가 오르면 이 값을 새 점수로 올려서 그 이상을 지키게 한다.
 	 */
-	private static final int BASELINE_EXACT_CASES = 154;
+	private static final int BASELINE_EXACT_CASES = 160;
 
-	private static final Set<String> GROUPS = Set.of("GENERAL", "YOUTH", "SENIOR", "KIDS", "WATCH", "TABLET");
+	private static final Set<String> GROUPS = Set.of("GENERAL", "TEEN", "YOUTH", "SENIOR", "KIDS", "WATCH", "TABLET");
 	private static final Set<String> POLICIES = Set.of("LIMITED", "UNLIMITED");
 	/** plans.voice_policy, plans.sms_policy 값. */
 	private static final Set<String> VOICE_SMS_POLICIES = Set.of("NONE", "LIMITED", "UNLIMITED");

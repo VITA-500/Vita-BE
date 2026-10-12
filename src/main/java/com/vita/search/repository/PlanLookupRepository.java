@@ -91,8 +91,8 @@ public class PlanLookupRepository {
 	}
 
 	/**
-	 * ACTIVE 요금제의 plan_code → 대상 그룹(GENERAL/YOUTH/SENIOR/KIDS/WATCH/TABLET) 대응표. 요금제 검색에서
-	 * 워치·태블릿 같은 기기 전용 요금제를 가려내는 데 쓴다. 15종 규모라 조회 비용은 무시할 만하다.
+	 * ACTIVE 요금제의 plan_code → 대상 그룹(GENERAL/TEEN/YOUTH/SENIOR/KIDS/WATCH/TABLET) 대응표. 요금제 검색에서
+	 * 워치·태블릿 같은 기기 전용 요금제를 가려내는 데 쓴다. 20종 안팎 규모라 조회 비용은 무시할 만하다.
 	 */
 	public Map<String, String> findTargetGroupByPlanCode() {
 		Map<String, String> groups = new LinkedHashMap<>();

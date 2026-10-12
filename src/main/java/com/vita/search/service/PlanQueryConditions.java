@@ -12,7 +12,7 @@ import java.util.Set;
  * @param feeMax     월 요금 상한(원)
  * @param dataMbMin  기본 데이터 하한(MB)
  * @param dataMbMax  기본 데이터 상한(MB). 값이 있으면 무제한 요금제는 조건에서 빠진다.
- * @param targetGroup 대상 그룹(plans.target_group 값: GENERAL/YOUTH/SENIOR/KIDS/WATCH/TABLET)
+ * @param targetGroup 대상 그룹(plans.target_group 값: GENERAL/TEEN/YOUTH/SENIOR/KIDS/WATCH/TABLET)
  * @param dataPolicy 데이터 정책(plans.data_policy 값: LIMITED/UNLIMITED)
  * @param voicePolicy 통화 정책(plans.voice_policy 값). "통화 무제한"은 UNLIMITED, "통화가 안 되는 요금제"는 NONE
  * @param smsPolicy  문자 정책(plans.sms_policy 값). "문자 무제한"은 UNLIMITED, "문자가 안 되는 요금제"는 NONE

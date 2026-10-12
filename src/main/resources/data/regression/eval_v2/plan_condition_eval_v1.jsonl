@@ -81,7 +81,7 @@
 {"id": "C081", "category": "대상 그룹", "query": "키즈 요금제", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": ""}
 {"id": "C082", "category": "대상 그룹", "query": "어린이 요금제 알려줘", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": ""}
 {"id": "C083", "category": "대상 그룹", "query": "초등학생 요금제 추천", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": ""}
-{"id": "C084", "category": "대상 그룹", "query": "중학생 요금제 뭐가 좋아요", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": "중학생은 만 15세 이하 요금제로 봄(검수)"}
+{"id": "C084", "category": "대상 그룹", "query": "중학생 요금제 뭐가 좋아요", "expect": {"targetGroup": "TEEN"}, "fuzzy": false, "note": "요금제 데이터가 연령대별로 나뉘면서(키즈 만 13세 이하, 틴 만 14~18세) 중학생은 틴 요금제 대상(2026-10-12). 이전 검수 판단은 키즈(만 15세 이하)"}
 {"id": "C085", "category": "대상 그룹", "query": "우리 아이 요금제 추천해줘", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": ""}
 {"id": "C086", "category": "대상 그룹", "query": "애들 요금제 있어요?", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": ""}
 {"id": "C087", "category": "대상 그룹", "query": "워치 요금제", "expect": {"targetGroup": "WATCH"}, "fuzzy": false, "note": ""}
@@ -157,3 +157,9 @@
 {"id": "C157", "category": "통화·문자 수치", "query": "문자 요금제 3개월 약정 있어?", "expect": {}, "fuzzy": false, "note": "'3개월'은 문자 건수가 아님"}
 {"id": "C158", "category": "통화·문자 수치", "query": "통화 100분 이하 요금제 알려줘", "expect": {"voiceMinutesMax": 100}, "fuzzy": false, "note": "상한만 있으면 무제한 요금제는 빠짐"}
 {"id": "C159", "category": "통화·문자 수치", "query": "통화 100분에서 300분 사이 요금제", "expect": {"voiceMinutesMin": 100, "voiceMinutesMax": 300}, "fuzzy": false, "note": "두 수치 범위"}
+{"id": "C160", "category": "대상 그룹", "query": "고등학생 요금제 추천해줘", "expect": {"targetGroup": "TEEN"}, "fuzzy": false, "note": "틴 요금제(만 14~18세) 대상"}
+{"id": "C161", "category": "대상 그룹", "query": "청소년 요금제 있어?", "expect": {"targetGroup": "TEEN"}, "fuzzy": false, "note": ""}
+{"id": "C162", "category": "대상 그룹", "query": "고딩 요금제 뭐 있어요", "expect": {"targetGroup": "TEEN"}, "fuzzy": false, "note": "줄임말(고딩·중딩)도 틴"}
+{"id": "C163", "category": "대상 그룹", "query": "비타 틴 요금제 알려줘", "expect": {"targetGroup": "TEEN"}, "fuzzy": false, "note": "요금제 이름 '비타 틴'"}
+{"id": "C164", "category": "대상 그룹", "query": "초등학생이랑 중학생 요금제 비교해줘", "expect": {}, "fuzzy": false, "note": "키즈와 틴이 섞여 한 그룹으로 정할 수 없음"}
+{"id": "C165", "category": "오탐 유발(대상)", "query": "틴더 쓰는 요금제 있어?", "expect": {}, "fuzzy": false, "note": "앱 이름 '틴더'의 '틴'은 청소년이 아님"}
