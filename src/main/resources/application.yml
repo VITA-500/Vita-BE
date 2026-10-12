@@ -33,7 +33,7 @@ spring:
           options:
             model: ${BEDROCK_MODEL_ID:openai.gpt-oss-120b-1:0}
             temperature: 0.3
-            max-tokens: 1024
+            max-tokens: 4096
 
 
 server:
