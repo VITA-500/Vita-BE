@@ -5,8 +5,6 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.hibernate.annotations.ColumnTransformer;
-
 import com.vita.chat.ChatMessageFeedback;
 import com.vita.chat.ChatMessageRole;
 import com.vita.chat.ChatMessageStatus;
@@ -29,6 +27,8 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "chat_messages")
@@ -45,19 +45,21 @@ public class ChatMessage {
 	private ChatSession session;
 	
 	@Enumerated(EnumType.STRING)
-	@ColumnTransformer(write = "?::chat_message_role")
-	@Column(nullable = false)
+	@JdbcTypeCode(SqlTypes.NAMED_ENUM)
+	@Column(nullable = false, columnDefinition = "chat_message_role")
 	private ChatMessageRole role;
 	
 	@Column(columnDefinition = "TEXT")
 	private String content;
 	
 	@Enumerated(EnumType.STRING)
-	@ColumnTransformer(write = "?::chat_message_status")
+	@JdbcTypeCode(SqlTypes.NAMED_ENUM)
+	@Column(columnDefinition = "chat_message_status")
 	private ChatMessageStatus status;
 	
 	@Enumerated(EnumType.STRING)
-	@ColumnTransformer(write = "?::feedback_type")
+	@JdbcTypeCode(SqlTypes.NAMED_ENUM)
+	@Column(columnDefinition = "feedback_type")
 	private ChatMessageFeedback feedback;
 	
 	@Column(name = "created_at", nullable = false, updatable = false)
