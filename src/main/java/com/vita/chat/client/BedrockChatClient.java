@@ -2,7 +2,11 @@ package com.vita.chat.client;
 
 import java.util.Objects;
 
+import com.vita.chat.service.ChatAnswerStreamer;
 import com.vita.chat.service.PromptEscaper;
+
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -15,6 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 @Component
+@Slf4j
 public class BedrockChatClient {
 
     private final ChatClient chatClient;
@@ -53,6 +58,8 @@ public class BedrockChatClient {
     }
 
     private ChatResponse callForResponse(String systemPrompt, String userPrompt) {
+    	log.info("===== LLM PROMPT [complete] =====\n[system]\n{}\n[user]\n{}\n===== END PROMPT [complete] =====",
+    			systemPrompt, userPrompt);
         return chatClient.prompt()
                 .system(systemPrompt)
                 .user(userPrompt)
@@ -125,6 +132,9 @@ public class BedrockChatClient {
 	/** 스트리밍 호출. 답변 텍스트 조각이 올 때마다 onDelta를 호출하고, 스트림이 끝나면 리턴한다. */
 	public void askStream(String question, String context, String conversationHistory, Consumer<String> onDelta) {
 	    String userPrompt = USER_TURN_TEMPLATE.formatted(context, conversationHistory, PromptEscaper.escape(question));
+	    
+	    log.info("===== LLM PROMPT [stream] =====\n[system]\n{}\n[user]\n{}\n===== END PROMPT [stream] =====",
+	    		SYSTEM_PROMPT, userPrompt);
 	    AtomicInteger chunkCount = new AtomicInteger();
 	
 	    chatClient.prompt()
