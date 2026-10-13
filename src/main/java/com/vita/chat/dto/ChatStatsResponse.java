@@ -21,11 +21,12 @@ public record ChatStatsResponse(Summary summary, List<Candidate> candidates) {
 
     /**
      * @param id             가장 최근에 나온 답변 메시지 id
+     * @param answer         가장 최근에 나온 챗봇 답변
      * @param source         CHAT
-     * @param failReason     가장 최근 발생의 이유 (NO_MATCH, LOW_SIMILARITY, ANSWER_FAILED, USER_REPORT)
+     * @param failReason     가장 최근 발생의 이유 (NO_MATCH, LOW_SIMILARITY, ANSWER_FAILED, DISLIKED)
      * @param count          같은 질문이 미해결로 나온 횟수
      */
-    public record Candidate(Long id, String question, String source, String failReason,
-                            long count, LocalDateTime lastOccurredAt) {
+    public record Candidate(Long id, String question, String answer, String source,
+                            String failReason, long count, LocalDateTime lastOccurredAt) {
     }
 }

@@ -1,9 +1,7 @@
 package com.vita.chat.controller;
 
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import com.vita.chat.dto.ChatDismissResponse;
+import org.springframework.web.bind.annotation.*;
 
 import com.vita.chat.dto.ChatStatsResponse;
 import com.vita.chat.service.ChatStatsService;
@@ -23,5 +21,11 @@ public class AdminChatStatsController {
     @GetMapping("/chat")
     public ChatStatsResponse chat(@RequestParam(required = false) Integer limit) {
         return chatStatsService.getUnresolvedStats(limit);
+    }
+
+    /** 목록의 한 항목(같은 질문 묶음)에 들어 있는 👎를 모두 무시 처리 */
+    @PatchMapping("/chat/{id}/dismiss")
+    public ChatDismissResponse dismiss(@PathVariable Long id) {
+        return chatStatsService.dismiss(id);
     }
 }
