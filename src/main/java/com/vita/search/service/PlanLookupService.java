@@ -34,9 +34,15 @@ public interface PlanLookupService {
 	 *
 	 * <p>"청년이랑 시니어 중 가장 싼 것"처럼 여러 그룹이 섞이면 어느 한 그룹으로 좁힐 수 없어 범용으로 본다.
 	 *
+	 * <p>"가장 저렴한 인터넷 요금제"처럼 모바일이 아닌 서비스(인터넷·IPTV·TV)의 요금을 묻는 질문이면 모바일 요금제를
+	 * 돌려주지 않고 빈 목록을 돌려준다({@link NonMobilePlanQueryDetector}).
+	 *
 	 * @param query 사용자 질문 원문
 	 */
 	default List<PlanReference> findExtremeForQuery(PlanSortKey sortKey, int limit, String query) {
+		if (NonMobilePlanQueryDetector.matches(query)) {
+			return List.of();
+		}
 		String group = PlanQueryConditionExtractor.targetGroupOf(query);
 		return findExtreme(sortKey, limit, group != null ? group : GENERAL_GROUP);
 	}
