@@ -31,6 +31,10 @@ public enum ErrorCode {
 	 */
 	INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다."),
 	USER_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."),
+	SELF_ACCOUNT_PROTECTED(HttpStatus.CONFLICT, "자기 계정의 권한·상태 변경 및 삭제는 할 수 없습니다."),
+	LAST_ADMIN_PROTECTED(HttpStatus.CONFLICT, "마지막 활성 관리자의 권한·상태를 변경할 수 없습니다."),
+	USER_DELETED(HttpStatus.CONFLICT, "탈퇴 처리된 계정은 수정하거나 복구할 수 없습니다."),
+	CONCURRENT_MODIFICATION(HttpStatus.CONFLICT, "다른 요청에서 변경되었습니다. 다시 조회한 뒤 시도해 주세요."),
 	/**
 	 * 소셜 전용 계정이 비밀번호 변경을 시도한 경우. 비밀번호가 애초에 없는 계정이라 "변경"이
 	 * 성립하지 않는다. FE는 hasPassword=false면 변경 UI를 숨기지만, API를 직접 부를 수 있어 막는다.

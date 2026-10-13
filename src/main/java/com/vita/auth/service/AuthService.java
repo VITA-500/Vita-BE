@@ -42,7 +42,7 @@ public class AuthService {
 				.orElseThrow(() -> new BusinessException(ErrorCode.INVALID_CREDENTIALS));
 
 		// 소셜 전용 계정은 비밀번호가 없다. 여기서 막지 않으면 matches()에 null이 넘어간다.
-		if (!user.hasPassword()) {
+		if (!user.isActive() || !user.hasPassword()) {
 			throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
 		}
 
@@ -50,7 +50,7 @@ public class AuthService {
 			throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
 		}
 
-		String token = jwtProvider.createAccessToken(user.getId(), user.getRole());
+		String token = jwtProvider.createAccessToken(user.getId(), user.getRole(), user.getTokenVersion());
 		return LoginResult.of(token, user);
 	}
 }
