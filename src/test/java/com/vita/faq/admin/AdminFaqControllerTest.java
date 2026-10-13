@@ -31,6 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AdminFaqControllerTest {
     @Autowired MockMvc mvc;
     @MockBean AdminFaqService service;
+    @MockBean com.vita.auth.repository.UserRepository userRepository;
     @MockBean JwtProvider jwtProvider;
     @MockBean CookieUtil cookieUtil;
     @MockBean CustomOAuth2UserService oauthService;

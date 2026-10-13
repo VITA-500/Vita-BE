@@ -1,6 +1,7 @@
 package com.vita.auth.security;
 
 import io.jsonwebtoken.Claims;
+import com.vita.auth.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,6 +35,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 	private final JwtProvider jwtProvider;
 	private final CookieUtil cookieUtil;
+	private final UserRepository userRepository;
 
 	@Override
 	protected void doFilterInternal(
@@ -72,7 +74,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 		if (claims == null) {
 			return null;
 		}
-		return UserPrincipal.ofMember(jwtProvider.getUserId(claims), jwtProvider.getRole(claims));
+		try {
+			var user = userRepository.findById(jwtProvider.getUserId(claims)).orElse(null);
+			if (user == null || !user.isActive() || user.getTokenVersion() != jwtProvider.getTokenVersion(claims)) {
+				return null;
+			}
+			return UserPrincipal.ofMember(user.getId(), user.getRole());
+		} catch (IllegalArgumentException | io.jsonwebtoken.JwtException e) {
+			return null;
+		}
 	}
 
 	/**

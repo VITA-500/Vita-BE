@@ -51,6 +51,7 @@ class AdminPlanControllerTest {
 
     @Autowired MockMvc mvc;
     @MockBean AdminPlanService service;
+    @MockBean com.vita.auth.repository.UserRepository userRepository;
     @MockBean JwtProvider jwtProvider;
     @MockBean CookieUtil cookieUtil;
     @MockBean CustomOAuth2UserService oauthService;
