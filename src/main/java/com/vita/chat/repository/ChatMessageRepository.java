@@ -37,4 +37,18 @@ public interface ChatMessageRepository  extends JpaRepository<ChatMessage, Long>
 			WHERE a.unresolved_reason IS NOT NULL
 			""", nativeQuery = true)
 	List<UnresolvedMessageRow> findUnresolvedWithQuestion();
+
+	/**
+	 * 피드백을 받은 답변과 그 답변 바로 앞의 사용자 질문
+	 * 이미 자동 감지된 답변은 중복으로 세지 않는다.
+	 */
+	@Query(value = """
+			SELECT a.id, 'DISLIKED' AS reason, a.created_at,
+			       (SELECT u.content FROM chat_messages u
+			         WHERE u.session_id = a.session_id AND u.role = 'USER' AND u.id < a.id
+			         ORDER BY u.id DESC LIMIT 1) AS question
+			FROM chat_messages a
+			WHERE a.feedback = 'DISLIKE' AND a.unresolved_reason IS NULL
+			""", nativeQuery = true)
+	List<UnresolvedMessageRow> findDislikedWithQuestion();
 }

@@ -24,7 +24,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * 관리자 대시보드 미해결 질문 통계.
- * 자동 감지와 사용자 신고를 합쳐같은 질문끼리 묶는다.
+ * 자동 감지와 사용자 신고, 피드백을 합쳐 같은 질문끼리 묶는다.
  * 띄어쓰기, 문장부호 대소문자만 다른 질문은 같은 질문으로 본다.
  */
 @Service
@@ -54,6 +54,8 @@ public class ChatStatsService {
         reportRepository.findAllByStatus(ReportStatus.OPEN).forEach(report ->
                 occurrences.add(new Occurrence(report.getMessage().getId(), report.getQuestionText(),
                         UnresolvedReason.USER_REPORT.name(), report.getCreatedAt())));
+        chatMessageRepository.findDislikedWithQuestion().forEach(row ->
+                occurrences.add(new Occurrence(row.getId(), row.getQuestion(), row.getReason(), row.getCreatedAt())));
 
         // 같은 질문끼리 묶기
         Map<String, List<Occurrence>> groups = new LinkedHashMap<>();
