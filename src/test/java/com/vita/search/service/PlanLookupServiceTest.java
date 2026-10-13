@@ -43,6 +43,15 @@ class PlanLookupServiceTest {
 	}
 
 	@Test
+	void returnsNothingForQuestionsAboutNonMobileServiceFees() {
+		RecordingLookup lookup = new RecordingLookup();
+		assertThat(lookup.findExtremeForQuery(PlanSortKey.CHEAPEST, 1, "가장 저렴한 인터넷 요금제 알려줘")).isEmpty();
+		assertThat(lookup.findExtremeForQuery(PlanSortKey.CHEAPEST, 1, "제일 싼 IPTV 요금이 얼마예요?")).isEmpty();
+		// 조회 자체를 하지 않는다(모바일 요금제를 대신 돌려주지 않는다).
+		assertThat(lookup.groups).isEmpty();
+	}
+
+	@Test
 	void keepsTheTwoArgumentVersionOnGeneralPlans() {
 		RecordingLookup lookup = new RecordingLookup();
 		lookup.findExtreme(PlanSortKey.CHEAPEST, 1);

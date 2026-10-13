@@ -100,6 +100,39 @@ class RetrievalPipelineTest {
 		assertThat(context.topSimilarity()).isEqualTo(0.87);
 	}
 
+	@Test
+	void skipsPlanSearchForNonMobileServiceFeeQuestionsButStillSearchesFaqs() {
+		stubSearch(0.87, 0.85);
+
+		FaqRetrievalContext context = searchContext("인터넷 월 요금은 얼마예요?", 3);
+
+		// 모바일 요금제는 검색하지도, 결과로 내보내지도 않는다. FAQ 검색은 그대로 한다.
+		verify(planSearchService, never()).search(any(), any(), any(float[].class), anyInt(), anyInt());
+		assertThat(context.planReferences()).isEmpty();
+		assertThat(context.references()).hasSize(1);
+		assertThat(context.topSimilarity()).isEqualTo(0.87);
+	}
+
+	@Test
+	void keepsPlanSearchForMobilePlanQuestionsThatMentionInternet() {
+		stubSearch(0.80, 0.85);
+
+		FaqRetrievalContext context = searchContext("인터넷 많이 쓰는데 요금제 추천해줘", 3);
+
+		verify(planSearchService).search(any(), any(), any(float[].class), anyInt(), anyInt());
+		assertThat(context.planReferences()).hasSize(1);
+	}
+
+	@Test
+	void doesNotSkipPlanSearchForNonMobileFeeQuestionsWhenTheRuleIsDisabled() {
+		pipeline = pipelineWith(0.0, false);
+		stubSearch(0.87, 0.85);
+
+		searchContext("인터넷 월 요금은 얼마예요?", 3);
+
+		verify(planSearchService).search(any(), any(), any(float[].class), anyInt(), anyInt());
+	}
+
 	private void stubFaqPool(FaqSimilarityResult... pool) {
 		when(faqRepository.searchBySimilarity(any(float[].class), eq(FaqStatus.ACTIVE), anyDouble(), anyInt()))
 				.thenReturn(List.of(pool));

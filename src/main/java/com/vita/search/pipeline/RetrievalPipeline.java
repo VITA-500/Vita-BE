@@ -9,6 +9,7 @@ import com.vita.search.dto.PlanSimilarityResult;
 import com.vita.search.service.FaqCandidateSelector;
 import com.vita.search.service.FaqCategoryTermBooster;
 import com.vita.search.service.IrrelevantQueryDetector;
+import com.vita.search.service.NonMobilePlanQueryDetector;
 import com.vita.search.service.PlanSearchService;
 import java.util.List;
 import java.util.Set;
@@ -116,7 +117,13 @@ public class RetrievalPipeline {
 	private RetrievalResult execute(TransformedQuery transformed, long transformNanos, LapClock clock, RetrievalOptions options) {
 		String query = transformed.original();
 		boolean searchFaq = transformed.faqQuery() != null;
-		boolean searchPlans = options.includePlans() && transformed.planQuery() != null;
+		// 인터넷·IPTV·TV 요금을 묻는 질문에 모바일 요금제가 답으로 나가지 않도록 요금제 검색을 건너뛴다. FAQ 검색은 그대로 한다.
+		// 변환 전 원문으로 판정한다(변환 결과는 "조건: …" 같은 라벨이 붙어 문장 모양이 달라진다).
+		boolean nonMobilePlanQuestion = settings.irrelevantRuleEnabled() && NonMobilePlanQueryDetector.matches(query);
+		if (nonMobilePlanQuestion && options.logDetails()) {
+			log.info("모바일이 아닌 서비스(인터넷·IPTV·TV) 요금 질문이라 요금제 검색을 건너뜀. query={}", query);
+		}
+		boolean searchPlans = options.includePlans() && transformed.planQuery() != null && !nonMobilePlanQuestion;
 		if (!searchFaq && !searchPlans) {
 			return emptyResult(transformed, transformNanos);
 		}
