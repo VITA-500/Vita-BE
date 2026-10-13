@@ -37,6 +37,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.ToDoubleFunction;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -149,6 +151,11 @@ public class PlanEvalRunner implements CommandLineRunner {
 		boolean scored() {
 			return score != null;
 		}
+
+		/** 이 질문이 요금제 목록을 만든 경로(조건 매칭, 벡터, 정형 조회). */
+		PlanEvalPath route() {
+			return PlanEvalPath.of(path, conditionMatched);
+		}
 	}
 
 	@Override
@@ -218,7 +225,7 @@ public class PlanEvalRunner implements CommandLineRunner {
 			// BE4는 최상급 의도를 알아내면 검색 결과 대신 정형 조회 결과를 쓴다.
 			delivered = planLookupService.findExtremeForQuery(PlanSortKey.valueOf(question.sortKey()), extremeLimit, question.query())
 					.stream().map(PlanReference::planCode).toList();
-			path = "lookup";
+			path = PlanEvalPath.LOOKUP_NAME;
 			// 정형 조회는 질문 변환을 거치지 않고 원문으로 부른다(BE4의 최상급 분기).
 			transformed = TransformedQuery.unchanged(question.query());
 		} else {
@@ -226,7 +233,7 @@ public class PlanEvalRunner implements CommandLineRunner {
 					RetrievalOptions.forEval(FAQ_TOP_K, FaqCandidateSelector.poolSize(FAQ_TOP_K), true).withPlanTopK(topK));
 			delivered = result.context().planReferences().stream().map(PlanReference::planCode).toList();
 			conditionMatched = result.planOutcome().conditionMatched();
-			path = "search";
+			path = PlanEvalPath.SEARCH;
 			transformed = result.query();
 		}
 
@@ -350,6 +357,7 @@ public class PlanEvalRunner implements CommandLineRunner {
 			byType.computeIfAbsent(row.question().type(), key -> new ArrayList<>()).add(row);
 		}
 		byType.forEach((type, group) -> log.info("{} ({}개): {}", type, group.size(), metricsLine(group)));
+		printPathSummary(rows);
 		printFallbackSummary(rows, topK);
 
 		List<EvalRow> none = rows.stream().filter(r -> TYPE_NONE.equals(r.question().type())).toList();
@@ -377,13 +385,41 @@ public class PlanEvalRunner implements CommandLineRunner {
 	}
 
 	/**
+	 * 요금제를 만든 경로별(조건 매칭 / 벡터 / 정형 조회) 점수. 후보를 가져오는 방식(Hybrid 등)을 바꾸면 순서가 실제로 쓰이는 벡터 경로에서만
+	 * 결과가 달라지므로, 전체 점수에 섞이지 않게 경로를 나눠 보여 준다. 요금제 아님·정확히 맞는 요금제 없음 질문은 점수가 없어서
+	 * 경로 분포와 누수·대안 전달 건수를 경로별로 낸다(누수는 조건이 안 읽힌 벡터 경로에서 생긴다).
+	 */
+	private void printPathSummary(List<EvalRow> rows) {
+		log.info("경로별 점수(정답이 있는 질문): 조건 매칭 경로는 질문에서 읽은 조건으로 요금제를 좁힌 질문, 벡터 경로는 조건이 없거나 맞는 요금제가 없어 "
+				+ "유사도 상위를 돌려준 질문, 정형 조회 경로는 최상급 질문이다. 후보 검색 방식을 바꾸면 벡터 경로에서만 순서가 달라진다.");
+		for (PlanEvalPath path : PlanEvalPath.values()) {
+			printGroupScores("  " + path.label(), rows.stream().filter(EvalRow::scored).filter(r -> r.route() == path).toList());
+		}
+
+		List<EvalRow> none = rows.stream().filter(r -> TYPE_NONE.equals(r.question().type())).toList();
+		log.info("  요금제 아님 ({}개)의 경로: {} | 누수 {}개({})", none.size(), pathCounts(none),
+				none.stream().filter(EvalRow::leaked).count(), pathCounts(none.stream().filter(EvalRow::leaked).toList()));
+		List<EvalRow> noExact = rows.stream().filter(r -> TYPE_NO_EXACT.equals(r.question().type())).toList();
+		log.info("  정확히 맞는 요금제 없음 ({}개)의 경로: {} | 대안 전달 {}개({})", noExact.size(), pathCounts(noExact),
+				noExact.stream().filter(EvalRow::alternativeDelivered).count(),
+				pathCounts(noExact.stream().filter(EvalRow::alternativeDelivered).toList()));
+	}
+
+	/** 질문들이 조건 매칭 경로와 벡터 경로에 몇 개씩 있는지("조건 매칭 경로 3개, 벡터 경로 9개"). */
+	private static String pathCounts(List<EvalRow> rows) {
+		return Stream.of(PlanEvalPath.CONDITION_MATCHED, PlanEvalPath.VECTOR)
+				.map(path -> path.label() + " " + rows.stream().filter(r -> r.route() == path).count() + "개")
+				.collect(Collectors.joining(", "));
+	}
+
+	/**
 	 * 질문 변환 현황. 변환기를 쓰면 변환 결과의 종류와 폴백(원문으로 돌아감) 사유별 건수, 그리고 요금제 검색에 변환된 질문이 쓰인 질문과
 	 * 원문이 쓰인 질문의 점수를 따로 낸다. 폴백으로 원문이 쓰인 질문이 섞여 있으면 "질문 변환 효과"가 실제보다 Baseline에 가까워지므로,
 	 * 두 집단을 나눠 봐야 한다. 정형 조회(최상급) 경로는 질문 변환을 거치지 않아 집계에서 뺀다. 변환기가 질문을 바꾸지 않는
 	 * 구현(Baseline)이면 변환 폴백은 집계 대상이 아니다.
 	 */
 	private void printFallbackSummary(List<EvalRow> rows, int topK) {
-		List<EvalRow> searched = rows.stream().filter(row -> "search".equals(row.path())).toList();
+		List<EvalRow> searched = rows.stream().filter(row -> PlanEvalPath.SEARCH.equals(row.path())).toList();
 		log.info("===== 질문 변환 현황 (요금제 개수 {}, 검색 경로 질문 {}개) =====", topK, searched.size());
 
 		Map<TransformInfo.Kind, Long> byKind = new EnumMap<>(TransformInfo.Kind.class);

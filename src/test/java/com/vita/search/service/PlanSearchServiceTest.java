@@ -171,6 +171,140 @@ class PlanSearchServiceTest {
 		assertThat(codes(outcome)).containsExactly("VITA-LITE-10", "VITA-LITE-5");
 	}
 
+	// ---- 통화·문자 정책 조건과 완화 순서 ----
+
+	@Test
+	void passesAVoiceUnlimitedConditionToTheLookupWithoutADataPolicy() {
+		PlanQueryConditions conditions = searchAndCaptureConditions("통화 무제한 요금제 알려줘", "통화 무제한 요금제 알려줘");
+
+		assertThat(conditions.voicePolicy()).isEqualTo("UNLIMITED");
+		assertThat(conditions.dataPolicy()).isNull();
+	}
+
+	@Test
+	void dropsTheVoiceConditionWhenNothingMatchesAndReturnsTheNearbyPlans() {
+		// 청년 요금제 중 통화 무제한이 없는 상황: 통화 조건을 빼면 청년 요금제가 나온다.
+		stubPool(plan("VITA-LITE-10", 31_000, 0.90), plan("VITA-LITE-5", 25_000, 0.85));
+		when(lookupRepository.findPlanCodesByConditions(any())).thenReturn(Set.of()).thenReturn(Set.of("VITA-LITE-10"));
+
+		PlanSearchService.PlanSearchOutcome outcome = service.search("청년 요금제 통화 무제한 있어?", new float[] {0.1f}, TOP_K);
+
+		org.mockito.ArgumentCaptor<PlanQueryConditions> captor = org.mockito.ArgumentCaptor.forClass(PlanQueryConditions.class);
+		verify(lookupRepository, times(2)).findPlanCodesByConditions(captor.capture());
+		assertThat(captor.getAllValues().get(0).voicePolicy()).isEqualTo("UNLIMITED");
+		assertThat(captor.getAllValues().get(1).voicePolicy()).isNull();
+		assertThat(captor.getAllValues().get(1).targetGroup()).isEqualTo("YOUTH");
+		assertThat(outcome.conditionMatched()).isTrue();
+		assertThat(codes(outcome)).containsExactly("VITA-LITE-10");
+	}
+
+	@Test
+	void passesVoiceMinutesToTheLookupAndFallsBackToVectorResultsWhenNothingMatches() {
+		stubPool(plan("VITA-LITE-10", 31_000, 0.90));
+		when(lookupRepository.findPlanCodesByConditions(any())).thenReturn(Set.of());
+
+		PlanSearchService.PlanSearchOutcome outcome = service.search("통화 100분 주는 요금제 있어?", new float[] {0.1f}, TOP_K);
+
+		org.mockito.ArgumentCaptor<PlanQueryConditions> captor = org.mockito.ArgumentCaptor.forClass(PlanQueryConditions.class);
+		// 통화 분 조건 하나뿐이라 완화하면 조건이 없어지므로 다시 찾지 않고 벡터 검색 결과로 돌아간다.
+		verify(lookupRepository, times(1)).findPlanCodesByConditions(captor.capture());
+		assertThat(captor.getValue().voiceMinutesMin()).isEqualTo(100);
+		assertThat(captor.getValue().voiceMinutesMax()).isEqualTo(100);
+		assertThat(outcome.conditionMatched()).isFalse();
+		assertThat(codes(outcome)).containsExactly("VITA-LITE-10");
+	}
+
+	@Test
+	void dropsTheDataPolicyBeforeTheVoiceCondition() {
+		// 데이터 무제한 + 통화 무제한이 없고, 데이터 정책만 빼도 없으면 그다음에 통화 조건까지 뺀다.
+		stubPool(plan("VITA-LITE-10", 31_000, 0.90));
+		when(lookupRepository.findPlanCodesByConditions(any())).thenReturn(Set.of(), Set.of(), Set.of("VITA-LITE-10"));
+
+		service.search("청년 요금제 데이터 무제한이고 통화도 무제한인 거", new float[] {0.1f}, TOP_K);
+
+		org.mockito.ArgumentCaptor<PlanQueryConditions> captor = org.mockito.ArgumentCaptor.forClass(PlanQueryConditions.class);
+		verify(lookupRepository, times(3)).findPlanCodesByConditions(captor.capture());
+		PlanQueryConditions first = captor.getAllValues().get(0);
+		PlanQueryConditions second = captor.getAllValues().get(1);
+		PlanQueryConditions third = captor.getAllValues().get(2);
+		assertThat(first.dataPolicy()).isEqualTo("UNLIMITED");
+		assertThat(first.voicePolicy()).isEqualTo("UNLIMITED");
+		assertThat(second.dataPolicy()).isNull();
+		assertThat(second.voicePolicy()).isEqualTo("UNLIMITED");
+		assertThat(third.dataPolicy()).isNull();
+		assertThat(third.voicePolicy()).isNull();
+		assertThat(third.targetGroup()).isEqualTo("YOUTH");
+	}
+
+	@Test
+	void fallsBackToVectorResultsWithoutAnotherLookupWhenOnlyAVoiceConditionFailsToMatch() {
+		stubPool(plan("VITA-LITE-10", 31_000, 0.90), plan("VITA-LITE-5", 25_000, 0.85));
+		when(lookupRepository.findPlanCodesByConditions(any())).thenReturn(Set.of());
+
+		PlanSearchService.PlanSearchOutcome outcome = service.search("통화 무제한 요금제 알려줘", new float[] {0.1f}, TOP_K);
+
+		// 통화 조건을 빼면 남는 조건이 없어 다시 찾지 않고, 벡터 검색 결과를 돌려준다.
+		verify(lookupRepository, times(1)).findPlanCodesByConditions(any());
+		assertThat(outcome.conditionMatched()).isFalse();
+		assertThat(codes(outcome)).containsExactly("VITA-LITE-10", "VITA-LITE-5");
+	}
+
+	// ---- 제외한 대상 그룹 ----
+
+	private void stubGroups() {
+		when(lookupRepository.findTargetGroupByPlanCode()).thenReturn(Map.of(
+				"VITA-WATCH-1", "WATCH",
+				"VITA-TABLET-20", "TABLET",
+				"VITA-LITE-10", "GENERAL",
+				"VITA-SENIOR-20", "SENIOR",
+				"VITA-YOUTH-30", "YOUTH"));
+	}
+
+	@Test
+	void dropsTheExcludedGroupFromTheMatchedPlans() {
+		stubGroups();
+		stubPool(plan("VITA-LITE-10", 31_000, 0.90), plan("VITA-SENIOR-20", 33_000, 0.85), plan("VITA-YOUTH-30", 35_000, 0.80));
+		when(lookupRepository.findPlanCodesByConditions(any())).thenReturn(Set.of("VITA-LITE-10", "VITA-SENIOR-20", "VITA-YOUTH-30"));
+
+		PlanSearchService.PlanSearchOutcome outcome = service.search("시니어 말고 3만원대 요금제 알려줘", new float[] {0.1f}, TOP_K);
+
+		assertThat(outcome.conditionMatched()).isTrue();
+		assertThat(codes(outcome)).containsExactly("VITA-LITE-10", "VITA-YOUTH-30");
+	}
+
+	@Test
+	void dropsTheExcludedGroupFromTheVectorResultsToo() {
+		stubGroups();
+		stubPool(plan("VITA-SENIOR-20", 33_000, 0.90), plan("VITA-LITE-10", 31_000, 0.85), plan("VITA-YOUTH-30", 35_000, 0.80));
+
+		PlanSearchService.PlanSearchOutcome outcome = service.search("시니어 말고 요금제 추천해줘", new float[] {0.1f}, TOP_K);
+
+		assertThat(outcome.conditionMatched()).isFalse();
+		assertThat(codes(outcome)).containsExactly("VITA-LITE-10", "VITA-YOUTH-30");
+	}
+
+	@Test
+	void fallsBackToTheVectorResultsWhenEveryMatchedPlanIsExcluded() {
+		stubGroups();
+		stubPool(plan("VITA-SENIOR-20", 33_000, 0.90), plan("VITA-LITE-10", 31_000, 0.85));
+		when(lookupRepository.findPlanCodesByConditions(any())).thenReturn(Set.of("VITA-SENIOR-20"));
+
+		PlanSearchService.PlanSearchOutcome outcome = service.search("시니어 말고 3만원대 요금제 알려줘", new float[] {0.1f}, TOP_K);
+
+		assertThat(outcome.conditionMatched()).isFalse();
+		assertThat(codes(outcome)).containsExactly("VITA-LITE-10");
+	}
+
+	@Test
+	void keepsTheDeviceOnlyPlansOutWhenTheDeviceWordIsAnExclusion() {
+		stubGroups();
+		stubPool(plan("VITA-WATCH-1", 11_000, 0.90), plan("VITA-TABLET-20", 22_000, 0.85), plan("VITA-LITE-10", 31_000, 0.80));
+
+		PlanSearchService.PlanSearchOutcome outcome = service.search("워치 말고 폰 요금제 알려줘", new float[] {0.1f}, TOP_K);
+
+		assertThat(codes(outcome)).containsExactly("VITA-LITE-10");
+	}
+
 	// ---- 원문과 요금제용 질문 양쪽에서 조건 읽기 ----
 
 	private PlanQueryConditions searchAndCaptureConditions(String original, String planQuery) {
