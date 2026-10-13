@@ -3,6 +3,7 @@ package com.vita.store.dto.response;
 import java.math.BigDecimal;
 import java.util.List;
 
+/** 업종별 제휴 매장 거리순 (GET /benefits/{category}/stores) */
 public record BenefitStoreListResponse(
         String category,
         List<Item> stores) {

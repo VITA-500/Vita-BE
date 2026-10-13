@@ -11,10 +11,9 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 
 /**
- * 매장 방문 예약
- * 실제 가용성 확인과 점주 알림 없이 바로 저장
+ * 매장 방문 예약 (목업)
+ * 실제 가용성 확인과 점주 알림 없이 바로 확정으로 저장
  */
-
 @Entity
 @Table(name = "store_reservations")
 @Getter

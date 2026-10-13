@@ -8,7 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface StoreReservationRepository extends JpaRepository<StoreReservation, Long> {
 
-    // store_reservations의 매장 FK에 CASCADE가 없어서 매장을 지우기 전에 예약 먼저 지운다.
+    /** 매장의 예약 전체 삭제. 매장 FK에 CASCADE가 없어서 매장을 지우기 전에 먼저 호출한다 */
     @Modifying(flushAutomatically = true)
     @Query("DELETE FROM StoreReservation r WHERE r.store.id = :storeId")
     void deleteByStoreId(@Param("storeId") Long storeId);

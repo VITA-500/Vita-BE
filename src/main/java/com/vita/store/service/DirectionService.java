@@ -19,6 +19,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+/**
+ * 매장까지 길찾기 (카카오 API)
+ * - 자동차: 카카오모빌리티 / 도보, 자전거, 대중교통: 카카오맵
+ * - 이동수단과 상관없이 응답 모양은 같고, 대중교통만 후보 경로가 여러 개(routes)
+ */
 @Slf4j
 @Service
 public class DirectionService {
@@ -29,9 +34,9 @@ public class DirectionService {
     private static final String STEP_SUBWAY = "SUBWAY";
     private static final String SOLID = "SOLID";
     private static final String DASHED = "DASHED";
-    private static final double MIN_WALK_REFINE_METERS = 30;
+    private static final double MIN_WALK_REFINE_METERS = 30;    // 이보다 짧은 도보 구간은 API 호출 없이 직선
     private static final double WALK_SPEED_MPS = 1.1;           // 보정 실패로 직선을 쓸 때의 도보 시간 추정용 (약 4km/h)
-    private static final int MAX_TRANSIT_OPTIONS = 3;
+    private static final int MAX_TRANSIT_OPTIONS = 3;           // 대중교통 후보 탭 수 (추천·최단시간·최소환승)
 
     private final RestClient restClient;
     private final String kakaoApiKey;
@@ -52,6 +57,7 @@ public class DirectionService {
         walkExecutor.shutdown();
     }
 
+    /** mode: car / walk / bicycle / transit */
     public RouteResponse findRoute(String mode, BigDecimal fromLat, BigDecimal fromLng, BigDecimal toLat, BigDecimal toLng){
         return switch(mode){
             case "car" -> findCarRoute(fromLat, fromLng, toLat, toLng);
@@ -129,6 +135,8 @@ public class DirectionService {
         return new RouteResponse(mode, distance, duration, path, segments, List.of(option));
     }
 
+    // 대중교통 후보 최대 3개
+    // 카카오 응답에 빠진 도보 구간(출발지 -> 첫 정류장, 마지막 정류장 -> 매장, 역 밖 환승)을 도보 API로 채운다
     private RouteResponse findTransitRoute(BigDecimal fromLat, BigDecimal fromLng, BigDecimal toLat, BigDecimal toLng){
         String url = "https://dapi.kakao.com/v2/routing/publictraffic?start_x=%s&start_y=%s&end_x=%s&end_y=%s"
                 .formatted(fromLng, fromLat, toLng, toLat);
@@ -210,6 +218,7 @@ public class DirectionService {
         return points.size() < 2 ? null : new WalkLeg(points.get(0), points.get(points.size() - 1));
     }
 
+    // 도보 구간들을 동시에 보정한다. 짧은 구간은 호출 없이 직선
     private Map<WalkLeg, WalkResult> refineWalks(Collection<WalkLeg> legs){
         Map<WalkLeg, CompletableFuture<WalkResult>> futures = new LinkedHashMap<>();
         for(WalkLeg leg : legs){
@@ -304,6 +313,7 @@ public class DirectionService {
         return step.path("properties").path("type").asText();
     }
 
+    // 앞뒤가 모두 지하철인 도보 = 역 안 환승
     private static boolean isInStationTransfer(JsonNode steps, int i){
         return i > 0 && i < steps.size() - 1
                 && STEP_SUBWAY.equals(stepType(steps.get(i - 1)))
@@ -377,17 +387,20 @@ public class DirectionService {
                     .retrieve()
                     .body(JsonNode.class);
         } catch(RestClientException exception){
+            // 사용자 위치(좌표)가 로그에 남지 않게 쿼리는 빼고 남긴다
             log.error("카카오 길찾기 API 호출 실패: {}", url.split("\\?")[0], exception);
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "길찾기 서비스를 일시적으로 사용할 수 없습니다.");
         }
     }
 
+    // 도보 보정 대상 구간. 같은 출발·도착이면 같은 구간으로 보고 한 번만 호출한다
     private record WalkLeg(RoutePoint from, RoutePoint to){
         double distanceMeters(){
             return from == null || to == null ? 0 : DirectionService.distanceMeters(from, to);
         }
     }
 
+    // 도보 보정 결과. 실패하면 직선(straight)
     private record WalkResult(List<RoutePoint> path, int distanceMeters, int durationSeconds){
         static WalkResult straight(WalkLeg leg){
             if(leg.from() == null || leg.to() == null){

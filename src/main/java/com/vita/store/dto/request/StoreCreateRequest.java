@@ -7,8 +7,9 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * List<@NotBlank String>은 빈 문자열 원소를 400으로 막는다.
- **/
+ * 매장 등록. storeType 생략 시 통신 매장(PHONE), 제휴 매장은 benefitId 필수
+ * List<@NotBlank String>은 빈 문자열 원소를 400으로 막는다
+ */
 public record StoreCreateRequest(
         @NotBlank String name,
         @NotBlank String address,

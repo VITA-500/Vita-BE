@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+/** 관리자 제휴 혜택(브랜드) 관리 */
 @RestController
 @RequestMapping("/admin/benefits")
 @RequiredArgsConstructor
@@ -40,6 +41,7 @@ public class AdminBenefitController {
         return benefitService.update(benefitId, request);
     }
 
+    /** 연결된 제휴 매장이 있으면 409 */
     @DeleteMapping("/{benefitId}")
     public BenefitDeleteResponse delete(@PathVariable Long benefitId){
         return benefitService.delete(benefitId);

@@ -25,6 +25,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
+/**
+ * 제휴 혜택(브랜드) 조회, 관리와 업종별 제휴 매장 조회
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -39,6 +42,7 @@ public class BenefitService {
     private final StoreRepository storeRepository;
     private final StoreBenefitRepository storeBenefitRepository;
 
+    /** 혜택 목록 + 연결 매장 수. category를 주면 그 업종만 */
     public BenefitListResponse findAll(String category){
         List<BenefitResponse> benefits = benefitRepository.findAllWithStoreCount();
         if(category != null && !category.isBlank()){
@@ -68,6 +72,8 @@ public class BenefitService {
 
     /**
      * 업종(카테고리)별 제휴 매장을 가까운 순으로 돌려준다.
+     * radius 생략 시 거리 제한 없음 ("가장 가까운 카페"처럼 limit=1로 쓰는 경우)
+     * limit 기본 20, 최대 100
      * openNow=true면 지금 영업 중인 매장만
      * openAt("HH:mm")이면 그 시각에 영업 중인 매장만
      */
@@ -96,7 +102,10 @@ public class BenefitService {
         return new BenefitStoreListResponse(target, stores);
     }
 
-    // 관리자 혜택 목록
+    /**
+     * 관리자 혜택 목록
+     * 혜택(브랜드) 수가 적어서 전체를 불러온 뒤 메모리에서 검색·정렬·페이지를 나눈다
+     */
     public PageResponse<AdminBenefitResponse> searchForAdmin(PageRequest pageRequest, String category){
         if(pageRequest.page() < 0 || pageRequest.size() < 1 || pageRequest.size() > MAX_LIMIT){
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
@@ -119,6 +128,7 @@ public class BenefitService {
         return new PageResponse<>(filtered.subList(from, to), filtered.size(), totalPages, pageable.getPageNumber());
     }
 
+    // 값이 같으면 id 내림차순으로 순서 고정
     private static Comparator<AdminBenefitResponse> comparatorOf(Sort.Order order){
         Comparator<AdminBenefitResponse> primary = switch(order.getProperty()){
             case "brand" -> byKey(AdminBenefitResponse::brand, order.isAscending());
@@ -136,6 +146,7 @@ public class BenefitService {
         return Comparator.comparing(key, Comparator.nullsLast(direction));
     }
 
+    /** 혜택 등록. 브랜드명이 이미 있으면 409 */
     @Transactional
     public AdminBenefitResponse create(BenefitRequest request){
         String brand = request.brand().trim();
@@ -166,7 +177,7 @@ public class BenefitService {
         return toAdminResponse(benefit, storeBenefitRepository.countByBenefitId(benefitId));
     }
 
-    /** 연결된 제휴 매장이 있으면 삭제하지 않음 */
+    /** 연결된 제휴 매장이 있으면 삭제하지 않음 (409) */
     @Transactional
     public BenefitDeleteResponse delete(Long benefitId){
         Benefit benefit = findBenefitOrThrow(benefitId);

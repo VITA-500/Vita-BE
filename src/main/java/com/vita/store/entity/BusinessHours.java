@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 
 /**
  * 영업시간
- * API에서는 글자로 주고받고 Db에는 두 시각으로 저장
+ * API에서는 글자로 주고받고 DB에는 두 시각으로 저장
  * 닫는 시각이 여는 시각보다 이르면 자정을 넘겨 다음 날까지 영업
  */
 public record BusinessHours(LocalTime open, LocalTime close) {
@@ -19,7 +19,7 @@ public record BusinessHours(LocalTime open, LocalTime close) {
     public static final String FORMAT = "^([01][0-9]|2[0-3]):[0-5][0-9]-" +
             "([01][0-9]|2[0-3]):[0-5][0-9]$";
 
-    /** 마지막 예약은 닫기 30분 전까지 */
+    // 마지막 예약은 닫기 30분 전까지
     private static final int LAST_RESERVATION_BEFORE_CLOSE_MINUTES = 30;
     private static final int MINUTES_PER_DAY = 24 * 60;
     private static final ZoneId KOREA = ZoneId.of("Asia/Seoul");
@@ -93,11 +93,13 @@ public record BusinessHours(LocalTime open, LocalTime close) {
         return LocalTime.parse(value, HH_MM);
     }
 
+    /** 예약 가능한 마지막 시각 (예약 실패 안내 문구용) */
     public LocalTime lastReservationTime(){
         return close.minusMinutes(LAST_RESERVATION_BEFORE_CLOSE_MINUTES);
     }
 
-    // 여는 시각부터 time까지 몇 분 지났는지
+    // 여는 시각부터 time까지 몇 분 지났는지. floorMod로 자정을 넘겨도 같은 식으로 계산된다
+    // 예) 22:00-02:00 영업, 01:00 → 180분 (영업 240분 안이라 영업 중)
     private int minutesFromOpen(LocalTime time){
         return Math.floorMod(toMinutes(time) - toMinutes(open), MINUTES_PER_DAY);
     }

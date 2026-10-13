@@ -3,9 +3,10 @@ package com.vita.store.service;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/***
- * 카카오는 노선명·차량 종류만 주고 색은 주지 않아서 서버에서 매핑한다.
- * 지하철은 노선별, 버스는 노선 번호가 아니라 종류(간선·지선·일반 ...)별 색이다.
+/**
+ * 길찾기 구간 색
+ * 카카오는 노선명과 차량 종류만 주고 색은 주지 않아서 서버에서 매핑한다.
+ * 지하철은 노선별, 버스는 노선 번호가 아니라 종류별 색이다.
  */
 final class RouteColors {
 
@@ -17,6 +18,7 @@ final class RouteColors {
     private static final Map<String, String> SUBWAY = new LinkedHashMap<>();
     private static final Map<String, String> BUS = new LinkedHashMap<>();
 
+    // 이름에 포함되는지로 찾기 때문에 긴 이름을 먼저 넣는다 ("인천1호선"이 "1호선"보다 먼저)
     static{
         SUBWAY.put("인천1호선", "#7CA8D5");
         SUBWAY.put("인천2호선", "#ED8B00");
@@ -59,6 +61,7 @@ final class RouteColors {
 
     private RouteColors(){}
 
+    /** 지하철은 노선명, 버스는 차량 종류로 색을 찾는다. 없으면 기본색 */
     static String transit(String type, String lineName, String vehicleType){
         return switch(type){
             case "SUBWAY" -> find(SUBWAY, lineName);

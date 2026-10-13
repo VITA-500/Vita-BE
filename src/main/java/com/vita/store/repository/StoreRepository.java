@@ -13,9 +13,18 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
-// 관리자 목록 검색은 StoreSpecs 조건 조합으로 한다 (JpaSpecificationExecutor)
+/**
+ * 매장 조회
+ * - 거리(km)는 SQL에서 하버사인 공식(지구 반지름 6371km)으로 계산
+ * - 거리가 같으면 id 순으로 정렬해 순서를 고정 (같은 좌표 매장)
+ * - openAt 조건: 닫는 시각이 여는 시각보다 이르면(자정 넘김) "여는 시각 이후 또는 닫는 시각 이전"
+ * - 선택 파라미터는 CAST(:p AS 타입) IS NULL로 건너뛴다 (null만 넘기면 PostgreSQL이 타입을 몰라 오류)
+ * - 서비스 목록은 "||"로 이어 붙인 글자로 받아 서비스에서 다시 나눈다
+ * 관리자 목록 검색은 StoreSpecs 조건 조합으로 한다 (JpaSpecificationExecutor)
+ */
 public interface StoreRepository extends JpaRepository<Store, Long>, JpaSpecificationExecutor<Store> {
 
+    /** 가장 가까운 통신 매장 1곳 */
     @Query(value = """
             SELECT s.id, s.name, s.address, s.lat, s.lng, 
                 to_char(s.open_time, 'HH24:MI') || '-' || to_char(s.close_time, 'HH24:MI') AS business_hours,
@@ -33,6 +42,7 @@ public interface StoreRepository extends JpaRepository<Store, Long>, JpaSpecific
             """, nativeQuery = true)
     Optional<StoreDistanceProjection> findNearest(@Param("lat")BigDecimal lat, @Param("lng") BigDecimal lng);
 
+    /** 반경 안 통신 매장 거리순. openAt을 주면 그 시각에 영업 중인 매장만 */
     @Query(value = """
             SELECT * FROM(
                 SELECT s.id, s.name, s.address, s.lat, s.lng, 
@@ -57,14 +67,13 @@ public interface StoreRepository extends JpaRepository<Store, Long>, JpaSpecific
             WHERE distance_km <= :radiusKm
             ORDER BY distance_km, id
             """, nativeQuery = true)
-
     List<StoreDistanceProjection> findNearBy(
             @Param("lat") BigDecimal lat, @Param("lng") BigDecimal lng,
             @Param("radiusKm") double radiusKm, @Param("openAt") LocalTime openAt);
 
     /**
-     * 채팅용 주변 통신 매장.
-     * 요청한 서비스를 많이 제공하는 매장 먼저, 같으면 가까운 순
+     * 채팅용 주변 통신 매장
+     * 요청한 서비스(services, "||"로 연결)를 많이 제공하는 매장 먼저, 같으면 가까운 순
      */
     @Query(value = """
             SELECT * FROM(
@@ -102,7 +111,8 @@ public interface StoreRepository extends JpaRepository<Store, Long>, JpaSpecific
             @Param("openAt") LocalTime openAt,
             @Param("limit") int limit);
 
-    /** 업종별 제휴 매장 거리순, 업종 및 브랜드는 연결을 따라 조인한다.
+    /**
+     * 제휴 매장 거리순 + 연결된 혜택 정보
      * category·benefitId·radiusKm·openAt은 선택이라 null이면 조건을 건너뛴다
      */
     @Query(value = """
@@ -143,7 +153,10 @@ public interface StoreRepository extends JpaRepository<Store, Long>, JpaSpecific
             @Param("openAt") LocalTime openAt,
             @Param("limit") int limit);
 
-    // 브랜드는 연결 테이블(store_benefits)에 있어서 브랜드만 바꾸면 매장 행이 바뀌지 않아 수정일이 자동 갱신되지 않는다
+    /**
+     * 매장 수정일만 갱신
+     * 브랜드는 연결 테이블(store_benefits)에 있어서 브랜드만 바꾸면 매장 행이 바뀌지 않아 수정일이 자동 갱신되지 않는다
+     */
     @Modifying(flushAutomatically = true)
     @Query("UPDATE Store s SET s.updatedAt = :updatedAt WHERE s.id = :storeId")
     void touchUpdatedAt(@Param("storeId") Long storeId, @Param("updatedAt") LocalDateTime updatedAt);

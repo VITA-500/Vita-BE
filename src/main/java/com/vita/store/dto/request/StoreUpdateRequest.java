@@ -6,6 +6,7 @@ import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 import java.util.List;
 
+/** 매장 수정. 유형(storeType)은 바꿀 수 없고, benefitId는 제휴 매장에서 보냈을 때만 브랜드 변경 */
 public record StoreUpdateRequest (
         @NotBlank String name,
         @NotBlank String address,
