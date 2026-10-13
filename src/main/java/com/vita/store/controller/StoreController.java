@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 
+/** 매장 조회, 길찾기, 예약 (사용자용) */
 @RestController
 @RequiredArgsConstructor
 public class StoreController {
@@ -25,6 +26,7 @@ public class StoreController {
     private final DirectionService directionService;
     private final ReservationService reservationService;
 
+    /** 가장 가까운 통신 매장 */
     @GetMapping("/stores/nearest")
     public StoreNearestResponse nearest(
             @RequestParam(required = false) BigDecimal lat,
@@ -33,6 +35,7 @@ public class StoreController {
         return storeService.findNearest(lat, lng);
     }
 
+    /** 반경 안 매장. storeType=PARTNER면 제휴 매장 (업종 및 브랜드 필터 가능) */
     @GetMapping("/stores/nearby")
     public StoreNearbyListResponse nearby(
             @RequestParam(required = false) BigDecimal lat,
@@ -55,6 +58,7 @@ public class StoreController {
         return storeService.findById(storeId);
     }
 
+    /** 길찾기. mode: car / walk / bicycle / transit */
     @GetMapping("/stores/{storeId}/directions")
     public RouteResponse directions(
             @PathVariable Long storeId,
@@ -69,6 +73,7 @@ public class StoreController {
         return directionService.findRoute(mode, fromLat, fromLng, store.lat(), store.lng());
     }
 
+    /** 방문 예약 (회원만, 통신 매장만) */
     @PostMapping("/stores/{storeId}/reservations")
     @ResponseStatus(HttpStatus.CREATED)
     public ReservationResponse reserve(@PathVariable Long storeId,

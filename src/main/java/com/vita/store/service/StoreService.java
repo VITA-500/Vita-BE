@@ -29,6 +29,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 
+/**
+ * 매장 조회(지도, 채팅)와 관리자 매장 관리
+ * 응답의 openNow는 한국 시간 기준 지금 영업 중인지 (영업시간이 없으면 null)
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -45,6 +49,7 @@ public class StoreService {
     private final BenefitRepository benefitRepository;
     private final StoreReservationRepository storeReservationRepository;
 
+    /** 가장 가까운 통신 매장 */
     public StoreNearestResponse findNearest(BigDecimal lat, BigDecimal lng) {
         StoreDistanceProjection nearest = storeRepository.findNearest(lat, lng)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "등록된 매장이 없습니다."));
@@ -94,7 +99,7 @@ public class StoreService {
     }
 
     /**
-     * 채팅용 주변 통신 매장
+     * 채팅용 주변 통신 매장 (BE4 ChatStoreFinder가 직접 호출, HTTP API 없음)
      * services를 주면 그 서비스를 많이 제공하는 매장 먼저, 같으면 가까운 순
      * limit 생략 시 4개, 최대 20개
      */
@@ -118,6 +123,7 @@ public class StoreService {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
                     "limit은 1~" + CHAT_MAX_LIMIT + " 사이여야 합니다.");
         }
+        // 쿼리에 목록 하나로 넘기려고 "||"로 이어 붙인다 (SQL에서 다시 나눔)
         String joinedServices = services == null ? null : services.stream()
                 .filter(Objects::nonNull).map(String::trim).filter(s -> !s.isEmpty())
                 .distinct().reduce((a, b) -> a + "||" + b).orElse(null);
@@ -130,15 +136,18 @@ public class StoreService {
                         splitServices(p.getConsultServices()), splitServices(p.getProvidedServices()))).toList();
     }
 
+    // 거리(km)는 소수 둘째 자리까지
     private static double round2(double value) {
         return Math.round(value * 100) / 100.0;
     }
 
+    // 쿼리에서 "||"로 이어 붙인 서비스 목록을 다시 나눈다
     private static List<String> splitServices(String joined){
         return (joined == null || joined.isBlank()) ? List.of() :
                 Arrays.asList(joined.split("\\|\\|"));
     }
 
+    /** 관리자 매장 목록. 키워드(이름, 주소), 유형, 업종, 브랜드로 필터 */
     public PageResponse<StoreListItemResponse> search(PageRequest pageRequest, String storeType,
                                                       String category, Long benefitId){
         var pageable = pageRequest.toSpringPageRequest(ADMIN_LIST_SORT_FIELDS, ADMIN_LIST_DEFAULT_SORT);
@@ -148,6 +157,7 @@ public class StoreService {
                 StoreSpecs.category(category),
                 StoreSpecs.benefitId(benefitId),
                 StoreSpecs.orderBy(pageable.getSort())).filter(Objects::nonNull).toList());
+        // 정렬은 StoreSpecs.orderBy가 하므로 페이지 번호·크기만 넘긴다
         Page<Store> page = storeRepository.findAll(spec,
                 org.springframework.data.domain.PageRequest.of(pageable.getPageNumber(), pageable.getPageSize()));
 
@@ -163,6 +173,7 @@ public class StoreService {
         });
     }
 
+    /** 매장 상세. 제휴 매장은 연결된 브랜드 정보 포함 */
     public StoreDetailResponse findById(Long storeId){
         Store store = findStoreOrThrow(storeId);
         Benefit benefit = benefitsOf(List.of(store)).get(store.getId());
@@ -177,7 +188,7 @@ public class StoreService {
                 store.getCreatedAt(), store.getUpdatedAt());
     }
 
-    // 매장 id → 연결된 혜택. 페이지 단위로 한 번에 조회한다 (매장마다 조회하면 N+1)
+    // 매장 id -> 연결된 혜택. 페이지 단위로 한 번에 조회한다 (매장마다 조회하면 N+1)
     private Map<Long, Benefit> benefitsOf(List<Store> stores){
         if(stores.isEmpty()){
             return Map.of();
@@ -189,6 +200,7 @@ public class StoreService {
         return result;
     }
 
+    /** 매장 등록. storeType 생략 시 통신 매장, 제휴 매장은 브랜드 연결까지 함께 저장 */
     @Transactional
     public StoreCreateResponse create(StoreCreateRequest request){
         StoreType type = StoreType.fromNullable(request.storeType());
@@ -212,6 +224,7 @@ public class StoreService {
         return new StoreCreateResponse(store.getId(), store.getName(), store.getCreatedAt());
     }
 
+    /** 매장 수정. 유형은 바꿀 수 없고 제휴 매장은 benefitId를 보내면 브랜드를 바꾼다 */
     @Transactional
     public StoreUpdateResponse update(Long storeId, StoreUpdateRequest request){
         Store store = findStoreOrThrow(storeId);
@@ -219,6 +232,7 @@ public class StoreService {
         store.update(request.name(), request.address(), request.lat(), request.lng(),
                 BusinessHours.parse(request.businessHours()), request.phone(),
                 request.consultServices(), request.providedServices());
+        // DB에 반영해야 수정일(updatedAt)이 채워진다
         storeRepository.flush();
         LocalDateTime updatedAt = store.getUpdatedAt();
 
@@ -234,10 +248,8 @@ public class StoreService {
         return new StoreUpdateResponse(store.getId(), updatedAt);
     }
 
-    /**
-     * 제휴 매장은 어느 브랜드(혜택) 매장인지 있어야 업종 필터·혜택 API·챗봇 혜택 안내에 나온다.
-     * 등록 시 제휴 매장은 benefitId 필수, 수정 시에는 보냈을 때만 바꾼다. 통신 매장은 혜택을 가질 수 없다.
-     */
+    // 제휴 매장은 어느 브랜드(혜택) 매장인지 있어야 업종 필터, 혜택 API, 챗봇 혜택 안내에 나온다.
+    // 등록 시 제휴 매장은 benefitId 필수, 수정 시에는 보냈을 때만 바꾼다. 통신 매장은 혜택을 가질 수 없다.
     private Benefit resolveBenefit(StoreType type, Long benefitId, boolean requiredForPartner){
         if(type == StoreType.PHONE){
             if(benefitId != null){
@@ -254,10 +266,11 @@ public class StoreService {
         return benefitRepository.findById(benefitId).orElseThrow(() -> new BenefitNotFoundException(benefitId));
     }
 
+    /** 매장 삭제. 예약은 목업 데이터라 함께 지운다 */
     @Transactional
     public StoreDeleteResponse delete(Long storeId){
         Store store = findStoreOrThrow(storeId);
-        // 예약은 목업 데이터이기 때문에 매장과 함께 지움
+        // 예약 FK에 CASCADE가 없어서 예약을 먼저 지운다
         storeReservationRepository.deleteByStoreId(storeId);
         storeRepository.delete(store);
         return new StoreDeleteResponse(store.getId(), true);

@@ -8,7 +8,7 @@ import java.time.LocalTime;
 public record ReservationResponse(
         Long reservationId,
         Long storeId,
-        String storeName,               // 예약 완료되었다는 안내 문구
+        String storeName,               // 예약 완료 안내 문구용
         LocalDate date,
         @JsonFormat(pattern = "HH:mm") LocalTime time,
         String status) { }              // CONFIRMED

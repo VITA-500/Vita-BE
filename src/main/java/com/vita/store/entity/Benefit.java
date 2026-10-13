@@ -9,12 +9,17 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 
+/**
+ * 제휴 혜택(브랜드)
+ * 제휴 매장은 store_benefits로 브랜드 하나에 연결된다
+ */
 @Entity
 @Table(name = "benefits")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Benefit extends BaseTimeEntity {
 
+    /** 업종 목록. 등록이나 수정 시 이 중 하나만 허용 */
     public static final List<String> CATEGORIES = List.of("카페", "아이스크림", "영화",
             "외식", "자동차", "쇼핑", "여가");
 
@@ -26,6 +31,7 @@ public class Benefit extends BaseTimeEntity {
     @Column(nullable = false, length = 50, unique = true)
     private String brand;
 
+    // 혜택명
     @Column(nullable = false, length = 100)
     private String name;
 

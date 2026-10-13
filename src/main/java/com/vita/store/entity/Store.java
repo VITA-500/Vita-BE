@@ -14,6 +14,10 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 매장
+ * 통신 매장(PHONE)과 제휴 매장(PARTNER)을 한 테이블에 저장한다
+ */
 @Entity
 @Table(name = "stores")
 @Getter
@@ -36,6 +40,7 @@ public class Store extends BaseTimeEntity {
     @Column(nullable = false, precision = 9, scale = 6)
     private BigDecimal lng;
 
+    // 영업시간은 두 칸으로 저장하고 응답할 때 "HH:mm-HH:mm"으로 합친다 (getBusinessHours)
     @Column(name = "open_time")
     private LocalTime openTime;
 
@@ -45,14 +50,17 @@ public class Store extends BaseTimeEntity {
     @Column(length = 20)
     private String phone;
 
+    // 상담 서비스 (예: 로밍상담, 요금제변경). 제휴 매장은 비어 있음
     @JdbcTypeCode(SqlTypes.ARRAY)
     @Column(name = "consult_services", columnDefinition = "text[]", nullable = false)
     private List<String> consultServices = new ArrayList<>();
 
+    // 매장 편의 (예: 주차 가능, 방문예약 가능). 제휴 매장은 비어 있음
     @JdbcTypeCode(SqlTypes.ARRAY)
     @Column(name = "provided_services", columnDefinition = "text[]", nullable = false)
     private List<String> providedServices = new ArrayList<>();
 
+    // 제휴 매장의 브랜드는 store_benefits로 연결한다
     @Enumerated(EnumType.STRING)
     @Column(name = "store_type", nullable = false, length = 20)
     private StoreType storeType = StoreType.PHONE;
@@ -71,6 +79,7 @@ public class Store extends BaseTimeEntity {
         this.storeType = storeType != null ? storeType : StoreType.PHONE;
     }
 
+    /** 매장 유형은 바꾸지 않는다. 서비스 목록은 null이면 그대로 둔다 */
     public void update(String name, String address, BigDecimal lat, BigDecimal lng, BusinessHours businessHours,
                        String phone, List<String> consultServices, List<String> providedServices){
         this.name = name;

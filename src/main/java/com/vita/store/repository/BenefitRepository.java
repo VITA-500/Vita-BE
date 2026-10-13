@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 
 public interface BenefitRepository extends JpaRepository<Benefit, Long> {
+
+    /** 혜택 목록 + 연결된 제휴 매장 수 */
     @Query("""
             SELECT new com.vita.store.dto.response.BenefitResponse(
                     b.id, b.brand, b.name, b.category, b.description, COUNT(sb.id))
@@ -19,6 +21,7 @@ public interface BenefitRepository extends JpaRepository<Benefit, Long> {
         """)
     List<BenefitResponse> findAllWithStoreCount();
 
+    /** 관리자 목록용 전체 조회 (검색, 정렬, 페이지는 BenefitService에서 처리) */
     @Query("""
             SELECT new com.vita.store.dto.response.AdminBenefitResponse(
                         b.id, b.brand, b.name, b.category, b.description, COUNT(sb.id),

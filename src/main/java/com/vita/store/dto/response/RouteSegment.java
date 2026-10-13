@@ -2,6 +2,7 @@ package com.vita.store.dto.response;
 
 import java.util.List;
 
+/** 지도에 그릴 경로 한 구간. 구간마다 색과 선 모양이 다르다 */
 public record RouteSegment(
         String type,                    // WALKING / BUS / SUBWAY / BICYCLE / ROAD
         String lineName,                // 대중교통만: "2호선", "402"
