@@ -6,14 +6,13 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.vita.chat.ChatMessageFeedback;
+import com.vita.chat.ChatMessageRole;
+import com.vita.chat.dto.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.vita.chat.ChatMessageStatus;
-import com.vita.chat.dto.ChatMessageResponse;
-import com.vita.chat.dto.ChatMessageSendRequest;
-import com.vita.chat.dto.ChatMessageItemResponse;
-import com.vita.chat.dto.SessionMessagesResponse;
 import com.vita.chat.entity.ChatMessage;
 import com.vita.chat.entity.ChatSession;
 import com.vita.chat.repository.ChatMessageRepository;
@@ -133,5 +132,25 @@ public class ChatMessageService {
 				.toList();
 		
 		return new SessionMessagesResponse(sessionId, messages);
+	}
+
+	/**
+	 * 답변 피드백 저장
+	 * 내 세션의 완료된 답변에만 남길 수 있다
+	 */
+	@Transactional
+	public ChatFeedbackResponse applyFeedback(Long messageId, Long userId,
+	                                          UUID guestId, ChatMessageFeedback feedback){
+		ChatMessage message = chatMessageRepository.findById(messageId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "존재하지 않는 메시지입니다."));
+
+		getOwnedSession(message.getSession().getId(), userId, guestId);
+
+		if(message.getRole() != ChatMessageRole.ASSISTANT || message.getStatus() != ChatMessageStatus.COMPLETED){
+			throw new BusinessException(ErrorCode.VALIDATION_ERROR, "완료된 답변에만 피드백을 남길 수 있습니다.");
+		}
+
+		message.applyFeedback(feedback);
+		return ChatFeedbackResponse.from(message);
 	}
 }
