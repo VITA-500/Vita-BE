@@ -11,8 +11,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.UUID;
-
 @RestController
 @RequestMapping("/chat/messages/{messageId}")
 @RequiredArgsConstructor
@@ -26,12 +24,12 @@ public class ChatMessageFeedbackController {
             @AuthenticationPrincipal UserPrincipal user,
             @RequestBody ChatFeedbackRequest request) {
         Long userId = PrincipalUtils.userIdOf(user);
-        UUID guestId = PrincipalUtils.guestIdOf(user);
 
-        if(userId == null && guestId == null){
+        // 피드백은 회원만
+        if(userId == null){
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
 
-        return chatMessageService.applyFeedback(messageId, userId, guestId, request.feedback());
+        return chatMessageService.applyFeedback(messageId, userId, request.feedback());
     }
 }

@@ -11,12 +11,12 @@ import com.vita.chat.entity.ChatMessage;
 import org.springframework.data.jpa.repository.Query;
 
 public interface ChatMessageRepository  extends JpaRepository<ChatMessage, Long> {
-	
+
 	List<ChatMessage> findAllBySession_IdOrderByCreatedAtAsc(Long sessionId);
-	
+
 	//  role 조건 없이 직전 메시지 5건만 조회
 	List<ChatMessage> findTop5BySessionIdAndIdLessThanOrderByIdDesc(Long sessionId, Long id);
-	
+
 	List<ChatMessage> findBySession_IdAndStatusOrderByCreatedAtDescIdDesc(
             Long sessionId, ChatMessageStatus status, Pageable pageable);
 
@@ -26,10 +26,11 @@ public interface ChatMessageRepository  extends JpaRepository<ChatMessage, Long>
 		String getReason();
 		LocalDateTime getCreatedAt();
 		String getQuestion();
+		String getAnswer();
 	}
 
 	@Query(value = """
-			SELECT a.id, a.unresolved_reason AS reason, a.created_at,
+			SELECT a.id, a.unresolved_reason AS reason, a.created_at, a.content AS answer,
 			       (SELECT u.content FROM chat_messages u
 			         WHERE u.session_id = a.session_id AND u.role = 'USER' AND u.id < a.id
 			         ORDER BY u.id DESC LIMIT 1) AS question
@@ -37,18 +38,4 @@ public interface ChatMessageRepository  extends JpaRepository<ChatMessage, Long>
 			WHERE a.unresolved_reason IS NOT NULL
 			""", nativeQuery = true)
 	List<UnresolvedMessageRow> findUnresolvedWithQuestion();
-
-	/**
-	 * 피드백을 받은 답변과 그 답변 바로 앞의 사용자 질문
-	 * 이미 자동 감지된 답변은 중복으로 세지 않는다.
-	 */
-	@Query(value = """
-			SELECT a.id, 'DISLIKED' AS reason, a.created_at,
-			       (SELECT u.content FROM chat_messages u
-			         WHERE u.session_id = a.session_id AND u.role = 'USER' AND u.id < a.id
-			         ORDER BY u.id DESC LIMIT 1) AS question
-			FROM chat_messages a
-			WHERE a.feedback = 'DISLIKE' AND a.unresolved_reason IS NULL
-			""", nativeQuery = true)
-	List<UnresolvedMessageRow> findDislikedWithQuestion();
 }
