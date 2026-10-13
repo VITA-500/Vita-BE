@@ -57,6 +57,11 @@ public class UnresolvedQuestionReport {
 		this.status = ReportStatus.OPEN;
 	}
 
+	/** 관리자 "무시": 답변에 문제가 없다고 판단 */
+	public void dismiss() {
+		this.status = ReportStatus.DISMISSED;
+	}
+
 	@PrePersist
 	void onCreate() {
 		this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
