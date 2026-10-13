@@ -40,15 +40,13 @@ class PlanConditionExtractionEvalTest {
 	record EvalCase(String id, String category, String query, Map<String, Object> expect, boolean fuzzy, String note) {
 	}
 
-	/**
-	 * 조건 항목 8개. 추출기 결과에서 값을 꺼내는 방법을 함께 둔다. 통화·문자 정책(VOICE_POLICY, SMS_POLICY)은 plans.voice_policy,
-	 * plans.sms_policy와 비교하는 조건("통화 무제한" 등, 검수에서 확정)인데 추출기가 아직 읽지 못해 항상 비어 있다. 추출기가
-	 * 이 조건을 지원하면 {@link #valueOf}가 실제 값을 돌려주게 고친다.
-	 */
+	/** 조건 항목 13개. 추출기 결과에서 값을 꺼내는 방법을 함께 둔다. 통화·문자 정책은 plans.voice_policy, plans.sms_policy와 비교하는 조건이다. */
 	private enum Field {
 		FEE_MIN("feeMin", "금액"), FEE_MAX("feeMax", "금액"), DATA_MB_MIN("dataMbMin", "데이터량"),
 		DATA_MB_MAX("dataMbMax", "데이터량"), TARGET_GROUP("targetGroup", "대상"), DATA_POLICY("dataPolicy", "무제한"),
-		VOICE_POLICY("voicePolicy", "통화·문자"), SMS_POLICY("smsPolicy", "통화·문자");
+		VOICE_POLICY("voicePolicy", "통화·문자"), SMS_POLICY("smsPolicy", "통화·문자"), EXCLUDED_GROUPS("excludedGroups", "대상"),
+		VOICE_MINUTES_MIN("voiceMinutesMin", "통화·문자 수치"), VOICE_MINUTES_MAX("voiceMinutesMax", "통화·문자 수치"),
+		SMS_COUNT_MIN("smsCountMin", "통화·문자 수치"), SMS_COUNT_MAX("smsCountMax", "통화·문자 수치");
 
 		final String key;
 		final String group;
@@ -67,7 +65,13 @@ class PlanConditionExtractionEvalTest {
 				case DATA_MB_MAX -> c.dataMbMax();
 				case TARGET_GROUP -> c.targetGroup();
 				case DATA_POLICY -> c.dataPolicy();
-				case VOICE_POLICY, SMS_POLICY -> null; // 추출기가 아직 읽지 않는 조건
+				case VOICE_POLICY -> c.voicePolicy();
+				case SMS_POLICY -> c.smsPolicy();
+				case VOICE_MINUTES_MIN -> c.voiceMinutesMin() == null ? null : c.voiceMinutesMin().longValue();
+				case VOICE_MINUTES_MAX -> c.voiceMinutesMax() == null ? null : c.voiceMinutesMax().longValue();
+				case SMS_COUNT_MIN -> c.smsCountMin() == null ? null : c.smsCountMin().longValue();
+				case SMS_COUNT_MAX -> c.smsCountMax() == null ? null : c.smsCountMax().longValue();
+				case EXCLUDED_GROUPS -> c.excludedGroups().isEmpty() ? null : new java.util.TreeSet<>(c.excludedGroups()).stream().toList();
 			};
 		}
 	}
@@ -76,11 +80,11 @@ class PlanConditionExtractionEvalTest {
 	private enum Verdict { OK, FALSE_POSITIVE, MISSED, WRONG_VALUE }
 
 	/**
-	 * 지금 추출기의 점수(2026-10-08, 커밋 d016189 기준, 검수 반영 후 147문항). 모든 조건이 정답과 같은 문항 수가 이보다 줄어들면
-	 * 추출기가 나빠진 것이다.
+	 * 지금 추출기의 점수(2026-10-12, develop의 연령대별 요금제 확장(틴 대상 그룹) 반영 후 165문항). 모든 조건이 정답과 같은 문항 수가
+	 * 이보다 줄어들면 추출기가 나빠진 것이다.
 	 * 추출기를 개선해 점수가 오르면 이 값을 새 점수로 올려서 그 이상을 지키게 한다.
 	 */
-	private static final int BASELINE_EXACT_CASES = 86;
+	private static final int BASELINE_EXACT_CASES = 160;
 
 	private static final Set<String> GROUPS = Set.of("GENERAL", "TEEN", "YOUTH", "SENIOR", "KIDS", "WATCH", "TABLET");
 	private static final Set<String> POLICIES = Set.of("LIMITED", "UNLIMITED");
@@ -106,12 +110,14 @@ class PlanConditionExtractionEvalTest {
 	}
 
 	@Test
+	@SuppressWarnings("unchecked")
 	void evalSetFollowsItsOwnRules() {
 		assertThat(cases).hasSizeGreaterThanOrEqualTo(100);
 		assertThat(cases.stream().map(EvalCase::id).distinct().count()).isEqualTo(cases.size());
 		assertThat(cases.stream().map(EvalCase::query).distinct().count()).isEqualTo(cases.size());
 
-		Set<String> keys = Set.of("feeMin", "feeMax", "dataMbMin", "dataMbMax", "targetGroup", "dataPolicy", "voicePolicy", "smsPolicy");
+		Set<String> keys = Set.of("feeMin", "feeMax", "dataMbMin", "dataMbMax", "targetGroup", "dataPolicy", "voicePolicy", "smsPolicy",
+				"excludedGroups", "voiceMinutesMin", "voiceMinutesMax", "smsCountMin", "smsCountMax");
 		for (EvalCase c : cases) {
 			assertThat(c.query()).as(c.id() + " 질문").isNotBlank();
 			assertThat(keys).as(c.id() + " 정답 항목 이름").containsAll(c.expect().keySet());
@@ -122,6 +128,11 @@ class PlanConditionExtractionEvalTest {
 			Object policy = c.expect().get("dataPolicy");
 			if (policy != null) {
 				assertThat(POLICIES).as(c.id() + " 무제한 여부 값").contains((String) policy);
+			}
+			Object excluded = c.expect().get("excludedGroups");
+			if (excluded != null) {
+				assertThat(excluded).as(c.id() + " 제외 그룹은 목록").isInstanceOf(List.class);
+				assertThat(GROUPS).as(c.id() + " 제외 그룹 값").containsAll((List<String>) excluded);
 			}
 			for (String key : List.of("voicePolicy", "smsPolicy")) {
 				Object value = c.expect().get(key);
@@ -202,8 +213,11 @@ class PlanConditionExtractionEvalTest {
 		return Objects.equals(e, a) ? Verdict.OK : Verdict.WRONG_VALUE;
 	}
 
-	/** JSON에서 읽은 숫자(Integer/Long)와 추출 결과(Long)를 같은 타입으로 맞춘다. */
+	/** JSON에서 읽은 숫자(Integer/Long)와 추출 결과(Long)를 같은 타입으로 맞추고, 목록은 정렬해서 비교한다. */
 	private static Object normalize(Object value) {
+		if (value instanceof List<?> list) {
+			return list.stream().map(Object::toString).sorted().toList();
+		}
 		return value instanceof Number number ? Long.valueOf(number.longValue()) : value;
 	}
 
