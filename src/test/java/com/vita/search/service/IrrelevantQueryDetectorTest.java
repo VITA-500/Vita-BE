@@ -120,6 +120,63 @@ class IrrelevantQueryDetectorTest {
 	}
 
 	@Test
+	void doesNotFlagMigrationOrCompatibilityQuestionsThatNameAnotherCarrier() {
+		assertThat(detect("SKT에서 번호이동 하려면 어떻게 해요?")).isEmpty();
+		assertThat(detect("KT 쓰다가 VITA로 넘어오고 싶어요")).isEmpty();
+		assertThat(detect("알뜰폰에서 VITA로 옮기고 싶어요")).isEmpty();
+		assertThat(detect("알뜰폰 가입자도 영상통화 되나요?")).isEmpty();
+		assertThat(detect("LG유플러스 사용자한테도 메시지 보낼 수 있어요?")).isEmpty();
+		// 실제 FAQ 질문이다. 타사·알뜰폰이 들어 있어도 VITA 이용에 관한 질문이라 FAQ가 답한다.
+		assertThat(detect("VITA로 번호이동 후 다시 타사로 번호이동이 가능 한가요?")).isEmpty();
+		assertThat(detect("영상통화는 타사 가입자와도 가능한가요?")).isEmpty();
+		assertThat(detect("법인폰 본인확인 알뜰폰(MVNO) 고객도 이용 가능한가요?")).isEmpty();
+		assertThat(detect("알뜰폰을 쓰는데 법인폰 본인확인을 이용할 수 있나요?")).isEmpty();
+	}
+
+	@Test
+	void doesNotFlagComplaintsComparingSpeedWithOtherCarriers() {
+		assertThat(detect("타사 보다 느린 것 같아요.")).isEmpty();
+		assertThat(detect("타사 보다 인터넷이 느려요. 왜 그럴까요?")).isEmpty();
+	}
+
+	@Test
+	void stillFlagsOtherCarrierPriceAndComparisonQuestionsEvenWhenTheyMentionSwitching() {
+		assertThat(detect("SKT 요금제 가격 알려줘")).contains(Rule.COMPETITOR_BRAND);
+		assertThat(detect("알뜰폰 요금제 추천해줘")).contains(Rule.COMPETITOR_BRAND);
+		assertThat(detect("SKT로 갈아타면 더 싸요?")).contains(Rule.COMPETITOR_BRAND);
+		assertThat(detect("알뜰폰 쓰는 게 이득이야?")).contains(Rule.COMPETITOR_BRAND);
+		assertThat(detect("타사 대비 혜택이 뭐야?")).contains(Rule.COMPETITOR_BRAND);
+		// 번호이동 질문이어도 타사의 위약금을 묻는 것이라 VITA FAQ가 답할 수 없다.
+		assertThat(detect("SKT에서 넘어오면 위약금 있어?")).contains(Rule.COMPETITOR_BRAND);
+	}
+
+	@Test
+	void doesNotFlagQuestionsAboutWhenAPolicyApplies() {
+		assertThat(detect("구글플레이에서 결제 취소했는데 내 통신요금에서는 언제 빠져?")).isEmpty();
+		assertThat(detect("내 통신요금 자동이체는 언제부터 적용돼요?")).isEmpty();
+		assertThat(detect("해지하면 제 개인정보는 언제 삭제되나요?")).isEmpty();
+		// 계정의 실제 값(만료일, 소진 시점)을 묻는 질문은 여전히 조회로 본다.
+		assertThat(detect("내 계약 만료일이 언제야?")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("내가 쓰는 요금제 데이터 소진 언제 돼?")).contains(Rule.PERSONAL_LOOKUP);
+	}
+
+	@Test
+	void doesNotFlagHowToReceiveOrAskAboutAvailability() {
+		assertThat(detect("법적 분쟁 때문에 지난 몇 달치 내 발신 기록이 필요한데 어떻게 받을 수 있나요?")).isEmpty();
+		assertThat(detect("온라인 간편 업데이트는 내가 원하는 시간에 언제든 가능한가요?")).isEmpty();
+		assertThat(detect("제 청구서를 이메일로 어떻게 받아요?")).isEmpty();
+	}
+
+	@Test
+	void doesNotTreatTheVerbNaAsFirstPersonButKeepsSentenceInitialNa() {
+		assertThat(detect("유심 그거 언제까지 안 하면 큰일 나? 기한 있어?")).isEmpty();
+		assertThat(detect("이거 안 하면 큰일 나? 기한 있어?")).isEmpty();
+		assertThat(detect("나 이번 달 데이터 얼마나 썼어?")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("아 근데 나 지금 요금 얼마 나왔어?")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("저 지금 가입된 부가서비스 뭐 있어?")).contains(Rule.PERSONAL_LOOKUP);
+	}
+
+	@Test
 	void returnsEmptyForNullBlankOrPlainQuestions() {
 		assertThat(detect(null)).isEmpty();
 		assertThat(detect("  ")).isEmpty();
