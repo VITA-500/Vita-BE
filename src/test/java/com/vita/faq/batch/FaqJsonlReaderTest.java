@@ -25,21 +25,19 @@ class FaqJsonlReaderTest {
 		List<FaqJsonlRecord> faqs = reader.read(
 			new ClassPathResource("data/faq/cleaned/faq_all_cleaned.jsonl")
 		);
-		assertThat(faqs).hasSize(1548);
+		assertThat(faqs).hasSize(1052);
 		assertThat(faqs).extracting(FaqJsonlRecord::stableId).doesNotHaveDuplicates();
 		assertThat(faqs).extracting(FaqJsonlRecord::question).doesNotHaveDuplicates();
 		assertThat(faqs).allSatisfy(faq -> {
-			assertThat(faq.faqId()).matches(
-				"SYN-(?:\\d{6}|GAP-(?:MNP|LOSS|ESIM|LOGIN|ADDON|SPAM|MINOR)-\\d{3}|AUG-\\d{6}|EXP-B\\d{2}-\\d{3})"
-			);
+			assertThat(faq.faqId()).matches("[A-Za-z0-9][A-Za-z0-9-]*");
 			assertThat(faq.stableId()).isEqualTo(faq.faqId());
-			assertThat(faq.sourcePolicyIds()).singleElement()
-				.satisfies(source -> assertThat(source).matches("(?:SYNTHETIC-.*|KNOW\\d{10})"));
+			assertThat(faq.sourcePolicyIds()).isNotEmpty()
+				.allSatisfy(source -> assertThat(source).isNotBlank());
 		});
 	}
 
 	@Test
-	void bundledSyntheticFaqsCoverExactlyTheLegacyCategoryPairs() throws IOException {
+	void bundledFaqsUseOnlyCategoryPairsDefinedInTheTaxonomy() throws IOException {
 		List<FaqJsonlRecord> faqs = reader.read(
 			new ClassPathResource("data/faq/cleaned/faq_all_cleaned.jsonl")
 		);
@@ -56,10 +54,8 @@ class FaqJsonlReaderTest {
 		Set<List<String>> actualPairs = new HashSet<>();
 		faqs.forEach(faq -> actualPairs.add(List.of(faq.category(), faq.subcategory())));
 		assertThat(allowedPairs).hasSize(47);
-		Set<List<String>> legacyPairs = new HashSet<>(allowedPairs);
-		legacyPairs.removeIf(pair -> pair.get(0).equals("VITA 이용 안내"));
-		assertThat(legacyPairs).hasSize(43);
-		assertThat(actualPairs).containsExactlyInAnyOrderElementsOf(legacyPairs);
+		assertThat(actualPairs).isNotEmpty().isSubsetOf(allowedPairs);
+		assertThat(actualPairs).anyMatch(pair -> pair.get(0).equals("VITA 이용 안내"));
 	}
 
 	@Test

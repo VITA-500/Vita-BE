@@ -6,14 +6,13 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.vita.chat.ChatMessageFeedback;
+import com.vita.chat.ChatMessageRole;
+import com.vita.chat.dto.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.vita.chat.ChatMessageStatus;
-import com.vita.chat.dto.ChatMessageResponse;
-import com.vita.chat.dto.ChatMessageSendRequest;
-import com.vita.chat.dto.ChatMessageItemResponse;
-import com.vita.chat.dto.SessionMessagesResponse;
 import com.vita.chat.entity.ChatMessage;
 import com.vita.chat.entity.ChatSession;
 import com.vita.chat.repository.ChatMessageRepository;
@@ -36,7 +35,8 @@ public class ChatMessageService {
 	private final ChatMessagePersistence persistence;
 	private final ChatMessageRepository chatMessageRepository;
 	private final ChatSessionRepository chatSessionRepository;
-	
+	private final ChatReportService chatReportService;
+
 
 	public ChatMessageResponse sendMessage(Long sessionId, Long userId, UUID guestId, ChatMessageSendRequest request) {
 		
@@ -133,5 +133,31 @@ public class ChatMessageService {
 				.toList();
 		
 		return new SessionMessagesResponse(sessionId, messages);
+	}
+
+	/**
+	 * 답변 피드백 저장 (회원만). null이면 취소
+	 * 내 세션의 완료된 답변에만 남길 수 있다
+	 * (싫어요)면 관리자 미해결 목록(unresolved_question_reports)에 올리고 (좋아요)로 바꾸거나 취소하면 내린다
+	 */
+	@Transactional
+	public ChatFeedbackResponse applyFeedback(Long messageId, Long userId, ChatMessageFeedback feedback){
+		ChatMessage message = chatMessageRepository.findById(messageId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "존재하지 않는 메시지입니다."));
+
+		getOwnedSession(message.getSession().getId(), userId, null);
+
+		if(message.getRole() != ChatMessageRole.ASSISTANT || message.getStatus() != ChatMessageStatus.COMPLETED){
+			throw new BusinessException(ErrorCode.VALIDATION_ERROR, "완료된 답변에만 피드백을 남길 수 있습니다.");
+		}
+
+		// feedback 칸은 버튼 상태 표시용, 관리자 목록은 unresolved_question_reports에서 읽는다
+		message.applyFeedback(feedback);
+		if(feedback == ChatMessageFeedback.DISLIKE){
+			chatReportService.report(messageId, userId);
+		} else {
+			chatReportService.cancel(messageId, userId);
+		}
+		return ChatFeedbackResponse.from(message);
 	}
 }

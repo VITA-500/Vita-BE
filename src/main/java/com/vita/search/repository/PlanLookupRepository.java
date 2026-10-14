@@ -91,8 +91,8 @@ public class PlanLookupRepository {
 	}
 
 	/**
-	 * ACTIVE 요금제의 plan_code → 대상 그룹(GENERAL/YOUTH/SENIOR/KIDS/WATCH/TABLET) 대응표. 요금제 검색에서
-	 * 워치·태블릿 같은 기기 전용 요금제를 가려내는 데 쓴다. 15종 규모라 조회 비용은 무시할 만하다.
+	 * ACTIVE 요금제의 plan_code → 대상 그룹(GENERAL/TEEN/YOUTH/SENIOR/KIDS/WATCH/TABLET) 대응표. 요금제 검색에서
+	 * 워치·태블릿 같은 기기 전용 요금제를 가려내는 데 쓴다. 20종 안팎 규모라 조회 비용은 무시할 만하다.
 	 */
 	public Map<String, String> findTargetGroupByPlanCode() {
 		Map<String, String> groups = new LinkedHashMap<>();
@@ -142,7 +142,41 @@ public class PlanLookupRepository {
 			sql.append(" AND data_policy = ?");
 			params.add(conditions.dataPolicy());
 		}
+		if (conditions.voicePolicy() != null) {
+			sql.append(" AND voice_policy = ?");
+			params.add(conditions.voicePolicy());
+		}
+		if (conditions.smsPolicy() != null) {
+			sql.append(" AND sms_policy = ?");
+			params.add(conditions.smsPolicy());
+		}
+		// 통화 분·문자 건수는 데이터량과 같은 방식이다. 하한만 있으면 무제한 요금제도 조건을 만족한다("300분 이상").
+		appendUsageRange(sql, params, "voice_minutes", "voice_policy", conditions.voiceMinutesMin(), conditions.voiceMinutesMax());
+		appendUsageRange(sql, params, "sms_count", "sms_policy", conditions.smsCountMin(), conditions.smsCountMax());
 
 		return new HashSet<>(jdbcTemplate.queryForList(sql.toString(), String.class, params.toArray()));
+	}
+
+	/**
+	 * 통화 분·문자 건수 구간 조건을 SQL에 붙인다. 제공량이 있는 요금제(LIMITED)만 값이 있으므로 상한이 있거나 하한과 상한이 모두 있으면
+	 * 무제한·미제공 요금제는 자연히 빠지고, 하한만 있을 때는 무제한 요금제를 함께 포함한다.
+	 *
+	 * @param amountColumn 제공량 컬럼(voice_minutes / sms_count)
+	 * @param policyColumn 정책 컬럼(voice_policy / sms_policy)
+	 */
+	private static void appendUsageRange(StringBuilder sql, List<Object> params, String amountColumn, String policyColumn,
+			Integer min, Integer max) {
+		if (min != null) {
+			if (max == null) {
+				sql.append(" AND (").append(amountColumn).append(" >= ? OR ").append(policyColumn).append(" = 'UNLIMITED')");
+			} else {
+				sql.append(" AND ").append(amountColumn).append(" >= ?");
+			}
+			params.add(min);
+		}
+		if (max != null) {
+			sql.append(" AND ").append(amountColumn).append(" <= ?");
+			params.add(max);
+		}
 	}
 }

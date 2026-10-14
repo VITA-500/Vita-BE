@@ -3,6 +3,13 @@ package com.vita.auth.security;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.vita.auth.Role;
+import com.vita.auth.UserStatus;
+import com.vita.auth.entity.User;
+import com.vita.auth.repository.UserRepository;
+import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.test.util.ReflectionTestUtils;
+import static org.mockito.Mockito.*;
 import jakarta.servlet.FilterChain;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -27,8 +34,62 @@ class JwtAuthenticationFilterTest {
 
 	private final JwtProvider jwtProvider = new JwtProvider(SECRET, EXPIRE_MILLIS);
 	private final CookieUtil cookieUtil = new CookieUtil(false, "Lax");
+	private final UserRepository users = mock(UserRepository.class);
 	private final JwtAuthenticationFilter filter =
-			new JwtAuthenticationFilter(jwtProvider, cookieUtil);
+			new JwtAuthenticationFilter(jwtProvider, cookieUtil, users);
+
+	@BeforeEach
+	void activeUsers() {
+		when(users.findById(anyLong())).thenAnswer(invocation -> {
+			User user = User.ofLocal("user@example.com", "hash", "User");
+			ReflectionTestUtils.setField(user, "id", invocation.getArgument(0));
+			return Optional.of(user);
+		});
+	}
+
+	@Test
+	void suspendedAndDeletedAccountsCannotAuthenticate() throws Exception {
+		for (UserStatus status : new UserStatus[]{UserStatus.SUSPENDED, UserStatus.DELETED}) {
+			User user = User.ofSocial(null, "User");
+			ReflectionTestUtils.setField(user, "id", 1L);
+			user.changeStatus(status);
+			when(users.findById(1L)).thenReturn(Optional.of(user));
+			var request = new MockHttpServletRequest();
+			request.addHeader("Authorization", "Bearer " + jwtProvider.createAccessToken(1L, Role.USER));
+			assertThat(authenticate(request)).isNull();
+		}
+	}
+
+	@Test
+	void oldTokenStaysInvalidAfterRestoreAndNewTokenWorks() throws Exception {
+		User user = User.ofLocal("user@example.com", "hash", "User");
+		ReflectionTestUtils.setField(user, "id", 1L);
+		user.changeStatus(UserStatus.SUSPENDED);
+		user.changeStatus(UserStatus.ACTIVE);
+		when(users.findById(1L)).thenReturn(Optional.of(user));
+		var old = new MockHttpServletRequest();
+		old.addHeader("Authorization", "Bearer " + jwtProvider.createAccessToken(1L, Role.USER));
+		assertThat(authenticate(old)).isNull();
+		var fresh = new MockHttpServletRequest();
+		fresh.addHeader("Authorization", "Bearer " + jwtProvider.createAccessToken(1L, Role.USER, user.getTokenVersion()));
+		assertThat(authenticate(fresh)).isNotNull();
+	}
+
+	@Test
+	void currentDatabaseRoleOverridesTokenRole() throws Exception {
+		var request = new MockHttpServletRequest();
+		request.addHeader("Authorization", "Bearer " + jwtProvider.createAccessToken(1L, Role.ADMIN));
+		UserPrincipal principal = (UserPrincipal) authenticate(request).getPrincipal();
+		assertThat(principal.getAuthorities()).extracting("authority").containsExactly("ROLE_USER");
+	}
+
+	@Test
+	void missingAccountCannotAuthenticate() throws Exception {
+		when(users.findById(1L)).thenReturn(Optional.empty());
+		var request = new MockHttpServletRequest();
+		request.addHeader("Authorization", "Bearer " + jwtProvider.createAccessToken(1L, Role.USER));
+		assertThat(authenticate(request)).isNull();
+	}
 
 	@AfterEach
 	void clearContext() {

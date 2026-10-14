@@ -13,17 +13,20 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
 
+/** 제휴 혜택 조회 (사용자용) */
 @RestController
 @RequiredArgsConstructor
 public class BenefitController {
 
     private final BenefitService benefitService;
 
+    /** 혜택 목록. category로 업종 필터 */
     @GetMapping("/benefits/list")
     public BenefitListResponse list(@RequestParam(required = false) String category){
         return benefitService.findAll(category);
     }
 
+    /** 업종별 제휴 매장 거리순. radius 생략 시 거리 제한 없음 */
     @GetMapping("/benefits/{category}/stores")
     public BenefitStoreListResponse stores(
             @PathVariable String category,

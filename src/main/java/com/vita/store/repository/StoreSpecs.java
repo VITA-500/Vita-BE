@@ -12,10 +12,15 @@ import org.springframework.data.jpa.domain.Specification;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 관리자 매장 목록 검색 조건
+ * 값이 비어 있으면 null을 돌려줘서 조건에서 빠진다
+ */
 public final class StoreSpecs {
 
     private StoreSpecs(){ }
 
+    /** 이름 또는 주소에 포함 */
     public static Specification<Store> keyword(String keyword){
         if(keyword == null || keyword.isBlank()){
             return null;
@@ -31,6 +36,7 @@ public final class StoreSpecs {
                                           -> cb.equal(root.get("storeType"), storeType);
     }
 
+    /** 연결된 혜택의 업종이 같은 매장 */
     public static Specification<Store> category(String category){
         if(category == null || category.isBlank()){
             return null;
@@ -44,6 +50,7 @@ public final class StoreSpecs {
         };
     }
 
+    /** 특정 브랜드에 연결된 매장 */
     public static Specification<Store> benefitId(Long benefitId){
         if(benefitId == null){
             return null;
@@ -57,8 +64,12 @@ public final class StoreSpecs {
         };
     }
 
+    /**
+     * 정렬. updatedAt은 null(수정 안 한 매장)을 맨 뒤로 보내고, 마지막에 id 내림차순으로 순서를 고정한다
+     */
     public static Specification<Store> orderBy(Sort sort){
         return (root, query, cb) -> {
+            // 페이지 전체 개수를 세는 count 쿼리에는 정렬을 붙이지 않는다
             if (Long.class.equals(query.getResultType()) ||
                     long.class.equals(query.getResultType())) {
                 return null;

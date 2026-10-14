@@ -81,7 +81,7 @@
 {"id": "C081", "category": "대상 그룹", "query": "키즈 요금제", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": ""}
 {"id": "C082", "category": "대상 그룹", "query": "어린이 요금제 알려줘", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": ""}
 {"id": "C083", "category": "대상 그룹", "query": "초등학생 요금제 추천", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": ""}
-{"id": "C084", "category": "대상 그룹", "query": "중학생 요금제 뭐가 좋아요", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": "중학생은 만 15세 이하 요금제로 봄(검수)"}
+{"id": "C084", "category": "대상 그룹", "query": "중학생 요금제 뭐가 좋아요", "expect": {"targetGroup": "TEEN"}, "fuzzy": false, "note": "요금제 데이터가 연령대별로 나뉘면서(키즈 만 13세 이하, 틴 만 14~18세) 중학생은 틴 요금제 대상(2026-10-12). 이전 검수 판단은 키즈(만 15세 이하)"}
 {"id": "C085", "category": "대상 그룹", "query": "우리 아이 요금제 추천해줘", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": ""}
 {"id": "C086", "category": "대상 그룹", "query": "애들 요금제 있어요?", "expect": {"targetGroup": "KIDS"}, "fuzzy": false, "note": ""}
 {"id": "C087", "category": "대상 그룹", "query": "워치 요금제", "expect": {"targetGroup": "WATCH"}, "fuzzy": false, "note": ""}
@@ -122,11 +122,11 @@
 {"id": "C122", "category": "요금제 단어 없음", "query": "청년이 쓸 만한 거 추천해줘", "expect": {"targetGroup": "YOUTH"}, "fuzzy": false, "note": ""}
 {"id": "C123", "category": "요금제 단어 없음", "query": "무제한 쓸 수 있는 거 뭐 있어?", "expect": {"dataPolicy": "UNLIMITED"}, "fuzzy": false, "note": ""}
 {"id": "C124", "category": "요금제 단어 없음", "query": "5만원 이하로 되는 거 있나요", "expect": {"feeMax": 50000}, "fuzzy": false, "note": ""}
-{"id": "C125", "category": "부정·제외", "query": "청년 말고 일반 요금제", "expect": {"targetGroup": "GENERAL"}, "fuzzy": false, "note": "청년 제외"}
-{"id": "C126", "category": "부정·제외", "query": "시니어 말고 3만원대 요금제", "expect": {"feeMin": 30000, "feeMax": 39999}, "fuzzy": false, "note": "시니어는 제외 조건이라 대상 그룹으로 읽으면 안 됨"}
-{"id": "C127", "category": "부정·제외", "query": "청년 아닌 일반 사용자용 요금제", "expect": {"targetGroup": "GENERAL"}, "fuzzy": false, "note": ""}
-{"id": "C128", "category": "부정·제외", "query": "워치 말고 폰 요금제 알려줘", "expect": {}, "fuzzy": false, "note": "워치 제외"}
-{"id": "C129", "category": "부정·제외", "query": "태블릿 빼고 요금제 알려줘", "expect": {}, "fuzzy": false, "note": "태블릿 제외"}
+{"id": "C125", "category": "부정·제외", "query": "청년 말고 일반 요금제", "expect": {"targetGroup": "GENERAL", "excludedGroups": ["YOUTH"]}, "fuzzy": false, "note": "청년 제외 / 제외한 그룹(excludedGroups)은 결과에서 빼는 필터"}
+{"id": "C126", "category": "부정·제외", "query": "시니어 말고 3만원대 요금제", "expect": {"feeMin": 30000, "feeMax": 39999, "excludedGroups": ["SENIOR"]}, "fuzzy": false, "note": "시니어는 제외 조건이라 대상 그룹으로 읽으면 안 됨 / 제외한 그룹(excludedGroups)은 결과에서 빼는 필터"}
+{"id": "C127", "category": "부정·제외", "query": "청년 아닌 일반 사용자용 요금제", "expect": {"targetGroup": "GENERAL", "excludedGroups": ["YOUTH"]}, "fuzzy": false, "note": "제외한 그룹(excludedGroups)은 결과에서 빼는 필터"}
+{"id": "C128", "category": "부정·제외", "query": "워치 말고 폰 요금제 알려줘", "expect": {"excludedGroups": ["WATCH"]}, "fuzzy": false, "note": "워치 제외 / 제외한 그룹(excludedGroups)은 결과에서 빼는 필터"}
+{"id": "C129", "category": "부정·제외", "query": "태블릿 빼고 요금제 알려줘", "expect": {"excludedGroups": ["TABLET"]}, "fuzzy": false, "note": "태블릿 제외 / 제외한 그룹(excludedGroups)은 결과에서 빼는 필터"}
 {"id": "C130", "category": "복합", "query": "3만원대에 데이터 20기가 이상 요금제", "expect": {"feeMin": 30000, "feeMax": 39999, "dataMbMin": 20480}, "fuzzy": false, "note": ""}
 {"id": "C131", "category": "복합", "query": "5만원 이하 청년 요금제", "expect": {"feeMax": 50000, "targetGroup": "YOUTH"}, "fuzzy": false, "note": ""}
 {"id": "C132", "category": "복합", "query": "무제한이면서 6만원 이하 요금제", "expect": {"feeMax": 60000, "dataPolicy": "UNLIMITED"}, "fuzzy": false, "note": ""}
@@ -145,3 +145,21 @@
 {"id": "C145", "category": "무제한", "query": "통화 문자 무제한 요금제 알려줘", "expect": {"voicePolicy": "UNLIMITED", "smsPolicy": "UNLIMITED"}, "fuzzy": false, "note": "통화·문자 무제한"}
 {"id": "C146", "category": "무제한", "query": "음성통화 무제한 요금제", "expect": {"voicePolicy": "UNLIMITED"}, "fuzzy": false, "note": "음성통화=통화"}
 {"id": "C147", "category": "무제한", "query": "SMS 무제한 요금제 있어?", "expect": {"smsPolicy": "UNLIMITED"}, "fuzzy": false, "note": "영문 표기"}
+{"id": "C148", "category": "통화·문자 수치", "query": "통화 100분 주는 요금제 있어?", "expect": {"voiceMinutesMin": 100, "voiceMinutesMax": 100}, "fuzzy": false, "note": "통화 100분 제공(plans.voice_minutes). 요금제 평가 P072"}
+{"id": "C149", "category": "통화·문자 수치", "query": "문자 백건 요금재", "expect": {"smsCountMin": 100, "smsCountMax": 100}, "fuzzy": false, "note": "한글 숫자+오표기. 요금제 평가 P074"}
+{"id": "C150", "category": "통화·문자 수치", "query": "통화 300분 이상 요금제 알려줘", "expect": {"voiceMinutesMin": 300}, "fuzzy": false, "note": "하한만 있으면 무제한 요금제도 포함"}
+{"id": "C151", "category": "통화·문자 수치", "query": "문자 200건 이하 요금제", "expect": {"smsCountMax": 200}, "fuzzy": false, "note": "상한"}
+{"id": "C152", "category": "통화·문자 수치", "query": "통화 100분 문자 100건 요금제", "expect": {"voiceMinutesMin": 100, "voiceMinutesMax": 100, "smsCountMin": 100, "smsCountMax": 100}, "fuzzy": false, "note": "통화·문자 수치를 함께 말함"}
+{"id": "C153", "category": "통화·문자 수치", "query": "한 달에 통화 300분 쓰는데 맞는 요금제 추천해줘", "expect": {"voiceMinutesMin": 300}, "fuzzy": false, "note": "쓰는 양을 말하면 그만큼 이상을 제공하는 요금제"}
+{"id": "C154", "category": "통화·문자 수치", "query": "3만원 이하 통화 300분 이상 요금제", "expect": {"feeMax": 30000, "voiceMinutesMin": 300}, "fuzzy": false, "note": "금액과 통화 분 조합"}
+{"id": "C155", "category": "통화·문자 수치", "query": "통화 삼백분 요금제", "expect": {"voiceMinutesMin": 300, "voiceMinutesMax": 300}, "fuzzy": false, "note": "한글 숫자"}
+{"id": "C156", "category": "통화·문자 수치", "query": "요금제 바꿨는데 통화가 5분 만에 끊겨요", "expect": {}, "fuzzy": false, "note": "통화 품질 문의의 '5분'은 제공량이 아님"}
+{"id": "C157", "category": "통화·문자 수치", "query": "문자 요금제 3개월 약정 있어?", "expect": {}, "fuzzy": false, "note": "'3개월'은 문자 건수가 아님"}
+{"id": "C158", "category": "통화·문자 수치", "query": "통화 100분 이하 요금제 알려줘", "expect": {"voiceMinutesMax": 100}, "fuzzy": false, "note": "상한만 있으면 무제한 요금제는 빠짐"}
+{"id": "C159", "category": "통화·문자 수치", "query": "통화 100분에서 300분 사이 요금제", "expect": {"voiceMinutesMin": 100, "voiceMinutesMax": 300}, "fuzzy": false, "note": "두 수치 범위"}
+{"id": "C160", "category": "대상 그룹", "query": "고등학생 요금제 추천해줘", "expect": {"targetGroup": "TEEN"}, "fuzzy": false, "note": "틴 요금제(만 14~18세) 대상"}
+{"id": "C161", "category": "대상 그룹", "query": "청소년 요금제 있어?", "expect": {"targetGroup": "TEEN"}, "fuzzy": false, "note": ""}
+{"id": "C162", "category": "대상 그룹", "query": "고딩 요금제 뭐 있어요", "expect": {"targetGroup": "TEEN"}, "fuzzy": false, "note": "줄임말(고딩·중딩)도 틴"}
+{"id": "C163", "category": "대상 그룹", "query": "비타 틴 요금제 알려줘", "expect": {"targetGroup": "TEEN"}, "fuzzy": false, "note": "요금제 이름 '비타 틴'"}
+{"id": "C164", "category": "대상 그룹", "query": "초등학생이랑 중학생 요금제 비교해줘", "expect": {}, "fuzzy": false, "note": "키즈와 틴이 섞여 한 그룹으로 정할 수 없음"}
+{"id": "C165", "category": "오탐 유발(대상)", "query": "틴더 쓰는 요금제 있어?", "expect": {}, "fuzzy": false, "note": "앱 이름 '틴더'의 '틴'은 청소년이 아님"}

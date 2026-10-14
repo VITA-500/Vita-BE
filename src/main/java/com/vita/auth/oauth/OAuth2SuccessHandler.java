@@ -43,7 +43,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 			Authentication authentication) throws IOException {
 
 		User user = ((OAuth2UserAdapter) authentication.getPrincipal()).user();
-		String accessToken = jwtProvider.createAccessToken(user.getId(), user.getRole());
+		String accessToken = jwtProvider.createAccessToken(user.getId(), user.getRole(), user.getTokenVersion());
 
 		ResponseCookie cookie = cookieUtil.create(
 				accessToken, Duration.ofMillis(jwtProvider.getAccessTokenExpireMillis()));

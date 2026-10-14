@@ -16,6 +16,11 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+	@ExceptionHandler(org.springframework.dao.OptimisticLockingFailureException.class)
+	public ResponseEntity<ErrorResponse> handleConcurrentModification(Exception e) {
+		return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of(ErrorCode.CONCURRENT_MODIFICATION));
+	}
+
 	@ExceptionHandler(BusinessException.class)
 	public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException e) {
 		log.warn("BusinessException: {}", e.getErrorCode(), e);

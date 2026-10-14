@@ -1,6 +1,7 @@
 package com.vita.auth.entity;
 
 import com.vita.auth.Role;
+import com.vita.auth.UserStatus;
 import com.vita.common.entity.BaseTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -10,6 +11,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -52,6 +54,38 @@ public class User extends BaseTimeEntity {
 	@JdbcTypeCode(SqlTypes.NAMED_ENUM)
 	@Column(columnDefinition = "user_role")
 	private Role role;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 20)
+	private UserStatus status = UserStatus.ACTIVE;
+
+	/** JWT의 버전과 대조해 권한·상태 변경 전에 발급된 토큰을 거부한다. */
+	@Column(name = "token_version", nullable = false)
+	private long tokenVersion;
+
+	/** JPA가 동시 수정 충돌을 감지하는 버전. JWT의 토큰 버전과 별개다. */
+	@Version
+	private long version;
+
+	public boolean isActive() { return status == UserStatus.ACTIVE; }
+
+	public void changePhone(String phone) { this.phone = phone; }
+
+	/** 역할이 실제로 달라질 때만 토큰 버전을 증가시킨다. */
+	public void changeRole(Role role) {
+		if (this.role != role) {
+			this.role = role;
+			tokenVersion++;
+		}
+	}
+
+	/** 상태 변경 시 기존 JWT를 무효화한다. 정지 해제 후에도 이전 토큰은 사용할 수 없다. */
+	public void changeStatus(UserStatus status) {
+		if (this.status != status) {
+			this.status = status;
+			tokenVersion++;
+		}
+	}
 
 	@Builder
 	private User(String email, String passwordHash, String name, String phone, Role role) {

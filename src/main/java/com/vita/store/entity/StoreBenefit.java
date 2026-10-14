@@ -5,6 +5,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+/** 제휴 매장과 브랜드(혜택) 연결. 매장 하나에 브랜드 하나 */
 @Entity
 @Table(name = "store_benefits",
         uniqueConstraints = @UniqueConstraint(name = "uk_store_benefit",

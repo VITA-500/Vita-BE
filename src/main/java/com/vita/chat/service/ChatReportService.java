@@ -1,5 +1,6 @@
 package com.vita.chat.service;
 
+import com.vita.chat.ReportStatus;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +36,12 @@ public class ChatReportService {
 		return reportRepository.findByMessageIdAndUserId(messageId, userId)
 				.map(ReportResponse::from)
 				.orElseGet(() -> createReport(message, userId));
+	}
+
+	/** 👎 취소. 관리자가 이미 처리(RESOLVED)한 신고는 기록으로 남긴다 */
+	@Transactional
+	public void cancel(Long messageId, Long userId) {
+		reportRepository.deleteByMessageIdAndUserIdAndStatus(messageId, userId, ReportStatus.OPEN);
 	}
 	
 	private ReportResponse createReport(ChatMessage message, Long userId) {
