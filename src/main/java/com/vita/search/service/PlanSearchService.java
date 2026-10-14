@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
  *
  * <p>검색 파이프라인(RetrievalPipeline, 실서비스)과 회귀 테스트 러너가 같은 로직을 쓰도록 한곳에 모았다.
  *
- * <p>후보를 가져오는 방식(기본은 벡터 유사도, 평가·실험에서는 영어 컬럼이나 Hybrid)은 {@link PlanRetriever}로 갈아끼운다.
+ * <p>후보를 가져오는 방식(기본은 벡터 유사도, 평가·실험에서는 Hybrid 등)은 {@link PlanRetriever}로 갈아끼운다.
  * 어떤 구현을 쓸지는 {@code RetrievalPipelineConfig}가 설정({@code search.pipeline.plan-retriever})으로 골라 빈으로 만든다.
  */
 public class PlanSearchService {
@@ -51,7 +51,7 @@ public class PlanSearchService {
 	}
 
 	/**
-	 * 후보 검색기만 바꾼 같은 설정의 요금제 검색을 만든다. 평가 러너가 실험 변형(Hybrid, 영어)을 이 방법으로 갈아끼운다.
+	 * 후보 검색기만 바꾼 같은 설정의 요금제 검색을 만든다. 평가 러너가 실험 변형(Hybrid 등)을 이 방법으로 갈아끼운다.
 	 * 서비스 빈은 바뀌지 않는다.
 	 */
 	public PlanSearchService with(PlanRetriever retriever) {

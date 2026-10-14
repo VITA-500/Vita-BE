@@ -114,11 +114,11 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 	@Value("${search.eval.bootstrap-draws:1000}")
 	private int bootstrapDraws;
 
-	/** 평가에 쓸 질문 변환기의 빈 이름. 기본은 변환 없음(Baseline). 영어 번역·질문 재작성 실험은 그 변환기 빈 이름을 적는다. */
+	/** 평가에 쓸 질문 변환기의 빈 이름. 기본은 변환 없음(Baseline). 질문 재작성 실험은 그 변환기 빈 이름을 적는다. */
 	@Value("${search.eval.query-transformer:" + IdentityQueryTransformer.BEAN_NAME + "}")
 	private String queryTransformerName;
 
-	/** 평가에 쓸 FAQ 후보 검색기의 빈 이름. 기본은 한국어 벡터 검색(Baseline). 영어 컬럼·Hybrid 실험은 그 검색기 빈 이름을 적는다. */
+	/** 평가에 쓸 FAQ 후보 검색기의 빈 이름. 기본은 한국어 벡터 검색(Baseline). Hybrid 실험은 그 검색기 빈 이름을 적는다. */
 	@Value("${search.eval.faq-retriever:" + VectorFaqRetriever.BEAN_NAME + "}")
 	private String faqRetrieverName;
 

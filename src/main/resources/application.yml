@@ -122,18 +122,13 @@ search:
   regression:
     enabled: ${SEARCH_REGRESSION_ENABLED:false}
   # 서비스 검색 파이프라인에서 쓸 질문 변환기·FAQ 후보 검색기의 빈 이름. 기본은 변환 없음 + 한국어 벡터 검색이다.
-  # 다른 팀이 만든 구현(영어 번역, 질문 재작성, 영어 컬럼·Hybrid 검색)을 서비스에 적용할 때만 바꾼다.
+  # 다른 구현(질문 재작성, Hybrid 검색 등)을 서비스에 적용할 때만 바꾼다. 채팅은 질문 변환을 채팅 계층(LlmQueryTransformer)이 먼저 하므로
+  # query-transformer 값은 채팅 경로에 쓰이지 않는다(질문 변환 사용 여부는 vita.experiment.query-transform).
   pipeline:
     query-transformer: ${SEARCH_PIPELINE_QUERY_TRANSFORMER:identityQueryTransformer}
     faq-retriever: ${SEARCH_PIPELINE_FAQ_RETRIEVER:vectorFaqRetriever}
     # 요금제 후보 검색기의 빈 이름. 기본은 벡터 검색이고, Hybrid 같은 구현은 그 빈 이름을 적는다.
     plan-retriever: ${SEARCH_PIPELINE_PLAN_RETRIEVER:vectorPlanRetriever}
-  # 실험 D(질문 변환 후 영어 번역)용 설정. 변환기 빈 이름 translatedQueryTransformer를 평가 러너에 끼울 때 쓴다.
-  experiment:
-    d:
-      # 질문 변환 단계에서 다시 쓸 C의 변환 결과 파일(JSONL, 쉼표로 여러 개). 지정하면 변환은 저장된 결과만 쓰고 파일에 없는 질문은 예외로 멈춘다
-      # (다른 프롬프트로 변환하면 C와 비교할 수 없다). 비우면 변환기도 실제로 부른다(응답 시간 측정용).
-      qt-cache: ${SEARCH_EXPERIMENT_D_QT_CACHE:}
   # 요금제 평가셋(plan_eval_v2)으로 BE4에 전달되는 요금제 목록의 품질을 재는 수동 도구. 로컬 도커(DB+임베딩 서버)가 떠 있고
   # 요금제 20종이 DB에 있을 때만 켠다. top-ks는 한 번에 비교할 요금제 개수(plan.retrieval.top-k 후보).
   plan-eval:
@@ -157,7 +152,7 @@ search:
     enabled: ${SEARCH_EVAL_ENABLED:false}
     resource: ${SEARCH_EVAL_RESOURCE:classpath:data/regression/eval_v2/retrieval_eval_v2_2.jsonl}
     # 평가에 쓸 질문 변환기·FAQ 후보 검색기의 빈 이름. 기본은 변환 없음 + 한국어 벡터 검색(Baseline).
-    # 영어 번역·질문 재작성·영어 컬럼·Hybrid 실험은 해당 구현 빈의 이름을 적는다(팀 노션의 검색 평가 도구 사용 안내 참고).
+    # 질문 변환(bedrockQueryTransformer)·Hybrid 같은 다른 구현은 해당 빈의 이름을 적는다(팀 노션의 검색 평가 도구 사용 안내 참고).
     query-transformer: ${SEARCH_EVAL_QUERY_TRANSFORMER:identityQueryTransformer}
     faq-retriever: ${SEARCH_EVAL_FAQ_RETRIEVER:vectorFaqRetriever}
     # 질문 변환 결과를 저장·재사용할 JSONL 파일(비우면 매번 변환기를 부른다). LLM 변환은 실행마다 결과가 달라질 수 있어,
