@@ -25,7 +25,7 @@ class FaqJsonlReaderTest {
 		List<FaqJsonlRecord> faqs = reader.read(
 			new ClassPathResource("data/faq/cleaned/faq_all_cleaned.jsonl")
 		);
-		assertThat(faqs).hasSize(1052);
+		assertThat(faqs).hasSize(1084);
 		assertThat(faqs).extracting(FaqJsonlRecord::stableId).doesNotHaveDuplicates();
 		assertThat(faqs).extracting(FaqJsonlRecord::question).doesNotHaveDuplicates();
 		assertThat(faqs).allSatisfy(faq -> {
