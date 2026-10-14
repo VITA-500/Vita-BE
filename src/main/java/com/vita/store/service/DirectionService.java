@@ -389,7 +389,7 @@ public class DirectionService {
         } catch(RestClientException exception){
             // 사용자 위치(좌표)가 로그에 남지 않게 쿼리는 빼고 남긴다
             log.error("카카오 길찾기 API 호출 실패: {}", url.split("\\?")[0], exception);
-            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "길찾기 서비스를 일시적으로 사용할 수 없습니다.");
+            throw new BusinessException(ErrorCode.DIRECTIONS_API_FAILED);
         }
     }
 
