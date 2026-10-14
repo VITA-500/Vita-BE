@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -144,6 +145,25 @@ public class StoreService {
     // 거리(km)는 소수 둘째 자리까지
     private static double round2(double value) {
         return Math.round(value * 100) / 100.0;
+    }
+
+    /**
+     * 채팅용 이름으로 매장 찾기 ("비타 강남역 8번출구점", "강남역 8번출구", "루나빈 강남대로 5호점").
+     * 띄어쓰기와 앞의 "비타"는 무시한다. "강남역"처럼 지역 이름만 있으면 매장 이름으로 보지 않는다
+     * (숫자가 있거나 "점"으로 끝나야 매장 이름). 없으면 빈 값
+     */
+    public Optional<StorePointResponse> findByNameForChat(String name){
+        if(name == null){
+            return Optional.empty();
+        }
+        String key = name.replaceAll("\\s+", "").replaceFirst("^비타", "");
+        if(key.length() < 2 || !(key.endsWith("점") || key.matches(".*\\d.*"))){
+            return Optional.empty();
+        }
+        // LIKE 특수문자는 글자 그대로 찾도록 이스케이프
+        String pattern = key.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+        return storeRepository.findFirstByNameIgnoringSpaces(pattern)
+                .map(s -> new StorePointResponse(s.getId(), s.getName(), s.getStoreType().name(), s.getLat(), s.getLng()));
     }
 
     // 쿼리에서 "||"로 이어 붙인 서비스 목록을 다시 나눈다
