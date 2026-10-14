@@ -6,6 +6,7 @@ import com.vita.auth.oauth.OAuth2SuccessHandler;
 import com.vita.common.exception.ErrorCode;
 import com.vita.common.response.ErrorResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
@@ -149,9 +150,14 @@ public class SecurityConfig {
 				.securityContext(context -> context
 						.securityContextRepository(new NullSecurityContextRepository()))
 
-				// 위에서부터 먼저 매칭되는 규칙이 이긴다. 관리자 경로를 가장 먼저 두어,
+				// 위에서부터 먼저 매칭되는 규칙이 이긴다. 경로 규칙 중에서는 관리자 경로를 가장 먼저 두어,
 				// PUBLIC_PATHS 패턴이 넓어지더라도 관리자 API가 열리지 않게 한다.
 				.authorizeHttpRequests(auth -> auth
+						// SSE(SseEmitter)가 끝나면 같은 요청이 ASYNC로 다시 디스패치되는데, 인증을 저장하지 않고
+						// (NullSecurityContextRepository) JWT 필터도 ASYNC에서는 돌지 않아 익명으로 보인다.
+						// 그대로 두면 403이 나고, 이미 나간 응답에 에러를 쓰려다 "already committed"가 남는다.
+						// 인증·소유자 검증은 첫 요청(REQUEST)에서 끝났으므로 다시 검사하지 않는다.
+						.dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
 						.requestMatchers(ADMIN_PATHS).hasRole("ADMIN")
 						.requestMatchers(PUBLIC_PATHS).permitAll()
 						// 회원 전용. 게스트는 ROLE_GUEST라 여기서 막힌다 — anyRequest()의

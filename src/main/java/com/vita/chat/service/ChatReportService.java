@@ -1,20 +1,21 @@
 package com.vita.chat.service;
 
 import com.vita.chat.ReportStatus;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.vita.chat.ChatMessageRole;
 import com.vita.chat.dto.ReportResponse;
 import com.vita.chat.entity.ChatMessage;
-import com.vita.chat.entity.UnresolvedQuestionReport;
 import com.vita.chat.repository.ChatMessageRepository;
 import com.vita.chat.repository.UnresolvedQuestionReportRepository;
 import com.vita.common.exception.BusinessException;
 import com.vita.common.exception.ErrorCode;
 
 import lombok.RequiredArgsConstructor;
+
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 @Service
 @RequiredArgsConstructor
@@ -54,20 +55,10 @@ public class ChatReportService {
 				.map(ChatMessage::getContent)
 				.orElse(null);
 		
-		try {
-			return ReportResponse.from(reportRepository.saveAndFlush(
-					UnresolvedQuestionReport.builder()
-					.message(message)
-					.userId(userId)
-					.questionText(question)
-					.build()
-					));
-		}
-		catch (DataIntegrityViolationException e) {
-			// 동시 요청으로 unique 제약에 걸린 경우 → 기존 신고 반환
-			return reportRepository.findByMessageIdAndUserId(message.getId(), userId)
+		// 중복이면 DB가 조용히 건너뛴다. 예외를 잡는 방식은 바깥 트랜잭션(피드백 저장)까지 롤백시켜 500이 났다
+		reportRepository.insertIfAbsent(message.getId(), userId, question, LocalDateTime.now(ZoneId.of("Asia/Seoul")));
+		return reportRepository.findByMessageIdAndUserId(message.getId(), userId)
 				.map(ReportResponse::from)
-				.orElseThrow(() -> e);
-		}
+				.orElseThrow();
 	}
 }
