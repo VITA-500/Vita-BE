@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * 요금제 검색의 후보 단계: 질문에 맞는 요금제 후보를 순위대로 가져온다. FAQ의 {@link FaqRetriever}와 같은 자리다.
  *
- * <p>기본 구현은 pgvector 코사인 유사도 검색({@link VectorPlanRetriever})이다. 영어 컬럼 검색이나 Hybrid 검색(BM25 + 벡터)은
+ * <p>기본 구현은 pgvector 코사인 유사도 검색({@link VectorPlanRetriever})이다. Hybrid 검색(BM25 + 벡터) 같은 다른 방식은
  * 이 인터페이스를 구현한 빈을 추가하고 {@code search.pipeline.plan-retriever}(서비스) 또는
  * {@code search.plan-eval.plan-retriever}(요금제 평가 러너)에 그 빈 이름을 적어서 끼운다.
  *
@@ -21,7 +21,7 @@ import java.util.List;
  *       유사도, 조건 매칭 결과의 유사도순 정렬이 이 값을 쓴다. Hybrid의 RRF 점수처럼 단위가 다른 점수는 넣지 않고, 키워드 검색으로만
  *       올라온 후보도 코사인 유사도를 계산해서 채운다.</li>
  *   <li><b>{@code id}, {@code planCode}</b>와 요금제 속성(월 요금, 대상, 데이터·통화·문자 정책 등)은 원본 요금제({@code plans})의
- *       값이다. 영어 테이블에서 찾았더라도 조건 매칭과 정답지가 쓰는 원본 값을 채운다.</li>
+ *       값이다. 조건 매칭과 정답지가 쓰는 값이므로 원본 값을 채운다.</li>
  * </ol>
  * 후보는 {@code poolSize}개까지 가져온다. 요금제는 15종 규모라 서비스 기본값은 전부가 들어오는 크기다.
  */

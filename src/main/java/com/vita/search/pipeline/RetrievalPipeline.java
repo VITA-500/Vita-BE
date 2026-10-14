@@ -24,9 +24,9 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <p>흐름과 교체 지점:
  * <ol>
- *   <li><b>질문 변환</b> — {@link QueryTransformer}. 영어 번역(BE1), 질문 재작성(BE4)이 끼는 자리.</li>
+ *   <li><b>질문 변환</b> — {@link QueryTransformer}. 질문 재작성(BE4)이 끼는 자리.</li>
  *   <li><b>임베딩</b> — {@link EmbeddingProvider}. FAQ용·요금제용 질문을 벡터로 바꾼다(같은 질문이면 한 번만).</li>
- *   <li><b>FAQ 후보 검색</b> — {@link FaqRetriever}. 영어 컬럼 검색(BE1), Hybrid 검색(BE6)이 끼는 자리.</li>
+ *   <li><b>FAQ 후보 검색</b> — {@link FaqRetriever}. Hybrid 검색(BE6)이 끼는 자리.</li>
  *   <li><b>요금제 검색</b> — {@link PlanSearchService}. 벡터 유사도에 가격·데이터량 같은 조건 매칭을 더한다.</li>
  *   <li><b>Context 구성</b> — 무관 질문 규칙, 분류 가산점 재정렬, 같은 답변 중복 제거, topK, threshold 판정, 응답 객체 변환.
  *       이 후처리는 모든 변형이 공통으로 쓴다({@link #selectFaq}).</li>
@@ -60,7 +60,7 @@ public class RetrievalPipeline {
 	}
 
 	/**
-	 * 질문 변환기와 FAQ 검색기만 바꾼 같은 설정의 파이프라인을 만든다. 평가 러너가 실험 변형(영어, 질문 변환, Hybrid)을
+	 * 질문 변환기와 FAQ 검색기만 바꾼 같은 설정의 파이프라인을 만든다. 평가 러너가 실험 변형(질문 변환, Hybrid)을
 	 * 이 방법으로 갈아끼운다. 서비스 빈은 바뀌지 않는다.
 	 */
 	public RetrievalPipeline with(QueryTransformer transformer, FaqRetriever retriever) {
@@ -69,7 +69,7 @@ public class RetrievalPipeline {
 
 	/**
 	 * 질문 변환기, FAQ 검색기, 요금제 검색기를 바꾼 같은 설정의 파이프라인을 만든다. 요금제 평가 러너가 요금제 후보 검색 방식
-	 * (Hybrid, 영어)까지 갈아끼울 때 쓴다. 서비스 빈은 바뀌지 않는다.
+	 * (Hybrid 등)까지 갈아끼울 때 쓴다. 서비스 빈은 바뀌지 않는다.
 	 */
 	public RetrievalPipeline with(QueryTransformer transformer, FaqRetriever retriever, PlanRetriever planRetriever) {
 		return new RetrievalPipeline(embeddingProvider, transformer, retriever, planSearchService.with(planRetriever), settings);
