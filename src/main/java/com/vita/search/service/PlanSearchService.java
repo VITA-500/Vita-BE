@@ -29,12 +29,12 @@ import java.util.stream.Collectors;
  */
 public class PlanSearchService {
 
-	/** 조건 매칭 결과를 유사도 순으로 정렬하기 위해 벡터 검색에서 넉넉히 가져오는 후보 수(요금제는 15종 규모). */
+	/** 조건 매칭 결과를 유사도 순으로 정렬하기 위해 벡터 검색에서 넉넉히 가져오는 후보 수(요금제는 20종 규모). */
 	private static final int CANDIDATE_POOL = 50;
 
 	/**
 	 * 조건에 매칭된 요금제를 돌려줄 최대 개수의 기본값. "3만원대", "5만원 이하"처럼 범위 질문은 조건을 만족하는 요금제가
-	 * topK(보통 3)보다 많은데, 3개만 주면 LLM이 그것이 전부라고 답해서 사용자가 오해한다. 요금제가 15종 규모라
+	 * topK(보통 3)보다 많은데, 3개만 주면 LLM이 그것이 전부라고 답해서 사용자가 오해한다. 요금제가 20종 규모라
 	 * 기본값은 전부를 줄 수 있는 20이다({@code plan.retrieval.matched-limit}으로 바꾼다).
 	 */
 	public static final int DEFAULT_MATCHED_RESULT_LIMIT = 20;

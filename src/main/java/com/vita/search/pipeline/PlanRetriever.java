@@ -23,7 +23,7 @@ import java.util.List;
  *   <li><b>{@code id}, {@code planCode}</b>와 요금제 속성(월 요금, 대상, 데이터·통화·문자 정책 등)은 원본 요금제({@code plans})의
  *       값이다. 영어 테이블에서 찾았더라도 조건 매칭과 정답지가 쓰는 원본 값을 채운다.</li>
  * </ol>
- * 후보는 {@code poolSize}개까지 가져온다. 요금제는 15종 규모라 서비스 기본값은 전부가 들어오는 크기다.
+ * 후보는 {@code poolSize}개까지 가져온다. 요금제는 20종 규모라 서비스 기본값은 전부가 들어오는 크기다.
  */
 public interface PlanRetriever {
 

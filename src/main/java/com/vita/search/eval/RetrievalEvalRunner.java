@@ -91,7 +91,7 @@ public class RetrievalEvalRunner implements CommandLineRunner {
 	private final JdbcTemplate jdbcTemplate;
 
 	/** 평가셋 위치. classpath: 또는 file: 형식. */
-	@Value("${search.eval.resource:classpath:data/regression/eval_v2/retrieval_eval_v2.jsonl}")
+	@Value("${search.eval.resource:classpath:data/regression/eval_v2/retrieval_eval_v2_2.jsonl}")
 	private String resourceLocation;
 
 	/** 상위 몇 개를 최종 결과로 볼지. 실제 검색(BE4 호출)의 topK와 같게 둔다. */

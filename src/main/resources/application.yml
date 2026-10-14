@@ -101,14 +101,14 @@ plan:
     # 요금제는 질문/답변이 아니라 설명 문장(description) 형태라 FAQ와 유사도 분포가 달라
     # threshold를 따로 둔다. 요금제 15종 실측 기준 — 타겟 그룹이 맞는 질문(청년/시니어/키즈/
     # 워치 등)의 top1은 0.8208~0.8767, FAQ성·무관 질문의 top1은 0.7414~0.8008이라
-    # 그 사이인 0.81로 잡음.
+    # 그 사이인 0.81로 잡음. 20종으로 늘린 뒤 평가셋 v2와 질문 변환(C)으로 다시 점검해 0.81을 유지했다.
     similarity-threshold: ${PLAN_RETRIEVAL_SIMILARITY_THRESHOLD:0.81}
     # 질문 조건(가격·데이터량·대상 등)에 매칭되지 않는 질문에서 벡터 유사도로 돌려줄 요금제 개수. FAQ의 topK와 따로 둔다
     # (BE4가 FAQ topK를 10으로 올려도 요금제에 불필요한 후보가 늘지 않게). 요금제 평가셋(검수 전 초안)으로 3/5/7/10을 비교해 5로 정했다:
     # 3→5에서 Recall(1점 이상) 74.5→75.5%, 대상 그룹 질문 70→76%로 오르고 정밀도는 80.2→78.9%로 소폭 내린다. 10까지 키우면 정답이 1개인
     # 이름 지목 질문의 정밀도가 51→39%로 크게 떨어진다.
     top-k: ${PLAN_RETRIEVAL_TOP_K:5}
-    # 조건에 매칭된 요금제를 돌려줄 최대 개수. 요금제가 15종 규모라 기본값 20은 사실상 전부를 준다
+    # 조건에 매칭된 요금제를 돌려줄 최대 개수. 요금제가 20종 규모라 기본값 20은 전부를 준다
     # ("무제한 아닌 요금제"처럼 조건에 맞는 요금제가 10개를 넘는 질문에서 일부만 전달되는 것을 막는다).
     matched-limit: ${PLAN_RETRIEVAL_MATCHED_LIMIT:20}
 
@@ -134,11 +134,11 @@ search:
       # 질문 변환 단계에서 다시 쓸 C의 변환 결과 파일(JSONL, 쉼표로 여러 개). 지정하면 변환은 저장된 결과만 쓰고 파일에 없는 질문은 예외로 멈춘다
       # (다른 프롬프트로 변환하면 C와 비교할 수 없다). 비우면 변환기도 실제로 부른다(응답 시간 측정용).
       qt-cache: ${SEARCH_EXPERIMENT_D_QT_CACHE:}
-  # 요금제 평가셋(plan_eval_v1)으로 BE4에 전달되는 요금제 목록의 품질을 재는 수동 도구. 로컬 도커(DB+임베딩 서버)가 떠 있고
-  # 요금제 15종이 DB에 있을 때만 켠다. top-ks는 한 번에 비교할 요금제 개수(plan.retrieval.top-k 후보).
+  # 요금제 평가셋(plan_eval_v2)으로 BE4에 전달되는 요금제 목록의 품질을 재는 수동 도구. 로컬 도커(DB+임베딩 서버)가 떠 있고
+  # 요금제 20종이 DB에 있을 때만 켠다. top-ks는 한 번에 비교할 요금제 개수(plan.retrieval.top-k 후보).
   plan-eval:
     enabled: ${SEARCH_PLAN_EVAL_ENABLED:false}
-    resource: ${SEARCH_PLAN_EVAL_RESOURCE:classpath:data/regression/eval_v2/plan_eval_v1.jsonl}
+    resource: ${SEARCH_PLAN_EVAL_RESOURCE:classpath:data/regression/eval_v2/plan_eval_v2.jsonl}
     top-ks: ${SEARCH_PLAN_EVAL_TOP_KS:3,10}
     query-transformer: ${SEARCH_PLAN_EVAL_QUERY_TRANSFORMER:identityQueryTransformer}
     faq-retriever: ${SEARCH_PLAN_EVAL_FAQ_RETRIEVER:vectorFaqRetriever}
@@ -151,11 +151,11 @@ search:
     # 단계별 응답 시간을 질문마다 몇 번 반복해 잴지(0이면 건너뜀)와, 결과를 버리고 먼저 돌려 둘 예열 횟수. 변환기가 LLM이면 반복 횟수만큼 호출한다.
     timing-repeats: ${SEARCH_PLAN_EVAL_TIMING_REPEATS:3}
     timing-warmup: ${SEARCH_PLAN_EVAL_TIMING_WARMUP:5}
-  # 검색 평가셋(v2)으로 Recall·Precision·nDCG·MRR을 재는 수동 도구. 로컬 도커(DB+임베딩 서버)가 떠 있고
+  # 검색 평가셋(v2.2)으로 Recall·Precision·nDCG·MRR을 재는 수동 도구. 로컬 도커(DB+임베딩 서버)가 떠 있고
   # 평가셋의 정답 FAQ가 DB에 적재돼 있을 때만 켠다(데이터가 다르면 바로 중단한다).
   eval:
     enabled: ${SEARCH_EVAL_ENABLED:false}
-    resource: ${SEARCH_EVAL_RESOURCE:classpath:data/regression/eval_v2/retrieval_eval_v2.jsonl}
+    resource: ${SEARCH_EVAL_RESOURCE:classpath:data/regression/eval_v2/retrieval_eval_v2_2.jsonl}
     # 평가에 쓸 질문 변환기·FAQ 후보 검색기의 빈 이름. 기본은 변환 없음 + 한국어 벡터 검색(Baseline).
     # 영어 번역·질문 재작성·영어 컬럼·Hybrid 실험은 해당 구현 빈의 이름을 적는다(팀 노션의 검색 평가 도구 사용 안내 참고).
     query-transformer: ${SEARCH_EVAL_QUERY_TRANSFORMER:identityQueryTransformer}
