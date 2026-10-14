@@ -49,7 +49,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * 요금제 평가셋(plan_eval_v1)의 질문마다 실제 검색 경로로 요금제를 찾고, BE4에 전달되는 요금제 목록을 정답지와 비교해
+ * 요금제 평가셋(plan_eval_v2)의 질문마다 실제 검색 경로로 요금제를 찾고, BE4에 전달되는 요금제 목록을 정답지와 비교해
  * 요금제 검색 품질을 낸다. FAQ 평가({@link RetrievalEvalRunner})의 요금제 버전이다.
  *
  * <p>무엇을 재는가: 서비스가 BE4에 돌려주는 최종 요금제 목록({@code planReferences}: 조건 매칭, 유사도 threshold,
@@ -67,7 +67,7 @@ import org.springframework.stereotype.Component;
  * 질문 변환기·검색기는 {@code search.plan-eval.query-transformer}, {@code search.plan-eval.faq-retriever}로 갈아끼울 수 있다
  * (질문 변환의 요금제용 질문 {@code planQuery} 효과를 재는 용도). 변환 결과는 {@code search.plan-eval.transform-cache} 파일에 저장해
  * 같은 변환 결과로 다시 평가할 수 있고, 변환이 폴백(원문으로 돌아감)된 질문 수와 변환된 질문·원문 질문의 점수는 "질문 변환 현황"으로 따로 낸다.
- * 로컬 도커(DB+임베딩 서버)가 떠 있고 요금제 15종이 DB에 있을 때
+ * 로컬 도커(DB+임베딩 서버)가 떠 있고 요금제 20종이 DB에 있을 때
  * {@code search.plan-eval.enabled=true}로 켜서 수동 실행하며, 결과는 {@code build/regression-report/plan-eval-*.csv}로도 저장된다.
  */
 @Slf4j
@@ -103,7 +103,7 @@ public class PlanEvalRunner implements CommandLineRunner {
 	private final JdbcTemplate jdbcTemplate;
 
 	/** 요금제 평가셋 위치. classpath: 또는 file: 형식. */
-	@Value("${search.plan-eval.resource:classpath:data/regression/eval_v2/plan_eval_v1.jsonl}")
+	@Value("${search.plan-eval.resource:classpath:data/regression/eval_v2/plan_eval_v2.jsonl}")
 	private String resourceLocation;
 
 	/** 비교할 요금제 개수 목록(조건 매칭이 안 될 때 벡터 유사도로 돌려줄 요금제 수). */
