@@ -13,10 +13,11 @@ import com.vita.store.dto.response.StoreChatItemResponse;
  *
  * @param type           PHONE(통신 매장) / PARTNER(제휴 매장) — /stores/nearby의 storeType과 같은 값
  * @param activeServices 질문에 나온 서비스 (요청 서비스 매장 강조용). 없으면 빈 목록
- * @param originSource   항상 "current" (사용자가 보낸 위치 기준)
+ * @param originSource   "current"(사용자가 보낸 위치 기준) / "place"(질문에 나온 장소 기준)
+ * @param originLabel    "place"일 때 장소 이름 (예: "방학역"), 아니면 null
  */
 public record ChatStoreMap(String type, String category, Long benefitId, List<String> activeServices,
-                           Origin origin, String originSource, List<Store> stores) {
+                           Origin origin, String originSource, String originLabel, List<Store> stores) {
 
     public record Origin(double lat, double lng) {
     }
@@ -29,9 +30,10 @@ public record ChatStoreMap(String type, String category, Long benefitId, List<St
                         double lat, double lng, String distanceText, Boolean openNow) {
     }
 
+    /** place가 있으면 그 장소 기준, 없으면 사용자 위치 기준 */
     public static ChatStoreMap ofPhoneStores(List<StoreChatItemResponse> stores, List<String> activeServices,
-                                             BigDecimal lat, BigDecimal lng) {
-        return new ChatStoreMap("PHONE", null, null, activeServices, origin(lat, lng), "current",
+                                             BigDecimal lat, BigDecimal lng, String place) {
+        return new ChatStoreMap("PHONE", null, null, activeServices, origin(lat, lng), originSource(place), place,
                 stores.stream()
                         .map(s -> new Store(String.valueOf(s.storeId()), s.name(), s.address(), s.businessHours(),
                                 s.consultServices(), s.phone() == null ? "" : s.phone(), s.providedServices(),
@@ -40,8 +42,9 @@ public record ChatStoreMap(String type, String category, Long benefitId, List<St
     }
 
     public static ChatStoreMap ofPartnerStores(String category, Long benefitId,
-                                               List<BenefitStoreListResponse.Item> stores, BigDecimal lat, BigDecimal lng) {
-        return new ChatStoreMap("PARTNER", category, benefitId, List.of(), origin(lat, lng), "current",
+                                               List<BenefitStoreListResponse.Item> stores, BigDecimal lat, BigDecimal lng,
+                                               String place) {
+        return new ChatStoreMap("PARTNER", category, benefitId, List.of(), origin(lat, lng), originSource(place), place,
                 stores.stream()
                         .map(s -> new Store(String.valueOf(s.storeId()), s.name(), s.address(), s.businessHours(),
                                 List.of(), "", List.of(),
@@ -51,6 +54,10 @@ public record ChatStoreMap(String type, String category, Long benefitId, List<St
 
     private static Origin origin(BigDecimal lat, BigDecimal lng) {
         return new Origin(lat.doubleValue(), lng.doubleValue());
+    }
+
+    private static String originSource(String place) {
+        return place == null ? "current" : "place";
     }
 
     /** FE 표기와 같은 "약 320m" / "약 1.1km" */

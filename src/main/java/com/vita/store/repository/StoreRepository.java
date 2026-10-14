@@ -154,6 +154,18 @@ public interface StoreRepository extends JpaRepository<Store, Long>, JpaSpecific
             @Param("limit") int limit);
 
     /**
+     * 이름으로 매장 찾기 (채팅에서 매장 이름으로 물을 때). 띄어쓰기를 무시하고 이름에 포함되면 찾는다
+     * 여러 개면 이름이 가장 짧은 매장 ("강남역 1번출구" → 1호점이 2호점보다 먼저)
+     */
+    @Query(value = """
+            SELECT * FROM stores s
+            WHERE replace(s.name, ' ', '') LIKE '%' || :name || '%' ESCAPE '\\'
+            ORDER BY length(s.name), s.id
+            LIMIT 1
+            """, nativeQuery = true)
+    Optional<Store> findFirstByNameIgnoringSpaces(@Param("name") String name);
+
+    /**
      * 매장 수정일만 갱신
      * 브랜드는 연결 테이블(store_benefits)에 있어서 브랜드만 바꾸면 매장 행이 바뀌지 않아 수정일이 자동 갱신되지 않는다
      */

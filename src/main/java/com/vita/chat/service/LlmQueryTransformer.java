@@ -146,7 +146,9 @@ public class LlmQueryTransformer implements QueryTransformer {
                 blankToNull(textOrNull(node, "benefit_brand")),
                 List.copyOf(services),
                 node.path("open_now").asBoolean(false),
-                parseTime(textOrNull(node, "open_at")));
+                parseTime(textOrNull(node, "open_at")),
+                blankToNull(textOrNull(node, "store_place")),
+                blankToNull(textOrNull(node, "store_name")));
     }
 
     /** "HH:mm" 시각. 형식이 틀리면 조건 없음(null)으로 처리한다. */
