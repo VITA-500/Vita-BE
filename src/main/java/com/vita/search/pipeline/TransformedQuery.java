@@ -4,7 +4,7 @@ package com.vita.search.pipeline;
  * 질문 변환 단계({@link QueryTransformer})의 결과. 사용자 원 질문과, FAQ 검색·요금제 검색에 각각 쓸 질문을 담는다.
  *
  * <p>FAQ와 요금제는 찾는 방식이 달라(요금제는 가격·데이터량 같은 조건을 규칙으로 읽는다) 변환 결과를 따로 받는다.
- * 영어 번역, 질문 재작성(Query Transformation) 같은 변형 실험은 이 두 값만 바꿔서 끼운다.
+ * 질문 재작성(Query Transformation) 같은 변형 실험은 이 두 값만 바꿔서 끼운다.
  *
  * @param original  사용자가 입력한 질문 원문. 무관 질문 규칙, 분류 이름 가산점, 로그에는 항상 원문을 쓴다
  *                  (규칙과 분류 이름이 한국어 기준이라 변환된 질문으로는 맞지 않을 수 있다).
@@ -19,7 +19,7 @@ public record TransformedQuery(String original, String faqQuery, String planQuer
 		info = info == null ? TransformInfo.identity() : info;
 	}
 
-	/** 변환 기록 없이 만든다(영어 번역 같은 다른 변환기 구현이 쓰던 기존 생성 방식). 기록은 {@link TransformInfo#identity()}가 된다. */
+	/** 변환 기록 없이 만든다. 기록은 {@link TransformInfo#identity()}가 된다. */
 	public TransformedQuery(String original, String faqQuery, String planQuery) {
 		this(original, faqQuery, planQuery, TransformInfo.identity());
 	}
