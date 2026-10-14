@@ -41,6 +41,7 @@ public class StoreService {
     private static final Set<String> ADMIN_LIST_SORT_FIELDS = Set.of("createdAt", "updatedAt", "name");
     private static final String ADMIN_LIST_DEFAULT_SORT = "createdAt, desc";
     private static final int PARTNER_NEARBY_LIMIT = 100;
+    private static final int NEARBY_MAX_RADIUS_KM = 5;
     private static final int CHAT_DEFAULT_LIMIT = 4;
     private static final int CHAT_MAX_LIMIT = 20;
 
@@ -63,12 +64,16 @@ public class StoreService {
      * 지도 주변 매장. storeType 생략 시 통신 매장만 돌려줌
      * PARTNER일 경우 제휴 매장을 혜택 정보와 돌려줌
      * 업종 및 브랜드로 필터 가능
-     * 제휴 매장 반경이 클 때를 대비해 개수 상한 100개
+     * 반경은 5km까지, 제휴 매장은 개수 상한 100개
      * openNow=true면 지금 영업 중인 매장만
      * openAt("HH:mm")이면 그 시각에 영업 중인 매장만
      */
     public StoreNearbyListResponse findNearby(BigDecimal lat, BigDecimal lng, double radiusKm, String storeType,
                                               String category, Long benefitId, Boolean openNow, String openAt) {
+        if(radiusKm <= 0 || radiusKm > NEARBY_MAX_RADIUS_KM){
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "반경(radius)은 0보다 크고 " + NEARBY_MAX_RADIUS_KM + "km 이하여야 합니다.");
+        }
         StoreType type = StoreType.fromNullable(storeType);
         LocalTime filterTime = BusinessHours.filterTime(openNow, openAt);
         LocalTime now = BusinessHours.nowInKorea();
