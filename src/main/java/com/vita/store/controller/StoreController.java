@@ -22,6 +22,9 @@ import java.math.BigDecimal;
 @RequiredArgsConstructor
 public class StoreController {
 
+    private static final BigDecimal MAX_LAT = BigDecimal.valueOf(90);
+    private static final BigDecimal MAX_LNG = BigDecimal.valueOf(180);
+
     private final StoreService storeService;
     private final DirectionService directionService;
     private final ReservationService reservationService;
@@ -82,9 +85,13 @@ public class StoreController {
         return reservationService.reserve(storeId, PrincipalUtils.userIdOf(user), request);
     }
 
-    private void requireLocation(BigDecimal lat, BigDecimal lng){
+    /** 위치는 필수, 범위를 벗어나면 400 (잘못된 좌표가 카카오까지 가서 오류가 나지 않게) */
+    static void requireLocation(BigDecimal lat, BigDecimal lng){
         if(lat == null || lng == null){
             throw new BusinessException(ErrorCode.LOCATION_REQUIRED);
+        }
+        if(lat.abs().compareTo(MAX_LAT) > 0 || lng.abs().compareTo(MAX_LNG) > 0){
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "위치(lat, lng) 값이 올바르지 않습니다.");
         }
     }
 }

@@ -1,7 +1,5 @@
 package com.vita.store.controller;
 
-import com.vita.common.exception.BusinessException;
-import com.vita.common.exception.ErrorCode;
 import com.vita.store.dto.response.BenefitListResponse;
 import com.vita.store.dto.response.BenefitStoreListResponse;
 import com.vita.store.service.BenefitService;
@@ -37,9 +35,7 @@ public class BenefitController {
             @RequestParam(required = false) Long benefitId,
             @RequestParam(required = false) Boolean openNow,
             @RequestParam(required = false) String openAt){
-        if(lat == null || lng == null) {
-            throw new BusinessException(ErrorCode.LOCATION_REQUIRED);
-        }
+        StoreController.requireLocation(lat, lng);
         return benefitService.findStores(category, lat, lng, radius, limit, benefitId, openNow, openAt);
     }
 }

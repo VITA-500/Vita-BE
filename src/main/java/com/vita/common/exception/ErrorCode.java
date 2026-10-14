@@ -19,6 +19,7 @@ public enum ErrorCode {
 	INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
 	FAQ_EMBEDDING_FAILED(HttpStatus.BAD_GATEWAY, "FAQ 임베딩 생성에 실패했습니다. 잠시 후 다시 시도해 주세요."),
 	PLAN_EMBEDDING_FAILED(HttpStatus.BAD_GATEWAY, "요금제 임베딩 생성에 실패했습니다. 잠시 후 다시 시도해 주세요."),
+	DIRECTIONS_API_FAILED(HttpStatus.BAD_GATEWAY, "길찾기 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요."),
 	PLAN_CODE_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 사용 중인 요금제 코드입니다."),
 
 	// 인증 (auth) — 04_API명세서 1절 기준
