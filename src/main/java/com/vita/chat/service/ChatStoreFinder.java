@@ -172,13 +172,13 @@ public class ChatStoreFinder {
                     .append("\"는 제휴 브랜드가 아님. 이 사실을 먼저 안내할 것.\n");
         }
 
-        // 업종 및 브랜드가 없어도 모든 업종에서 가까운 순으로 찾는다.
+        // 업종·브랜드·장소를 모두 모르면("제휴 혜택 뭐 있어") 혜택 목록만 안내
+        if (category == null && intent.place() == null && intent.storeName() == null) {
+            return new StoreLookup(result(xml.toString()), null);
+        }
+        // 장소를 말했으면 업종을 몰라도 그 장소 기준으로 모든 업종에서 찾는다 ("강남역 제휴 매장")
         SearchPoint point = searchPoint(intent, lat, lng);
         if (!point.located()) {
-            // 업종도 장소도 없는 질문은 위치를 요구하지 않고 혜택 목록만 안내
-            if(category == null && point.place() == null && point.missedStore() == null){
-                return new StoreLookup(result(xml.toString()), null);
-            }
             return new StoreLookup(result(xml + noLocation(point)), null);
         }
 
