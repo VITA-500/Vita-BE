@@ -92,7 +92,7 @@ public class BenefitService {
         LocalTime filterTime = BusinessHours.filterTime(openNow, openAt);
         LocalTime now = BusinessHours.nowInKorea();
 
-        String target = category.trim();
+        String target = category == null ? null : category.trim();
         List<BenefitStoreListResponse.Item> stores = storeRepository
                 .findPartnersNearby(lat, lng, target, benefitId, radiusKm, filterTime, size).stream()
                 .map(p -> new BenefitStoreListResponse.Item(p.getId(), p.getName(),
