@@ -146,11 +146,11 @@ search:
     # 단계별 응답 시간을 질문마다 몇 번 반복해 잴지(0이면 건너뜀)와, 결과를 버리고 먼저 돌려 둘 예열 횟수. 변환기가 LLM이면 반복 횟수만큼 호출한다.
     timing-repeats: ${SEARCH_PLAN_EVAL_TIMING_REPEATS:3}
     timing-warmup: ${SEARCH_PLAN_EVAL_TIMING_WARMUP:5}
-  # 검색 평가셋(v2.2)으로 Recall·Precision·nDCG·MRR을 재는 수동 도구. 로컬 도커(DB+임베딩 서버)가 떠 있고
+  # 검색 평가셋(v2.3)으로 Recall·Precision·nDCG·MRR을 재는 수동 도구. 로컬 도커(DB+임베딩 서버)가 떠 있고
   # 평가셋의 정답 FAQ가 DB에 적재돼 있을 때만 켠다(데이터가 다르면 바로 중단한다).
   eval:
     enabled: ${SEARCH_EVAL_ENABLED:false}
-    resource: ${SEARCH_EVAL_RESOURCE:classpath:data/regression/eval_v2/retrieval_eval_v2_2.jsonl}
+    resource: ${SEARCH_EVAL_RESOURCE:classpath:data/regression/eval_v2/retrieval_eval_v2_3.jsonl}
     # 평가에 쓸 질문 변환기·FAQ 후보 검색기의 빈 이름. 기본은 변환 없음 + 한국어 벡터 검색(Baseline).
     # 질문 변환(bedrockQueryTransformer)·Hybrid 같은 다른 구현은 해당 빈의 이름을 적는다(팀 노션의 검색 평가 도구 사용 안내 참고).
     query-transformer: ${SEARCH_EVAL_QUERY_TRANSFORMER:identityQueryTransformer}

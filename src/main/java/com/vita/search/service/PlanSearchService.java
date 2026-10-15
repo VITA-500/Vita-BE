@@ -65,8 +65,16 @@ public class PlanSearchService {
 	 *                         matchedLimit개(topK보다 많을 수 있다)이고 가격 조건이 있으면 월 요금
 	 *                         오름차순, 없으면 유사도 내림차순이다. 유사도 threshold는 적용 전.
 	 * @param conditionMatched 질문에서 추출한 조건으로 후보를 좁혔는지. true면 threshold 없이도 관련 요금제로 본다.
+	 *                         전체 목록 요청("전체 요금제 알려줘")도 안내할 요금제를 확정한 결과라 true다.
+	 * @param listNotice       전체 목록 요청일 때 LLM에게 줄 안내 한 줄(전체 목록이라는 점, 기기 전용 요금제가 빠졌다는 점).
+	 *                         전체 목록 요청이 아니면 null.
 	 */
-	public record PlanSearchOutcome(List<PlanSimilarityResult> results, boolean conditionMatched) {
+	public record PlanSearchOutcome(List<PlanSimilarityResult> results, boolean conditionMatched, String listNotice) {
+
+		/** 전체 목록 요청이 아닌 일반 결과. */
+		public PlanSearchOutcome(List<PlanSimilarityResult> results, boolean conditionMatched) {
+			this(results, conditionMatched, null);
+		}
 	}
 
 	/**
@@ -100,6 +108,19 @@ public class PlanSearchService {
 				.orElse(PlanQueryConditionExtractor.extract(planQuery));
 		Set<String> deviceOnlyCodes = deviceOnlyCodesToExclude(originalQuery, planQuery);
 		Set<String> excludedCodes = excludedGroupCodes(conditions);
+
+		// "전체 요금제 알려줘"처럼 가격·데이터량 같은 조건 없이 전체 목록을 묻는 질문은, 벡터 상위 몇 개가 아니라 안내 가능한
+		// 요금제 전체를 돌려준다. 조건이 있는 질문("3만원대 요금제 전부")은 아래 조건 매칭이 처리한다.
+		// 워치·태블릿을 말했을 뿐인 질문("워치 요금제 포함해서 전체 요금제 알려줘")은 대상 그룹 조건 하나만 추출되는데, 이때도 전체
+		// 목록을 원하므로 기기 전용을 포함한 전체를 돌려준다(그 그룹만 돌려주면 나머지가 빠진다).
+		boolean onlyDeviceTarget = conditions.hasOnlyTargetGroup() && DEVICE_ONLY_GROUPS.contains(conditions.targetGroup());
+		if ((conditions.isEmpty() || onlyDeviceTarget)
+				&& (PlanListRequestDetector.matches(originalQuery) || PlanListRequestDetector.matches(planQuery))) {
+			PlanSearchOutcome listed = listAllPlans(pool, deviceOnlyCodes, Math.max(topK, matchedLimit));
+			if (!listed.results().isEmpty()) {
+				return listed;
+			}
+		}
 
 		if (!conditions.isEmpty()) {
 			// "시니어 말고 3만원대"처럼 질문이 제외한 그룹의 요금제는 어떤 경우에도 결과에서 뺀다.
@@ -141,6 +162,39 @@ public class PlanSearchService {
 				.toList();
 		List<PlanSimilarityResult> base = scopedPool.isEmpty() ? allowedPool : scopedPool;
 		return new PlanSearchOutcome(base.stream().limit(topK).toList(), false);
+	}
+
+	/**
+	 * 전체 목록 요청의 결과를 만든다. 후보 풀의 요금제를 월 요금 오름차순(같으면 이름순)으로 모두 돌려주되, 질문이 워치·태블릿을
+	 * 말하지 않았다면 기기 전용 요금제는 뺀다. 뺀 요금제가 있으면 안내 문구에 이름을 적어, LLM이 "이것이 전부"라고 오해하지 않고
+	 * 필요하면 기기 전용 요금제도 안내할 수 있다고 알리게 한다.
+	 *
+	 * @param pool            후보 풀(요금제 전체가 들어오는 크기)
+	 * @param deviceOnlyCodes 이번 질문에서 뺄 기기 전용 요금제의 plan_code. 질문이 기기를 말했으면 비어 있다.
+	 * @param limit           돌려줄 최대 개수
+	 */
+	private PlanSearchOutcome listAllPlans(List<PlanSimilarityResult> pool, Set<String> deviceOnlyCodes, int limit) {
+		List<PlanSimilarityResult> visible = pool.stream()
+				.filter(candidate -> !deviceOnlyCodes.contains(candidate.planCode()))
+				.sorted(Comparator.comparingInt(PlanSimilarityResult::monthlyFee).thenComparing(PlanSimilarityResult::name))
+				.limit(limit)
+				.toList();
+		List<String> hiddenNames = pool.stream()
+				.filter(candidate -> deviceOnlyCodes.contains(candidate.planCode()))
+				.map(PlanSimilarityResult::name)
+				.toList();
+		return new PlanSearchOutcome(visible, true, listNotice(visible.size(), hiddenNames));
+	}
+
+	/** LLM에게 줄 전체 목록 안내 한 줄. 컨텍스트의 다른 안내처럼 "~할 것" 형태로 쓴다. */
+	private static String listNotice(int count, List<String> hiddenDevicePlanNames) {
+		StringBuilder notice = new StringBuilder("안내: 사용자가 요금제 전체 목록을 물었음. 아래 요금제 정보는 현재 안내 가능한 요금제 전체(")
+				.append(count).append("종)이니 빠짐없이 월 요금이 낮은 순으로 안내할 것.");
+		if (!hiddenDevicePlanNames.isEmpty()) {
+			notice.append(" 기기 전용 요금제(").append(String.join(", ", hiddenDevicePlanNames))
+					.append(")는 질문에서 기기를 말한 경우에만 포함하므로 이 목록에서 뺐음. 필요하면 워치·태블릿 요금제도 안내할 수 있다고 덧붙일 것.");
+		}
+		return notice.toString();
 	}
 
 	/** 질문이 제외한 대상 그룹("시니어 말고")에 속하는 요금제의 plan_code 집합. 제외한 그룹이 없으면 조회하지 않는다. */

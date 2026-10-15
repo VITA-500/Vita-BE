@@ -19,8 +19,8 @@ class DefaultEvalSetResourceTest {
 	/** {@code ${환경변수:기본값}} 형태에서 기본값(classpath: 경로)만 뽑는다. */
 	private static final Pattern DEFAULT_VALUE = Pattern.compile("\\$\\{[A-Z0-9_]+:(classpath:[^}]+)}");
 
-	/** FAQ 평가의 기본 평가셋. 정답지 v2.2(검수 완료)가 새 Baseline 기준이다. */
-	private static final String FAQ_DEFAULT = "classpath:data/regression/eval_v2/retrieval_eval_v2_2.jsonl";
+	/** FAQ 평가의 기본 평가셋. 새 FAQ 32건을 반영한 정답지 v2.3(검수 완료)이 1,084건 기준 Baseline이다. */
+	private static final String FAQ_DEFAULT = "classpath:data/regression/eval_v2/retrieval_eval_v2_3.jsonl";
 
 	/** 요금제 평가의 기본 평가셋. 요금제 20종 기준으로 정답을 다시 계산한 v2가 새 Baseline 기준이다. */
 	private static final String PLAN_DEFAULT = "classpath:data/regression/eval_v2/plan_eval_v2.jsonl";
@@ -38,7 +38,7 @@ class DefaultEvalSetResourceTest {
 	}
 
 	@Test
-	void faqEvalUsesTheReviewedV22AnswerKeyByDefault() {
+	void faqEvalUsesTheReviewedV23AnswerKeyByDefault() {
 		String location = defaultOf("search.eval.resource");
 
 		assertThat(location).isEqualTo(FAQ_DEFAULT);

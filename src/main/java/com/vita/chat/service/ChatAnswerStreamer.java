@@ -102,14 +102,16 @@ public class ChatAnswerStreamer {
 
             // 3) context 조립 (극값 분기는 원문 질문 기준)
             ChatContext context = chatContextBuilder.build(
-                    question, retrieved.faqs(), retrieved.plans(), q.planIntent(), q.priceRange(), q.dataRange());
+                    question, retrieved.faqs(), retrieved.plans(), q.planIntent(), q.priceRange(), q.dataRange(),
+                    retrieved.planNotice());
 
             // DB 결과가 비면(해당 대상의 요금제가 없는 경우 등) 일반 검색으로 폴백
             if (dbOnly && context.text().isBlank()) {
                 log.info("정형(극값) 질문이지만 DB 결과 없음, 일반 검색으로 폴백 - question={}", question);
                 retrieved = retrieve(question, q.faqQuery(), q.planQuery());
                 context = chatContextBuilder.build(
-                        question, retrieved.faqs(), retrieved.plans(), q.planIntent(), q.priceRange(), q.dataRange());
+                        question, retrieved.faqs(), retrieved.plans(), q.planIntent(), q.priceRange(), q.dataRange(),
+                        retrieved.planNotice());
             }
 
             // 매장 질문이면 BE5 매장 조회 결과를 context 뒤에 붙인다 (실패해도 답변은 계속)
@@ -155,8 +157,9 @@ public class ChatAnswerStreamer {
         }
     }
     
-    private record Retrieved(List<FaqReference> faqs, List<PlanReference> plans, Double topSimilarity) {
-        static final Retrieved EMPTY = new Retrieved(List.of(), List.of(), null);
+    /** @param planNotice 요금제 전체 목록 질문에서 검색(BE3)이 붙인 안내 한 줄. 일반 질문이면 null */
+    private record Retrieved(List<FaqReference> faqs, List<PlanReference> plans, Double topSimilarity, String planNotice) {
+        static final Retrieved EMPTY = new Retrieved(List.of(), List.of(), null, null);
     }
 
     /**
@@ -169,7 +172,8 @@ public class ChatAnswerStreamer {
         FaqRetrievalContext c = faqRetrievalService.search(question, faqQuery, planQuery, TOP_K);
         List<FaqReference> faqs = (faqQuery != null && c.hasRelevantFaq()) ? c.references() : List.of();
         List<PlanReference> plans = (planQuery != null) ? c.planReferences() : List.of();
-        return new Retrieved(faqs, plans, c.topSimilarity());
+        String planNotice = (planQuery != null) ? c.planNotice() : null;
+        return new Retrieved(faqs, plans, c.topSimilarity(), planNotice);
     }
 
     private void publishStatus(Long sessionId, Long messageId, AssistantStatus status) {

@@ -1,0 +1,53 @@
+package com.vita.chat.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+
+import com.vita.chat.dto.DataRange;
+import com.vita.chat.dto.PlanIntent;
+import com.vita.chat.dto.PriceRange;
+import com.vita.search.dto.PlanReference;
+import com.vita.search.service.PlanLookupService;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+
+/** 요금제 전체 목록 질문의 안내 문구가 일반 요금제 목록 앞에만, 그리고 요금제가 있을 때만 들어가는지 확인한다. */
+class ChatContextBuilderTest {
+
+	private final ChatContextBuilder builder = new ChatContextBuilder(mock(PlanLookupService.class));
+
+	private static PlanReference plan(String name, int fee) {
+		return new PlanReference(1L, name, name, "요약", fee, "설명", 0.8, null,
+				"LTE_5G", "GENERAL", null, null, "LIMITED", 10240L, 1000, "UNLIMITED", null, "UNLIMITED", null);
+	}
+
+	private ChatContextBuilder.ChatContext build(List<PlanReference> plans, String planNotice) {
+		return builder.build("전체 요금제 알려줘", List.of(), plans, PlanIntent.none(), PriceRange.none(), DataRange.none(), planNotice);
+	}
+
+	@Test
+	void putsThePlanNoticeBeforeThePlansWhenGiven() {
+		String text = build(List.of(plan("비타 라이트 5", 25_000)), "안내: 전체 목록임").text();
+
+		assertThat(text).contains("<plan_notice>").contains("안내: 전체 목록임").contains("</plan_notice>");
+		assertThat(text.indexOf("<plan_notice>")).isLessThan(text.indexOf("<plan>"));
+	}
+
+	@Test
+	void leavesTheContextUnchangedWithoutANoticeOrWithoutPlans() {
+		List<PlanReference> plans = List.of(plan("비타 라이트 5", 25_000));
+
+		assertThat(build(plans, null).text()).doesNotContain("plan_notice");
+		assertThat(build(plans, "  ").text()).doesNotContain("plan_notice");
+		// 요금제가 하나도 없으면 안내만 남기지 않는다.
+		assertThat(build(List.of(), "안내: 전체 목록임").text()).isEmpty();
+	}
+
+	@Test
+	void sixArgumentBuildKeepsWorkingAsBefore() {
+		String text = builder.build("요금제 알려줘", List.of(), List.of(plan("비타 라이트 5", 25_000)),
+				PlanIntent.none(), PriceRange.none(), DataRange.none()).text();
+
+		assertThat(text).contains("<plan>").doesNotContain("plan_notice");
+	}
+}
