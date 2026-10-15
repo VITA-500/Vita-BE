@@ -17,8 +17,7 @@ import org.springframework.stereotype.Repository;
  * pgvector 유사도(cosine) 검색 — Phase 2 전용. Spring Data JPA의 @Query(JPQL)로는 pgvector
  * 전용 연산자(<=>)를 쓸 수 없어서, JdbcTemplate으로 순수 SQL을 직접 실행한다.
  *
- * {@link com.vita.search.service.FaqRetrievalServiceImpl}에서 사용자 질문을
- * {@link com.vita.embedding.EmbeddingProvider}로 벡터화한 뒤 이 클래스를 호출한다.
+ * {@link com.vita.search.pipeline.VectorFaqRetriever}가 검색 파이프라인(RetrievalPipeline)에서 벡터화된 사용자 질문으로 이 클래스를 호출한다.
  */
 @Repository
 public class FaqVectorSearchRepository {

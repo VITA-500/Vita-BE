@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+/** 관리자 매장 관리 (/admin/** 는 ADMIN만) */
 @RestController
 @RequestMapping("/admin/stores")
 @RequiredArgsConstructor
@@ -21,13 +22,17 @@ public class AdminStoreController {
 
     private final StoreService storeService;
 
+    /** keyword: 이름 및 주소 검색, sortBy: createdAt / updatedAt / name */
     @GetMapping
     public PageResponse<StoreListItemResponse> list(
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) String sortBy){
-        return storeService.search(PageRequest.of(page, size, keyword, sortBy));
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(required = false) String storeType,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) Long benefitId){
+        return storeService.search(PageRequest.of(page, size, keyword, sortBy), storeType, category, benefitId);
     }
 
     @PostMapping

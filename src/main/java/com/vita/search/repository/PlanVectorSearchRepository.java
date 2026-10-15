@@ -25,6 +25,9 @@ public class PlanVectorSearchRepository {
 
 	private static final String SEARCH_SQL = """
 			SELECT id, plan_code, name, summary, monthly_fee, description, updated_at,
+			       network_type, target_group, min_age, max_age,
+			       data_policy, base_data_mb, exhausted_speed_kbps,
+			       voice_policy, voice_minutes, sms_policy, sms_count,
 			       1 - (embedding <=> ?) AS similarity
 			FROM plans
 			WHERE status = 'ACTIVE'
@@ -71,7 +74,18 @@ public class PlanVectorSearchRepository {
 								resultSet.getInt("monthly_fee"),
 								resultSet.getString("description"),
 								resultSet.getDouble("similarity"),
-								resultSet.getObject("updated_at", LocalDateTime.class)));
+								resultSet.getObject("updated_at", LocalDateTime.class),
+								resultSet.getString("network_type"),
+								resultSet.getString("target_group"),
+								resultSet.getObject("min_age", Integer.class),
+								resultSet.getObject("max_age", Integer.class),
+								resultSet.getString("data_policy"),
+								resultSet.getObject("base_data_mb", Long.class),
+								resultSet.getObject("exhausted_speed_kbps", Integer.class),
+								resultSet.getString("voice_policy"),
+								resultSet.getObject("voice_minutes", Integer.class),
+								resultSet.getString("sms_policy"),
+								resultSet.getObject("sms_count", Integer.class)));
 					}
 				}
 				return results;

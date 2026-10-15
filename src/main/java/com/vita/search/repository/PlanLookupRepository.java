@@ -6,7 +6,9 @@ import com.vita.search.service.PlanSortKey;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import javax.sql.DataSource;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -39,8 +41,11 @@ public class PlanLookupRepository {
 	 * <p>ORDER BY 절은 사용자 입력이 아니라 {@link PlanSortKey}(닫힌 enum)로만 정해지는
 	 * 고정 문자열 중 하나라 SQL 인젝션 위험이 없다 — JDBC 파라미터 바인딩은 값만 가능하고
 	 * 정렬 기준(컬럼/표현식) 자체는 바인딩할 수 없어 이 방식을 썼다.
+	 *
+	 * @param targetGroup 조회 범위를 이 대상 그룹(plans.target_group 값, 예: GENERAL)으로 좁힌다. null이면 전체.
+	 *                    값은 JDBC 파라미터로 바인딩한다.
 	 */
-	public List<PlanReference> findByExtreme(PlanSortKey sortKey, int limit) {
+	public List<PlanReference> findByExtreme(PlanSortKey sortKey, int limit, String targetGroup) {
 		String orderBy = switch (sortKey) {
 			case CHEAPEST -> "monthly_fee ASC, id ASC";
 			case MOST_EXPENSIVE -> "monthly_fee DESC, id ASC";
@@ -48,14 +53,19 @@ public class PlanLookupRepository {
 			case LEAST_DATA -> LEAST_DATA_ORDER;
 		};
 
+		String groupFilter = targetGroup == null ? "" : "AND target_group = ?";
 		String sql = """
-				SELECT id, plan_code, name, summary, monthly_fee, description, updated_at
+				SELECT id, plan_code, name, summary, monthly_fee, description, updated_at,
+				       network_type, target_group, min_age, max_age,
+				       data_policy, base_data_mb, exhausted_speed_kbps,
+				       voice_policy, voice_minutes, sms_policy, sms_count
 				FROM plans
-				WHERE status = 'ACTIVE'
+				WHERE status = 'ACTIVE' %s
 				ORDER BY %s
 				LIMIT ?
-				""".formatted(orderBy);
+				""".formatted(groupFilter, orderBy);
 
+		Object[] params = targetGroup == null ? new Object[] {limit} : new Object[] {targetGroup, limit};
 		return jdbcTemplate.query(sql,
 				(rs, rowNum) -> new PlanReference(
 						rs.getLong("id"),
@@ -65,8 +75,32 @@ public class PlanLookupRepository {
 						rs.getInt("monthly_fee"),
 						rs.getString("description"),
 						1.0,
-						rs.getObject("updated_at", LocalDateTime.class)),
-				limit);
+						rs.getObject("updated_at", LocalDateTime.class),
+						rs.getString("network_type"),
+						rs.getString("target_group"),
+						rs.getObject("min_age", Integer.class),
+						rs.getObject("max_age", Integer.class),
+						rs.getString("data_policy"),
+						rs.getObject("base_data_mb", Long.class),
+						rs.getObject("exhausted_speed_kbps", Integer.class),
+						rs.getString("voice_policy"),
+						rs.getObject("voice_minutes", Integer.class),
+						rs.getString("sms_policy"),
+						rs.getObject("sms_count", Integer.class)),
+				params);
+	}
+
+	/**
+	 * ACTIVE 요금제의 plan_code → 대상 그룹(GENERAL/TEEN/YOUTH/SENIOR/KIDS/WATCH/TABLET) 대응표. 요금제 검색에서
+	 * 워치·태블릿 같은 기기 전용 요금제를 가려내는 데 쓴다. 20종 안팎 규모라 조회 비용은 무시할 만하다.
+	 */
+	public Map<String, String> findTargetGroupByPlanCode() {
+		Map<String, String> groups = new LinkedHashMap<>();
+		jdbcTemplate.query("SELECT plan_code, target_group FROM plans WHERE status = 'ACTIVE'",
+				rs -> {
+					groups.put(rs.getString("plan_code"), rs.getString("target_group"));
+				});
+		return groups;
 	}
 
 	/**
@@ -108,7 +142,41 @@ public class PlanLookupRepository {
 			sql.append(" AND data_policy = ?");
 			params.add(conditions.dataPolicy());
 		}
+		if (conditions.voicePolicy() != null) {
+			sql.append(" AND voice_policy = ?");
+			params.add(conditions.voicePolicy());
+		}
+		if (conditions.smsPolicy() != null) {
+			sql.append(" AND sms_policy = ?");
+			params.add(conditions.smsPolicy());
+		}
+		// 통화 분·문자 건수는 데이터량과 같은 방식이다. 하한만 있으면 무제한 요금제도 조건을 만족한다("300분 이상").
+		appendUsageRange(sql, params, "voice_minutes", "voice_policy", conditions.voiceMinutesMin(), conditions.voiceMinutesMax());
+		appendUsageRange(sql, params, "sms_count", "sms_policy", conditions.smsCountMin(), conditions.smsCountMax());
 
 		return new HashSet<>(jdbcTemplate.queryForList(sql.toString(), String.class, params.toArray()));
+	}
+
+	/**
+	 * 통화 분·문자 건수 구간 조건을 SQL에 붙인다. 제공량이 있는 요금제(LIMITED)만 값이 있으므로 상한이 있거나 하한과 상한이 모두 있으면
+	 * 무제한·미제공 요금제는 자연히 빠지고, 하한만 있을 때는 무제한 요금제를 함께 포함한다.
+	 *
+	 * @param amountColumn 제공량 컬럼(voice_minutes / sms_count)
+	 * @param policyColumn 정책 컬럼(voice_policy / sms_policy)
+	 */
+	private static void appendUsageRange(StringBuilder sql, List<Object> params, String amountColumn, String policyColumn,
+			Integer min, Integer max) {
+		if (min != null) {
+			if (max == null) {
+				sql.append(" AND (").append(amountColumn).append(" >= ? OR ").append(policyColumn).append(" = 'UNLIMITED')");
+			} else {
+				sql.append(" AND ").append(amountColumn).append(" >= ?");
+			}
+			params.add(min);
+		}
+		if (max != null) {
+			sql.append(" AND ").append(amountColumn).append(" <= ?");
+			params.add(max);
+		}
 	}
 }

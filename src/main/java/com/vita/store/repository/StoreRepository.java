@@ -1,20 +1,33 @@
 package com.vita.store.repository;
 
 import com.vita.store.entity.Store;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
-public interface StoreRepository extends JpaRepository<Store, Long>  {
+/**
+ * 매장 조회
+ * - 거리(km)는 SQL에서 하버사인 공식(지구 반지름 6371km)으로 계산
+ * - 거리가 같으면 id 순으로 정렬해 순서를 고정 (같은 좌표 매장)
+ * - openAt 조건: 닫는 시각이 여는 시각보다 이르면(자정 넘김) "여는 시각 이후 또는 닫는 시각 이전"
+ * - 선택 파라미터는 CAST(:p AS 타입) IS NULL로 건너뛴다 (null만 넘기면 PostgreSQL이 타입을 몰라 오류)
+ * - 서비스 목록은 "||"로 이어 붙인 글자로 받아 서비스에서 다시 나눈다
+ * 관리자 목록 검색은 StoreSpecs 조건 조합으로 한다 (JpaSpecificationExecutor)
+ */
+public interface StoreRepository extends JpaRepository<Store, Long>, JpaSpecificationExecutor<Store> {
 
+    /** 가장 가까운 통신 매장 1곳 */
     @Query(value = """
-            SELECT s.id, s.name, s.address, s.lat, s.lng, s.business_hours,
+            SELECT s.id, s.name, s.address, s.lat, s.lng, 
+                to_char(s.open_time, 'HH24:MI') || '-' || to_char(s.close_time, 'HH24:MI') AS business_hours,
                 s.phone, array_to_string(s.consult_services, '||') AS consult_services,
                 array_to_string(s.provided_services, '||') AS provided_services,
                 2 * 6371 * asin(sqrt(
@@ -24,14 +37,16 @@ public interface StoreRepository extends JpaRepository<Store, Long>  {
                     )) AS distance_km
             FROM stores s
             WHERE s.store_type = 'PHONE'
-            ORDER BY distance_km
+            ORDER BY distance_km, s.id
             LIMIT 1
             """, nativeQuery = true)
     Optional<StoreDistanceProjection> findNearest(@Param("lat")BigDecimal lat, @Param("lng") BigDecimal lng);
 
+    /** 반경 안 통신 매장 거리순. openAt을 주면 그 시각에 영업 중인 매장만 */
     @Query(value = """
             SELECT * FROM(
-                SELECT s.id, s.name, s.address, s.lat, s.lng, s.business_hours,
+                SELECT s.id, s.name, s.address, s.lat, s.lng, 
+                to_char(s.open_time, 'HH24:MI') || '-' || to_char(s.close_time, 'HH24:MI') AS business_hours,
                 s.phone, array_to_string(s.consult_services, '||') AS consult_services,
                 array_to_string(s.provided_services, '||') AS provided_services,
                 2 * 6371 * asin(sqrt(
@@ -41,17 +56,120 @@ public interface StoreRepository extends JpaRepository<Store, Long>  {
                     )) AS distance_km
                 FROM stores s
                 WHERE s.store_type = 'PHONE'
+                AND (CAST(:openAt AS TIME) IS NULL OR CASE
+                            WHEN s.open_time < s.close_time
+                                THEN CAST(:openAt AS TIME) >= s.open_time AND
+                                     CAST(:openAt AS TIME) < s.close_time
+                                ELSE CAST(:openAt AS TIME) >= s.open_time OR 
+                                     CAST(:openAt AS TIME) < s.close_time 
+                                END)
             ) ranked
             WHERE distance_km <= :radiusKm
-            ORDER BY distance_km
+            ORDER BY distance_km, id
             """, nativeQuery = true)
     List<StoreDistanceProjection> findNearBy(
-            @Param("lat") BigDecimal lat, @Param("lng") BigDecimal lng, @Param("radiusKm") double radiusKm);
+            @Param("lat") BigDecimal lat, @Param("lng") BigDecimal lng,
+            @Param("radiusKm") double radiusKm, @Param("openAt") LocalTime openAt);
 
-    @Query("""
-            SELECT s FROM Store s
-            WHERE s.name LIKE CONCAT('%', :keyword, '%') OR
-                        s.address LIKE CONCAT('%', :keyword, '%')
-            """)
-    Page<Store> search(@Param("keyword") String keyword, Pageable pageable);
+    /**
+     * 채팅용 주변 통신 매장
+     * 요청한 서비스(services, "||"로 연결)를 많이 제공하는 매장 먼저, 같으면 가까운 순
+     */
+    @Query(value = """
+            SELECT * FROM(
+                SELECT s.id, s.name, s.address, s.lat, s.lng,
+                to_char(s.open_time, 'HH24:MI') || '-' || to_char(s.close_time, 'HH24:MI') AS business_hours,
+                s.phone, array_to_string(s.consult_services, '||') AS consult_services,
+                array_to_string(s.provided_services, '||') AS provided_services,
+                2 * 6371 * asin(sqrt(
+                    power(sin(radians(s.lat - :lat) / 2), 2)
+                    + cos(radians(:lat)) * cos(radians(s.lat)) *
+                    power(sin(radians(s.lng - :lng) / 2), 2)
+                    )) AS distance_km,
+                (SELECT count(*)
+                 FROM unnest(string_to_array(CAST(:services AS TEXT), '||')) AS requested(service)
+                 WHERE requested.service = ANY(s.consult_services || s.provided_services)) AS matched_count
+                FROM stores s
+                WHERE s.store_type = 'PHONE'
+                AND (CAST(:openAt AS TIME) IS NULL OR CASE
+                            WHEN s.open_time < s.close_time
+                                THEN CAST(:openAt AS TIME) >= s.open_time AND
+                                     CAST(:openAt AS TIME) < s.close_time
+                                ELSE CAST(:openAt AS TIME) >= s.open_time OR 
+                                     CAST(:openAt AS TIME) < s.close_time 
+                                END)
+            ) ranked
+            WHERE distance_km <= :radiusKm
+            ORDER BY matched_count DESC, distance_km, id
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<StoreDistanceProjection> findNearbyForChat(
+            @Param("lat") BigDecimal lat,
+            @Param("lng") BigDecimal lng,
+            @Param("radiusKm") double radiusKm,
+            @Param("services") String services,
+            @Param("openAt") LocalTime openAt,
+            @Param("limit") int limit);
+
+    /**
+     * 제휴 매장 거리순 + 연결된 혜택 정보
+     * category·benefitId·radiusKm·openAt은 선택이라 null이면 조건을 건너뛴다
+     */
+    @Query(value = """
+            SELECT *
+            FROM(
+                SELECT s.id, s.name, s.address, s.phone, s.lat, s.lng,
+                   to_char(s.open_time, 'HH24:MI') || '-' || to_char(s.close_time, 'HH24:MI') AS business_hours,
+                   b.id AS benefit_id, b.brand, b.category, b.name AS benefit_name, b.description AS benefit_description,
+                   2 * 6371 * asin(sqrt(
+                       power(sin(radians(s.lat - :lat) / 2), 2)
+                       + cos(radians(:lat)) * cos(radians(s.lat)) *
+                       power(sin(radians(s.lng - :lng) / 2), 2)
+                       )) AS distance_km
+                FROM stores s
+                JOIN store_benefits sb ON sb.store_id = s.id
+                JOIN benefits b ON b.id = sb.benefit_id
+                WHERE s.store_type = 'PARTNER'
+                    AND (CAST(:category AS VARCHAR) IS NULL OR b.category = :category)
+                    AND (CAST(:benefitId AS BIGINT) IS NULL OR b.id = :benefitId)
+                AND (CAST(:openAt AS TIME) IS NULL OR CASE
+                            WHEN s.open_time < s.close_time
+                                THEN CAST(:openAt AS TIME) >= s.open_time AND
+                                     CAST(:openAt AS TIME) < s.close_time
+                                ELSE CAST(:openAt AS TIME) >= s.open_time OR 
+                                     CAST(:openAt AS TIME) < s.close_time 
+                                END)
+            ) ranked
+            WHERE CAST(:radiusKm AS DOUBLE PRECISION) IS NULL OR distance_km <= :radiusKm
+            ORDER BY distance_km, id
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<PartnerStoreDistanceProjection> findPartnersNearby(
+            @Param("lat") BigDecimal lat,
+            @Param("lng") BigDecimal lng,
+            @Param("category") String category,
+            @Param("benefitId") Long benefitId,
+            @Param("radiusKm") Double radiusKm,
+            @Param("openAt") LocalTime openAt,
+            @Param("limit") int limit);
+
+    /**
+     * 이름으로 매장 찾기 (채팅에서 매장 이름으로 물을 때). 띄어쓰기를 무시하고 이름에 포함되면 찾는다
+     * 여러 개면 이름이 가장 짧은 매장 ("강남역 1번출구" → 1호점이 2호점보다 먼저)
+     */
+    @Query(value = """
+            SELECT * FROM stores s
+            WHERE replace(s.name, ' ', '') LIKE '%' || :name || '%' ESCAPE '\\'
+            ORDER BY length(s.name), s.id
+            LIMIT 1
+            """, nativeQuery = true)
+    Optional<Store> findFirstByNameIgnoringSpaces(@Param("name") String name);
+
+    /**
+     * 매장 수정일만 갱신
+     * 브랜드는 연결 테이블(store_benefits)에 있어서 브랜드만 바꾸면 매장 행이 바뀌지 않아 수정일이 자동 갱신되지 않는다
+     */
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE Store s SET s.updatedAt = :updatedAt WHERE s.id = :storeId")
+    void touchUpdatedAt(@Param("storeId") Long storeId, @Param("updatedAt") LocalDateTime updatedAt);
 }

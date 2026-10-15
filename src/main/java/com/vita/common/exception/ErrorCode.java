@@ -18,6 +18,9 @@ public enum ErrorCode {
 	LOCATION_REQUIRED(HttpStatus.BAD_REQUEST, "위치 정보가 필요합니다."),
 	INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
 	FAQ_EMBEDDING_FAILED(HttpStatus.BAD_GATEWAY, "FAQ 임베딩 생성에 실패했습니다. 잠시 후 다시 시도해 주세요."),
+	PLAN_EMBEDDING_FAILED(HttpStatus.BAD_GATEWAY, "요금제 임베딩 생성에 실패했습니다. 잠시 후 다시 시도해 주세요."),
+	DIRECTIONS_API_FAILED(HttpStatus.BAD_GATEWAY, "길찾기 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요."),
+	PLAN_CODE_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 사용 중인 요금제 코드입니다."),
 
 	// 인증 (auth) — 04_API명세서 1절 기준
 	EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다."),
@@ -29,6 +32,10 @@ public enum ErrorCode {
 	 */
 	INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다."),
 	USER_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."),
+	SELF_ACCOUNT_PROTECTED(HttpStatus.CONFLICT, "자기 계정의 권한·상태 변경 및 삭제는 할 수 없습니다."),
+	LAST_ADMIN_PROTECTED(HttpStatus.CONFLICT, "마지막 활성 관리자의 권한·상태를 변경할 수 없습니다."),
+	USER_DELETED(HttpStatus.CONFLICT, "탈퇴 처리된 계정은 수정하거나 복구할 수 없습니다."),
+	CONCURRENT_MODIFICATION(HttpStatus.CONFLICT, "다른 요청에서 변경되었습니다. 다시 조회한 뒤 시도해 주세요."),
 	/**
 	 * 소셜 전용 계정이 비밀번호 변경을 시도한 경우. 비밀번호가 애초에 없는 계정이라 "변경"이
 	 * 성립하지 않는다. FE는 hasPassword=false면 변경 UI를 숨기지만, API를 직접 부를 수 있어 막는다.
@@ -39,7 +46,12 @@ public enum ErrorCode {
 	/** 소셜 계정의 이메일이 이미 자체 가입된 계정과 겹칠 때. 자동 연결은 계정 탈취 경로가 되므로 거부한다. */
 	OAUTH_EMAIL_CONFLICT(HttpStatus.CONFLICT, "이미 가입된 이메일입니다. 일반 로그인을 이용해주세요."),
 	/** 사용자가 동의 화면에서 취소했거나 제공자 인증이 실패한 경우. */
-	OAUTH_AUTHENTICATION_FAILED(HttpStatus.UNAUTHORIZED, "소셜 로그인에 실패했습니다.");
+	OAUTH_AUTHENTICATION_FAILED(HttpStatus.UNAUTHORIZED, "소셜 로그인에 실패했습니다."),
+
+	/** 관리자 브랜드 등록할 때 동일한 브랜드명이 있을 경우. */
+	BENEFIT_BRAND_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 사용 중인 브랜드명입니다."),
+	/** 관리자 브랜드 삭제할 때 연결된 매장이 있을 경우. */
+	BENEFIT_IN_USE(HttpStatus.CONFLICT, "연결된 제휴 매장이 있어 삭제할 수 없습니다.");
 
 	private final HttpStatus httpStatus;
 	private final String message;

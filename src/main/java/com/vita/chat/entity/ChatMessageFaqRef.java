@@ -29,4 +29,11 @@ public class ChatMessageFaqRef {
 	
 	@Column(name="faq_id", nullable = false)
 	private Long faqId;
+	
+	public static ChatMessageFaqRef of(ChatMessage chatMessage, Long faqId) {
+	    ChatMessageFaqRef ref = new ChatMessageFaqRef();
+	    ref.chatMessage = chatMessage;
+	    ref.faqId = faqId;
+	    return ref;
+	}
 }

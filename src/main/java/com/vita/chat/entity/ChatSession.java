@@ -32,14 +32,19 @@ public class ChatSession {
     private UUID guestId;
     
     private String title;
-    
+
+    @Column(nullable = false)
+    private boolean pinned;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
     
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
     @Builder
     public ChatSession(Long userId, UUID guestId, String title){
     	this.userId = userId;
@@ -52,6 +57,15 @@ public class ChatSession {
         this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
         this.updatedAt = this.createdAt;
     }
+
+    /** 첫 질문으로 제목을 정한다 */
+    public void initTitle(String firstQuestion){
+        if(this.title != null || firstQuestion == null || firstQuestion.isBlank()) {
+            return;
+        }
+        String q = firstQuestion.trim();
+        this.title = q.length() > 18 ? q.substring(0, 18) + "..." : q;
+    }
     
     public void update() {
     	this.updatedAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
@@ -61,4 +75,21 @@ public class ChatSession {
     	this.userId = userId;
     	this.guestId = null;
     }
+
+    public boolean isDeleted() {
+        return this.deletedAt != null;
+    }
+
+    /** 사용자가 대화를 지움. 행은 남기고 지운 시각 기록 */
+    public void delete() {
+        if(this.deletedAt == null) {
+            this.deletedAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+        }
+    }
+
+    /** 대화 고정/해제. */
+    public void pin(boolean pinned){
+        this.pinned = pinned;
+    }
+
 }

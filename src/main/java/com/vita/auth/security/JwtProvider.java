@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 /**
  * JWT 발급과 검증.
  *
- * <p>payload에는 userId와 role만 넣는다. JWT는 암호화가 아니라 서명이라 payload를 누구나
+ * <p>payload에는 userId, role, tokenVersion만 넣는다. JWT는 암호화가 아니라 서명이라 payload를 누구나
  * Base64 디코딩해서 읽을 수 있다 — 이메일 같은 개인정보를 넣으면 클라이언트 저장소와
  * 로그에 평문으로 남는다.
  */
@@ -43,10 +43,15 @@ public class JwtProvider {
 	}
 
 	public String createAccessToken(Long userId, Role role) {
+		return createAccessToken(userId, role, 0);
+	}
+
+	public String createAccessToken(Long userId, Role role, long tokenVersion) {
 		Date now = new Date();
 		return Jwts.builder()
 				.subject(String.valueOf(userId))
 				.claim("role", role.name())
+				.claim("tokenVersion", tokenVersion)
 				.issuedAt(now)
 				.expiration(new Date(now.getTime() + accessTokenExpireMillis))
 				.signWith(key)
@@ -76,5 +81,11 @@ public class JwtProvider {
 
 	public Role getRole(Claims claims) {
 		return Role.valueOf(claims.get("role", String.class));
+	}
+
+	/** 배포 전 발급된 토큰은 버전 0으로 취급한다. */
+	public long getTokenVersion(Claims claims) {
+		Number value = claims.get("tokenVersion", Number.class);
+		return value == null ? 0 : value.longValue();
 	}
 }

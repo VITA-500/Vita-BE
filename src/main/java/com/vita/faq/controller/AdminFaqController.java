@@ -19,10 +19,11 @@ public class AdminFaqController {
     public AdminFaqController(AdminFaqService service) { this.service = service; }
 
     @GetMapping
-    public PageResponse<FaqItemResponse> list(@RequestParam(required = false) Integer page,
+    public PageResponse<FaqListItemResponse> list(@RequestParam(required = false) Integer page,
         @RequestParam(required = false) Integer size, @RequestParam(required = false) String keyword,
-        @RequestParam(required = false) String category, @RequestParam(required = false) String status) {
-        return service.list(PageRequest.of(page, size, keyword, null), category, status);
+        @RequestParam(required = false) String category, @RequestParam(required = false) String status,
+        @RequestParam(required = false) String sortBy) {
+        return service.list(PageRequest.of(page, size, keyword, sortBy), category, status);
     }
 
     @PostMapping

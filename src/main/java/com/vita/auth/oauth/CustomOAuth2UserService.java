@@ -59,14 +59,18 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 	 *
 	 * @throws OAuth2AuthenticationProcessingException 같은 이메일로 이미 가입된 계정이 있는 경우
 	 */
-	private User findOrCreate(OAuth2UserInfo userInfo) {
+	User findOrCreate(OAuth2UserInfo userInfo) {
 		Optional<UserOAuth> linked = userOAuthRepository
 				.findByProviderAndProviderId(userInfo.getProvider(), userInfo.getProviderId());
 
 		if (linked.isPresent()) {
 			// findByProviderAndProviderId가 user를 fetch join으로 함께 가져온다 —
 			// 여기서 나가는 User는 트랜잭션 밖(SuccessHandler)에서도 안전하게 읽을 수 있다.
-			return linked.get().getUser();
+			User user = linked.get().getUser();
+			if (!user.isActive()) {
+				throw new OAuth2AuthenticationProcessingException(ErrorCode.OAUTH_AUTHENTICATION_FAILED);
+			}
+			return user;
 		}
 
 		String email = userInfo.getEmail();

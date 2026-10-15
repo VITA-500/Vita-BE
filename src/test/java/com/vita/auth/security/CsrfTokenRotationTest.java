@@ -31,6 +31,7 @@ class CsrfTokenRotationTest {
 
 	@Autowired SecurityFilterChain filterChain;
 	@MockBean ChatSessionService chatSessionService;
+	@MockBean com.vita.auth.repository.UserRepository userRepository;
 	@MockBean JwtProvider jwtProvider;
 	@MockBean CookieUtil cookieUtil;
 	@MockBean CustomOAuth2UserService oauthService;

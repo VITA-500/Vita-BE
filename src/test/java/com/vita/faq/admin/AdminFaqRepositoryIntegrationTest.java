@@ -16,6 +16,7 @@ import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import org.springframework.transaction.support.TransactionTemplate;
 import java.sql.DriverManager;
+import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -52,9 +53,17 @@ class AdminFaqRepositoryIntegrationTest {
             assertThat(jdbc.queryForObject("SELECT embedding_model FROM faqs WHERE id=?",String.class,id)).isEqualTo("intfloat/multilingual-e5-base");
             assertThat(jdbc.queryForObject("SELECT updated_by FROM faqs WHERE id=?",Long.class,id)).isEqualTo(9);
             assertThat(jdbc.queryForObject("SELECT cardinality(source_policy_ids) FROM faqs WHERE id=?",Integer.class,id)).isZero();
-            tx.executeWithoutResult(s -> service.create(new FaqCreateRequest("해외로밍",null,"다른 질문","답변"),9));
+            var second = tx.execute(s -> service.create(new FaqCreateRequest("해외로밍",null,"다른 질문","답변"),9));
+            jdbc.update("UPDATE faqs SET updated_at=? WHERE id=?", LocalDateTime.of(2026,9,23,10,0), id);
+            jdbc.update("UPDATE faqs SET updated_at=? WHERE id=?", LocalDateTime.of(2026,9,23,11,0), second.faqId());
             assertThat(service.list(PageRequest.of(0,1,null,null),null,null).totalCount()).isEqualTo(2);
             assertThat(service.list(PageRequest.of(0,1,null,null),null,null).totalPages()).isEqualTo(2);
+            var newest = service.list(PageRequest.of(0,20,null,"updatedAt,desc"),null,null).content().getFirst();
+            assertThat(newest.faqId()).isEqualTo(second.faqId());
+            assertThat(newest.answer()).isEqualTo("답변");
+            assertThat(newest.updatedAt()).isEqualTo(LocalDateTime.of(2026,9,23,11,0));
+            assertThat(service.list(PageRequest.of(0,20,null,"updatedAt,asc"),null,null).content().getFirst().faqId())
+                .isEqualTo(id);
             assertThat(service.list(PageRequest.of(0,20,"50%",null),null,null).totalCount()).isEqualTo(1);
             assertThat(service.list(PageRequest.of(0,20,"_",null),null,null).totalCount()).isEqualTo(1);
             assertThat(service.list(PageRequest.of(0,20,"' OR 1=1 --",null),null,null).totalCount()).isZero();

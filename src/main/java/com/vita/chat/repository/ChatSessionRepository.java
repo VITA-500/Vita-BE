@@ -9,5 +9,5 @@ import com.vita.chat.entity.ChatSession;
 
 public interface ChatSessionRepository extends JpaRepository<ChatSession, Long> {
 
-	List<ChatSession> findAllByUserIdOrderByUpdatedAtDesc(Long userId);
+	List<ChatSession> findAllByUserIdAndDeletedAtIsNullOrderByPinnedDescUpdatedAtDesc(Long userId);
 }

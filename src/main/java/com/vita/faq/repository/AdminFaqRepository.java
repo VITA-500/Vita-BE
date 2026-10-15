@@ -4,6 +4,8 @@ import com.pgvector.PGvector;
 import com.vita.common.page.PageResponse;
 import com.vita.embedding.EmbeddingConstants;
 import com.vita.faq.dto.FaqItemResponse;
+import com.vita.faq.dto.FaqListItemResponse;
+import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -15,14 +17,20 @@ import java.util.Optional;
 @Repository
 public class AdminFaqRepository {
     private static final String ITEM_COLUMNS = "id, category, subcategory, question, status, created_at";
+    private static final String LIST_COLUMNS = "id, category, subcategory, question, answer, status, created_at, updated_at";
     private static final RowMapper<FaqItemResponse> ITEM_MAPPER = (rs, row) -> new FaqItemResponse(
         rs.getLong("id"), rs.getString("category"), rs.getString("subcategory"),
         rs.getString("question"), rs.getString("status"), rs.getObject("created_at", LocalDateTime.class));
+    private static final RowMapper<FaqListItemResponse> LIST_MAPPER = (rs, row) -> new FaqListItemResponse(
+        rs.getLong("id"), rs.getString("category"), rs.getString("subcategory"),
+        rs.getString("question"), rs.getString("answer"), rs.getString("status"),
+        rs.getObject("created_at", LocalDateTime.class), rs.getObject("updated_at", LocalDateTime.class));
     private final NamedParameterJdbcTemplate jdbc;
 
     public AdminFaqRepository(NamedParameterJdbcTemplate jdbc) { this.jdbc = jdbc; }
 
-    public PageResponse<FaqItemResponse> search(int page, int size, String keyword, String category, String status) {
+    public PageResponse<FaqListItemResponse> search(int page, int size, String keyword, String category,
+            String status, String sortProperty, Sort.Direction direction) {
         var params = new MapSqlParameterSource().addValue("limit", size).addValue("offset", (long) page * size);
         StringBuilder where = new StringBuilder(" WHERE 1=1");
         if (keyword != null) {
@@ -32,9 +40,17 @@ public class AdminFaqRepository {
         }
         if (category != null) { where.append(" AND category = :category"); params.addValue("category", category); }
         if (status != null) { where.append(" AND status = :status"); params.addValue("status", status); }
+        String orderColumn = switch (sortProperty) {
+            case "createdAt" -> "created_at";
+            case "updatedAt" -> "updated_at";
+            default -> throw new IllegalArgumentException("허용되지 않는 정렬 필드입니다.");
+        };
+        String orderDirection = direction == Sort.Direction.ASC ? "ASC" : "DESC";
+        String nullsOrder = "updatedAt".equals(sortProperty) ? " NULLS LAST" : "";
         long count = jdbc.queryForObject("SELECT count(*) FROM faqs" + where, params, Long.class);
-        var rows = jdbc.query("SELECT " + ITEM_COLUMNS + " FROM faqs" + where
-            + " ORDER BY created_at DESC, id DESC LIMIT :limit OFFSET :offset", params, ITEM_MAPPER);
+        var rows = jdbc.query("SELECT " + LIST_COLUMNS + " FROM faqs" + where
+            + " ORDER BY " + orderColumn + " " + orderDirection + nullsOrder
+            + ", id " + orderDirection + " LIMIT :limit OFFSET :offset", params, LIST_MAPPER);
         return new PageResponse<>(rows, count, (int) ((count + size - 1) / size), page);
     }
 

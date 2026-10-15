@@ -1,0 +1,39 @@
+package com.vita.store.repository;
+
+import com.vita.store.dto.response.AdminBenefitResponse;
+import com.vita.store.dto.response.BenefitResponse;
+import com.vita.store.entity.Benefit;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+
+import java.util.List;
+
+public interface BenefitRepository extends JpaRepository<Benefit, Long> {
+
+    /** 혜택 목록 + 연결된 제휴 매장 수 */
+    @Query("""
+            SELECT new com.vita.store.dto.response.BenefitResponse(
+                    b.id, b.brand, b.name, b.category, b.description, COUNT(sb.id))
+            FROM Benefit b
+            LEFT JOIN StoreBenefit sb ON sb.benefit = b
+            GROUP BY b.id, b.brand, b.name, b.category, b.description
+            ORDER BY b.id
+        """)
+    List<BenefitResponse> findAllWithStoreCount();
+
+    /** 관리자 목록용 전체 조회 (검색, 정렬, 페이지는 BenefitService에서 처리) */
+    @Query("""
+            SELECT new com.vita.store.dto.response.AdminBenefitResponse(
+                        b.id, b.brand, b.name, b.category, b.description, COUNT(sb.id),
+                        b.createdAt, b.updatedAt)
+            FROM Benefit b
+            LEFT JOIN StoreBenefit sb ON sb.benefit = b
+            GROUP BY b.id, b.brand, b.name, b.category, b.description,
+                    b.createdAt, b.updatedAt
+            """)
+    List<AdminBenefitResponse> findAllForAdmin();
+
+    boolean existsByBrand(String brand);
+
+    boolean existsByBrandAndIdNot(String brand, Long id);
+}

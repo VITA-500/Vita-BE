@@ -7,6 +7,7 @@ import com.vita.search.entity.FaqStatus;
 import com.vita.search.repository.FaqVectorSearchRepository;
 import com.vita.search.repository.PlanVectorSearchRepository;
 import com.vita.search.service.FaqCandidateSelector;
+import com.vita.search.service.FaqCategoryTermBooster;
 import com.vita.search.service.IrrelevantQueryDetector;
 import com.vita.search.service.PlanSearchService;
 import java.io.IOException;
@@ -26,6 +27,7 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.ClassPathResource;
@@ -60,9 +62,14 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 	private final RegressionQueryReader queryReader;
 	private final JdbcTemplate jdbcTemplate;
 
+	/** 실제 검색(FaqRetrievalServiceImpl)과 같은 분류 이름 가산점. 회귀 지표가 실제 검색 동작을 그대로 반영하도록 같은 값을 쓴다. */
+	@Value("${retrieval.category-boost.bonus:0.01}")
+	private double categoryBoostBonus;
+
 	/** top은 실제로 검색된 상위 결과(CSV에서 어떤 답이 나왔는지 확인하기 위해 보관). */
 	private record FaqResultRow(String category, String subcategory, String style, String query,
-			boolean top1Match, boolean top3Match, double top1Similarity, List<FaqSimilarityResult> top) {
+			boolean top1Match, boolean top3Match, boolean category1Match, boolean category3Match,
+			double top1Similarity, List<FaqSimilarityResult> top, boolean ambiguous) {
 	}
 
 	/**
@@ -126,6 +133,9 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 		List<NegativeResultRow> negativeResults = negativeQueries.stream().map(this::evaluateNegativeQuery).toList();
 
 		printFaqSummary(faqResults);
+		printBoostExperiment(faqQueries, negativeQueries);
+		printBoostValidation(queryReader.read(
+				new ClassPathResource("data/regression/faq_boost_validation_queries.jsonl"), FaqRegressionQuery.class));
 		printPlanSummary(planResults);
 		printNegativeSummary(negativeResults);
 		printRuleDetectorSummary(negativeResults, faqQueries, planQueries);
@@ -141,12 +151,16 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 		// 실제 검색(FaqRetrievalServiceImpl)과 같은 방식으로, 후보를 넉넉히 가져와 중복 답변을 걷어낸 뒤 자른다.
 		List<FaqSimilarityResult> pool = faqVectorSearchRepository.searchBySimilarity(
 				vector, FaqStatus.ACTIVE, 0.0, FaqCandidateSelector.poolSize(TOP_K));
-		List<FaqSimilarityResult> results = FaqCandidateSelector.selectDistinct(pool, TOP_K);
+		List<FaqSimilarityResult> results = FaqCandidateSelector.selectDistinct(
+				FaqCategoryTermBooster.rerank(item.query(), pool, categoryBoostBonus), TOP_K);
 		boolean top1Match = !results.isEmpty() && matchesFaq(results.get(0), item);
 		boolean top3Match = results.stream().anyMatch(r -> matchesFaq(r, item));
+		// 세부분류는 무시하고 카테고리만 맞는지도 본다 — 오답이 "엉뚱한 주제"인지 "같은 카테고리의 이웃 세부분류"인지 구분하기 위해서다.
+		boolean category1Match = !results.isEmpty() && results.get(0).category().equals(item.category());
+		boolean category3Match = results.stream().anyMatch(r -> r.category().equals(item.category()));
 		double top1Similarity = results.isEmpty() ? 0.0 : results.get(0).similarity();
 		return new FaqResultRow(item.category(), item.subcategory(), item.style(), item.query(),
-				top1Match, top3Match, top1Similarity, results);
+				top1Match, top3Match, category1Match, category3Match, top1Similarity, results, item.isAmbiguous());
 	}
 
 	private boolean matchesFaq(FaqSimilarityResult result, FaqRegressionQuery item) {
@@ -189,12 +203,159 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 		float[] vector = embeddingProvider.embedQuery(item.query());
 		List<FaqSimilarityResult> faqPool = faqVectorSearchRepository.searchBySimilarity(
 				vector, FaqStatus.ACTIVE, 0.0, FaqCandidateSelector.poolSize(TOP_K));
-		List<FaqSimilarityResult> faqResults = FaqCandidateSelector.selectDistinct(faqPool, TOP_K);
+		List<FaqSimilarityResult> faqResults = FaqCandidateSelector.selectDistinct(
+				FaqCategoryTermBooster.rerank(item.query(), faqPool, categoryBoostBonus), TOP_K);
 		List<PlanSimilarityResult> planResults = planVectorSearchRepository.searchBySimilarity(vector, 0.0, 1);
-		double faqTop1 = faqResults.isEmpty() ? 0.0 : faqResults.get(0).similarity();
+		// 가산점 재정렬로 1등이 바뀌어도 threshold 판단은 후보의 원래 최고 유사도로 한다(실제 검색과 같다).
+		double faqTop1 = faqResults.stream().mapToDouble(FaqSimilarityResult::similarity).max().orElse(0.0);
 		double planTop1 = planResults.isEmpty() ? 0.0 : planResults.get(0).similarity();
 		PlanSimilarityResult planTop1Result = planResults.isEmpty() ? null : planResults.get(0);
 		return new NegativeResultRow(item.topic(), item.query(), faqTop1, planTop1, faqResults, planTop1Result);
+	}
+
+	/** 가산점 실험에서 쓰는, 질문 하나와 그 질문의 FAQ 후보 풀(유사도 내림차순). */
+	private record PooledQuery(FaqRegressionQuery item, List<FaqSimilarityResult> pool) {
+	}
+
+	/** 가산점 실험 한 번(bonus 하나)의 질문별 결과. */
+	private record BoostOutcome(boolean top1, boolean top3, boolean category1, List<FaqSimilarityResult> results) {
+	}
+
+	/**
+	 * 분류 이름 가산점({@link FaqCategoryTermBooster})의 효과 실험. 가산점 크기를 바꿔 가며 같은 후보 풀을 다시 정렬해
+	 * (1) 정확도가 얼마나 변하는지, (2) 새로 맞게 되는 질문(고침)과 맞다가 틀리게 되는 질문(망가짐)이 각각 몇 개인지,
+	 * (3) 무관 질문에서 threshold를 넘는 후보가 늘지 않는지를 센다. 이득이 확인된 값만 실제 검색에 적용한다.
+	 */
+	private void printBoostExperiment(List<FaqRegressionQuery> faqQueries, List<NegativeRegressionQuery> negativeQueries) {
+		List<PooledQuery> faqPools = faqQueries.stream().map(q -> new PooledQuery(q, fetchFaqPool(q.query()))).toList();
+		List<List<FaqSimilarityResult>> negativePools = negativeQueries.stream()
+				.map(q -> fetchFaqPool(q.query())).toList();
+
+		List<BoostOutcome> baseline = faqPools.stream().map(p -> evaluateWithBonus(p, 0.0)).toList();
+		log.info("=== 실험: 분류 이름 가산점 (FAQ {}문항 / 무관 {}문항) ===", faqQueries.size(), negativeQueries.size());
+
+		for (double bonus : new double[] {0.0, 0.005, 0.01, 0.02, 0.03, 0.05, 0.08, 0.12}) {
+			List<BoostOutcome> outcomes = faqPools.stream().map(p -> evaluateWithBonus(p, bonus)).toList();
+
+			int fixed = 0;
+			int broken = 0;
+			List<String> fixedQueries = new ArrayList<>();
+			List<String> brokenQueries = new ArrayList<>();
+			long clearTotal = 0;
+			long clearTop1 = 0;
+			for (int i = 0; i < faqPools.size(); i++) {
+				FaqRegressionQuery item = faqPools.get(i).item();
+				BoostOutcome before = baseline.get(i);
+				BoostOutcome after = outcomes.get(i);
+				if (!before.top1() && after.top1()) {
+					fixed++;
+					fixedQueries.add(describeChange(item, before, after));
+				}
+				if (before.top1() && !after.top1()) {
+					broken++;
+					brokenQueries.add(describeChange(item, before, after));
+				}
+				if (!item.isAmbiguous()) {
+					clearTotal++;
+					clearTop1 += after.top1() ? 1 : 0;
+				}
+			}
+
+			// 무관 질문: 다시 정렬한 뒤 1등의 원래 유사도가 threshold(0.83) 이상인 질문 수(늘면 오탐이 느는 것).
+			long negativeLeaks = 0;
+			for (int i = 0; i < negativePools.size(); i++) {
+				List<FaqSimilarityResult> top = FaqCandidateSelector.selectDistinct(
+						FaqCategoryTermBooster.rerank(negativeQueries.get(i).query(), negativePools.get(i), bonus), TOP_K);
+				if (!top.isEmpty() && top.get(0).similarity() >= 0.83) {
+					negativeLeaks++;
+				}
+			}
+
+			log.info("[가산점 {}] Top-1 {}%  Top-3 {}%  카테고리 Top-1 {}%  단서 있는 질문 Top-1 {}%  | 고침 {}  망가짐 {} | 무관 질문 1등이 0.83 이상 {}개",
+					String.format("%.3f", bonus),
+					String.format("%.1f", 100.0 * outcomes.stream().filter(BoostOutcome::top1).count() / outcomes.size()),
+					String.format("%.1f", 100.0 * outcomes.stream().filter(BoostOutcome::top3).count() / outcomes.size()),
+					String.format("%.1f", 100.0 * outcomes.stream().filter(BoostOutcome::category1).count() / outcomes.size()),
+					String.format("%.1f", clearTotal == 0 ? 0.0 : 100.0 * clearTop1 / clearTotal),
+					fixed, broken, negativeLeaks);
+			if (bonus == 0.01 || bonus == 0.02 || bonus == 0.05) {
+				fixedQueries.forEach(s -> log.info("    [가산점 {}] 고침: {}", String.format("%.3f", bonus), s));
+				brokenQueries.forEach(s -> log.info("    [가산점 {}] 망가짐: {}", String.format("%.3f", bonus), s));
+			}
+		}
+	}
+
+	/**
+	 * 가산점 규칙을 만들 때 보지 않은 검증 질문({@code faq_boost_validation_queries.jsonl})으로 일반화를 확인한다.
+	 * 상품 단어가 있는 질문(개선 기대), 상품 단어가 없는 질문(영향 없어야 함), 상품 단어가 있지만 정답이 다른 분류인 질문
+	 * (망가지면 안 됨)이 섞여 있다. 가산점마다 정확도와 고침/망가짐 목록을 출력한다.
+	 */
+	private void printBoostValidation(List<FaqRegressionQuery> validation) {
+		List<PooledQuery> pools = validation.stream().map(q -> new PooledQuery(q, fetchFaqPool(q.query()))).toList();
+		List<BoostOutcome> baseline = pools.stream().map(p -> evaluateWithBonus(p, 0.0)).toList();
+		log.info("=== 검증: 규칙 작성 때 보지 않은 질문 {}문항으로 분류 이름 가산점 확인 ===", validation.size());
+		for (int i = 0; i < pools.size(); i++) {
+			if (!baseline.get(i).top1()) {
+				FaqRegressionQuery item = pools.get(i).item();
+				FaqSimilarityResult top1 = baseline.get(i).results().get(0);
+				log.info("    [검증 기준선] Top-1 오답: [{}/{}] \"{}\" → 1등={}/{} ({})", item.category(), item.subcategory(), item.query(),
+						top1.category(), top1.subcategory(), String.format("%.4f", top1.similarity()));
+			}
+		}
+
+		for (double bonus : new double[] {0.0, 0.01, 0.02, 0.05}) {
+			List<BoostOutcome> outcomes = pools.stream().map(p -> evaluateWithBonus(p, bonus)).toList();
+			int fixed = 0;
+			int broken = 0;
+			for (int i = 0; i < pools.size(); i++) {
+				FaqRegressionQuery item = pools.get(i).item();
+				boolean before = baseline.get(i).top1();
+				boolean after = outcomes.get(i).top1();
+				if (!before && after) {
+					fixed++;
+					log.info("    [검증 가산점 {}] 고침: {}", String.format("%.3f", bonus), describeChange(item, baseline.get(i), outcomes.get(i)));
+				}
+				if (before && !after) {
+					broken++;
+					log.info("    [검증 가산점 {}] 망가짐: {}", String.format("%.3f", bonus), describeChange(item, baseline.get(i), outcomes.get(i)));
+				}
+			}
+			log.info("[검증 가산점 {}] Top-1 {}% ({}/{})  Top-3 {}%  카테고리 Top-1 {}%  | 고침 {}  망가짐 {}",
+					String.format("%.3f", bonus),
+					String.format("%.1f", 100.0 * outcomes.stream().filter(BoostOutcome::top1).count() / outcomes.size()),
+					outcomes.stream().filter(BoostOutcome::top1).count(), outcomes.size(),
+					String.format("%.1f", 100.0 * outcomes.stream().filter(BoostOutcome::top3).count() / outcomes.size()),
+					String.format("%.1f", 100.0 * outcomes.stream().filter(BoostOutcome::category1).count() / outcomes.size()),
+					fixed, broken);
+		}
+	}
+
+	/** 질문 하나의 FAQ 후보 풀을 가져온다(실제 검색과 같은 후보 수). */
+	private List<FaqSimilarityResult> fetchFaqPool(String query) {
+		float[] vector = embeddingProvider.embedQuery(query);
+		return faqVectorSearchRepository.searchBySimilarity(vector, FaqStatus.ACTIVE, 0.0, FaqCandidateSelector.poolSize(TOP_K));
+	}
+
+	private BoostOutcome evaluateWithBonus(PooledQuery pooled, double bonus) {
+		FaqRegressionQuery item = pooled.item();
+		List<FaqSimilarityResult> results = FaqCandidateSelector.selectDistinct(
+				FaqCategoryTermBooster.rerank(item.query(), pooled.pool(), bonus), TOP_K);
+		boolean top1 = !results.isEmpty() && matchesFaq(results.get(0), item);
+		boolean top3 = results.stream().anyMatch(r -> matchesFaq(r, item));
+		boolean category1 = !results.isEmpty() && results.get(0).category().equals(item.category());
+		return new BoostOutcome(top1, top3, category1, results);
+	}
+
+	private String describeChange(FaqRegressionQuery item, BoostOutcome before, BoostOutcome after) {
+		FaqSimilarityResult beforeTop = before.results().get(0);
+		FaqSimilarityResult afterTop = after.results().get(0);
+		return String.format("[%s/%s][%s] \"%s\" : %s/%s → %s/%s", item.category(), item.subcategory(), item.style(), item.query(),
+				beforeTop.category(), beforeTop.subcategory(), afterTop.category(), afterTop.subcategory());
+	}
+
+	/** rows 중 조건을 만족하는 비율(%). rows가 비어 있으면 0. */
+	private static double percent(List<FaqResultRow> rows, java.util.function.Predicate<FaqResultRow> condition) {
+		return rows.isEmpty() ? 0.0 : 100.0 * rows.stream().filter(condition).count() / rows.size();
 	}
 
 	private void printFaqSummary(List<FaqResultRow> results) {
@@ -208,15 +369,47 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 		log.info("=== FAQ 회귀 테스트 ({}문항) ===", results.size());
 		log.info("Top-1 정확도: {}%  Top-3 정확도: {}%", String.format("%.1f", top1Rate), String.format("%.1f", top3Rate));
 		log.info("Top-1 정답 중 최저 유사도(현재 threshold=0.83과 비교): {}", String.format("%.4f", minTop1SimilarityOfMatches));
+		log.info("카테고리 기준(세부분류 무시) Top-1 정확도: {}%  Top-3 정확도: {}%",
+				String.format("%.1f", percent(results, FaqResultRow::category1Match)),
+				String.format("%.1f", percent(results, FaqResultRow::category3Match)));
+
+		List<FaqResultRow> clear = results.stream().filter(r -> !r.ambiguous()).toList();
+		List<FaqResultRow> ambiguous = results.stream().filter(FaqResultRow::ambiguous).toList();
+		if (!ambiguous.isEmpty()) {
+			log.info("[단서 있는 질문] {}문항 Top-1 정확도: {}%  Top-3 정확도: {}%  (카테고리 기준 Top-1 {}%)",
+					clear.size(), String.format("%.1f", percent(clear, FaqResultRow::top1Match)),
+					String.format("%.1f", percent(clear, FaqResultRow::top3Match)),
+					String.format("%.1f", percent(clear, FaqResultRow::category1Match)));
+			log.info("[모호한 질문(서비스·상품 단서 없음)] {}문항 Top-1 정확도: {}%  Top-3 정확도: {}%  (카테고리 기준 Top-1 {}%)",
+					ambiguous.size(), String.format("%.1f", percent(ambiguous, FaqResultRow::top1Match)),
+					String.format("%.1f", percent(ambiguous, FaqResultRow::top3Match)),
+					String.format("%.1f", percent(ambiguous, FaqResultRow::category1Match)));
+		}
 
 		Map<String, List<FaqResultRow>> byStyle = results.stream().collect(Collectors.groupingBy(FaqResultRow::style));
 		byStyle.entrySet().stream()
 				.sorted(Comparator.comparing(Map.Entry::getKey))
 				.forEach(entry -> {
 					List<FaqResultRow> rows = entry.getValue();
-					double rate = 100.0 * rows.stream().filter(FaqResultRow::top1Match).count() / rows.size();
+					double rate = percent(rows, FaqResultRow::top1Match);
 					log.info("  스타일별 [{}] Top-1 정확도: {}% ({}문항)", entry.getKey(), String.format("%.1f", rate), rows.size());
+					List<FaqResultRow> rowsClear = rows.stream().filter(r -> !r.ambiguous()).toList();
+					List<FaqResultRow> rowsAmbiguous = rows.stream().filter(FaqResultRow::ambiguous).toList();
+					if (!rowsAmbiguous.isEmpty()) {
+						log.info("      └ 단서 있음 {}문항 Top-1 {}% / 모호 {}문항 Top-1 {}%",
+								rowsClear.size(), String.format("%.1f", percent(rowsClear, FaqResultRow::top1Match)),
+								rowsAmbiguous.size(), String.format("%.1f", percent(rowsAmbiguous, FaqResultRow::top1Match)));
+					}
 				});
+
+		// 단서가 있는데 Top-1이 틀린 질문은 질문 모호함이 아니라 검색 자체의 약점이라 개선 대상이다.
+		clear.stream().filter(r -> !r.top1Match()).forEach(r -> {
+			FaqSimilarityResult top1 = r.top().isEmpty() ? null : r.top().get(0);
+			log.info("  단서 있는데 Top-1 오답: [{}/{}][{}] \"{}\" → 1등={} (유사도 {})",
+					r.category(), r.subcategory(), r.style(), r.query(),
+					top1 == null ? "-" : top1.category() + "/" + top1.subcategory(),
+					top1 == null ? "-" : String.format("%.4f", top1.similarity()));
+		});
 
 		results.stream().filter(r -> !r.top3Match()).forEach(r ->
 				log.info("  미스(Top-3에도 없음): [{}/{}][{}] \"{}\" (top1 유사도={})",
@@ -433,18 +626,18 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 						+ "r1_similarity,r1_label,r1_question,r1_answer,"
 						+ "r2_similarity,r2_label,r2_question,r2_answer,"
 						+ "r3_similarity,r3_label,r3_question,r3_answer,"
-						+ "conditionTop1Ok,acceptablePlans\n");
+						+ "conditionTop1Ok,acceptablePlans,ambiguous\n");
 				for (FaqResultRow r : faqResults) {
 					writeCsvRow(writer, "FAQ", r.category() + "/" + r.subcategory(), r.style(), r.query(),
 							String.valueOf(r.top1Match()), String.valueOf(r.top3Match()), r.top1Similarity(),
-							"", "", "", withExtras(faqCells(r.top()), "", ""));
+							"", "", "", withExtras(faqCells(r.top()), "", "", String.valueOf(r.ambiguous())));
 				}
 				for (PlanResultRow r : planResults) {
 					String conditionOk = r.graded() ? String.valueOf(r.top1Ok()) : "";
 					String acceptable = r.graded() ? csv(String.join(";", r.acceptable())) : "";
 					writeCsvRow(writer, "PLAN", r.planCode(), r.aspect(), r.query(),
 							String.valueOf(r.top1Match()), String.valueOf(r.top3Match()), r.top1Similarity(),
-							"", "", "", withExtras(planCells(r.top()), conditionOk, acceptable));
+							"", "", "", withExtras(planCells(r.top()), conditionOk, acceptable, ""));
 				}
 				for (NegativeResultRow r : negativeResults) {
 					String planName = r.planTop1() == null ? "" : r.planTop1().name();
@@ -452,7 +645,7 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 							Math.max(r.faqTop1Similarity(), r.planTop1Similarity()),
 							String.format("%.4f", r.faqTop1Similarity()),
 							String.format("%.4f", r.planTop1Similarity()),
-							planName, withExtras(faqCells(r.faqTop()), "", ""));
+							planName, withExtras(faqCells(r.faqTop()), "", "", ""));
 				}
 			}
 			log.info("CSV 리포트 저장: {}", file.toAbsolutePath());
@@ -461,11 +654,15 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 		}
 	}
 
-	/** 순위별 칸 뒤에 conditionTop1Ok, acceptablePlans 두 칸을 붙인다(요금제 외 행은 빈 칸). */
-	private List<String> withExtras(List<String> cells, String conditionOk, String acceptable) {
+	/**
+	 * 순위별 칸 뒤에 conditionTop1Ok, acceptablePlans, ambiguous 세 칸을 붙인다. conditionTop1Ok와 acceptablePlans는
+	 * 요금제 행에서만, ambiguous는 FAQ 행에서만 채우고 나머지 행은 빈 칸이다.
+	 */
+	private List<String> withExtras(List<String> cells, String conditionOk, String acceptable, String ambiguous) {
 		List<String> withExtras = new ArrayList<>(cells);
 		withExtras.add(conditionOk);
 		withExtras.add(acceptable);
+		withExtras.add(ambiguous);
 		return withExtras;
 	}
 

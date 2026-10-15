@@ -16,10 +16,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.Objects;
+import java.util.Set;
 
 /** FAQ 입력 검증, 임베딩 생성 및 소프트 삭제를 처리 */
 @Service
 public class AdminFaqService {
+    private static final Set<String> SORT_FIELDS = Set.of("createdAt", "updatedAt");
     private final AdminFaqRepository repository;
     private final EmbeddingProvider embeddingProvider;
 
@@ -29,16 +31,20 @@ public class AdminFaqService {
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
-    public PageResponse<FaqItemResponse> list(PageRequest request, String category, String status) {
+    public PageResponse<FaqListItemResponse> list(PageRequest request, String category, String status) {
         if (request.page() < 0 || request.size() < 1 || request.size() > 100) {
             throw invalid("page는 0 이상, size는 1~100이어야 합니다.");
         }
+        validateSortSyntax(request.sortBy());
+        var pageable = request.toSpringPageRequest(SORT_FIELDS, "createdAt,desc");
+        var order = pageable.getSort().iterator().next();
         category = blankToNull(category);
         status = blankToNull(status);
         if (category != null && !FaqTaxonomy.supports(category)) { throw invalid("지원하지 않는 category입니다."); }
         if (status != null) { validateStatus(status); }
         return repository.search(
-            request.page(), request.size(), blankToNull(request.keyword()), category, status);
+            pageable.getPageNumber(), pageable.getPageSize(), blankToNull(request.keyword()), category, status,
+            order.getProperty(), order.getDirection());
     }
 
     @Transactional
@@ -90,6 +96,15 @@ public class AdminFaqService {
 
     private void validateStatus(String status) {
         if (!"ACTIVE".equals(status) && !"INACTIVE".equals(status)) { throw invalid("status는 ACTIVE 또는 INACTIVE여야 합니다."); }
+    }
+
+    private void validateSortSyntax(String sortBy) {
+        if (sortBy == null || sortBy.isBlank()) { return; }
+        String[] parts = sortBy.split(",", -1);
+        if (parts.length != 2
+                || !("asc".equalsIgnoreCase(parts[1].trim()) || "desc".equalsIgnoreCase(parts[1].trim()))) {
+            throw invalid("sortBy는 {createdAt|updatedAt},{asc|desc} 형식이어야 합니다.");
+        }
     }
 
     private float[] embed(FaqRecord faq) {

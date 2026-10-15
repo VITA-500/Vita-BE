@@ -10,9 +10,9 @@ class FaqTaxonomyTest {
     void supportsExactlySharedCategories() {
         assertThat(FaqTaxonomy.supportedCategories()).containsExactlyInAnyOrder(
             "유심(USIM) 업데이트 · 교체", "모바일", "인터넷/IPTV", "전화", "결합 할인",
-            "해외로밍", "소상공인", "가입 및 변경", "요금 및 납부", "서비스안내");
+            "해외로밍", "소상공인", "가입 및 변경", "요금 및 납부", "서비스안내", "VITA 이용 안내");
         assertThat(FaqTaxonomy.supportedCategories().stream()
-            .mapToInt(category -> FaqTaxonomy.supportedSubcategories(category).size()).sum()).isEqualTo(43);
+            .mapToInt(category -> FaqTaxonomy.supportedSubcategories(category).size()).sum()).isEqualTo(47);
     }
 
     @Test
@@ -26,6 +26,17 @@ class FaqTaxonomyTest {
         assertThat(FaqTaxonomy.supports(null)).isFalse();
         assertThat(FaqTaxonomy.supports("모바일", null)).isFalse();
         assertThat(FaqTaxonomy.supports("모바일", "")).isFalse();
+    }
+
+    @Test
+    void supportsVitaUsageGuidanceOnlyUnderItsOwnCategory() {
+        assertThat(FaqTaxonomy.supportedSubcategories("VITA 이용 안내")).containsExactlyInAnyOrder(
+            "계정·로그인", "챗봇 상담", "매장 찾기·예약", "제휴 혜택");
+        for (String subcategory : FaqTaxonomy.supportedSubcategories("VITA 이용 안내")) {
+            assertThat(FaqTaxonomy.supports("VITA 이용 안내", subcategory)).isTrue();
+            assertThat(FaqTaxonomy.supports("모바일", subcategory)).isFalse();
+        }
+        assertThat(FaqTaxonomy.supports("VITA 이용 안내", "요금제")).isFalse();
     }
 
     @Test
