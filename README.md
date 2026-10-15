@@ -5,7 +5,6 @@
 [![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.3.5-brightgreen)](https://spring.io/projects/spring-boot)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue)](https://www.postgresql.org/)
 [![pgvector](https://img.shields.io/badge/pgvector-vector_search-4169E1)](https://github.com/pgvector/pgvector)
-[![Redis](https://img.shields.io/badge/Redis-7.x-red)](https://redis.io/)
 [![AWS Bedrock](https://img.shields.io/badge/LLM-AWS_Bedrock-orange)](https://aws.amazon.com/bedrock/)
 [![Docker](https://img.shields.io/badge/Docker-latest-blue)](https://www.docker.com/)
 
@@ -26,6 +25,7 @@
    - [검색 품질 평가와 방식 선택](#검색-품질-평가와-방식-선택)
    - [LLM 연동](#llm-연동)
    - [기타 설계 원칙](#기타-설계-원칙)
+8. [멘토링 피드백 반영 현황](#8-멘토링-피드백-반영-현황)
 
 ---
 
@@ -40,6 +40,16 @@
 - 생성한 FAQ는 Vector DB에 저장해 검색 가능하도록 구성
 - 지도 API로 위치 기반 화면 구현
 - LLM은 팀 협의로 AWS Bedrock 채택
+
+**현재 상태**
+
+| 항목 | 내용 |
+|---|---|
+| 데이터 | FAQ 1,084건, 요금제 20종, 제휴 혜택 7개 업종·11개 브랜드 |
+| RAG 구성 | 질문 변환(LLM) → 벡터 검색(FAQ·요금제) → 요금제 조건 매칭 → 후처리·threshold → 답변 생성(SSE 스트리밍) |
+| 검색 방식 | 질문 변환 + 벡터 검색으로 확정. 영어 번역·BM25 Hybrid는 실험 후 보류 |
+| LLM | Claude Sonnet 4.6 (AWS Bedrock) |
+| 평가 | FAQ 200문항·요금제 144문항 정답지로 방식별 Recall·nDCG·MRR 비교 |
 
 ---
 
@@ -78,7 +88,7 @@
 |---|---|
 | 언어 / 프레임워크 | ![Java](https://img.shields.io/badge/Java-21-007396?style=for-the-badge&logo=openjdk&logoColor=white) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?style=for-the-badge&logo=springboot&logoColor=white) ![Gradle](https://img.shields.io/badge/Gradle-02303A?style=for-the-badge&logo=gradle&logoColor=white) |
 | 인증 | ![Spring Security](https://img.shields.io/badge/Spring%20Security-6DB33F?style=for-the-badge&logo=springsecurity&logoColor=white) ![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white) |
-| LLM | ![AWS Bedrock](https://img.shields.io/badge/AWS%20Bedrock-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white) |
+| LLM | ![AWS Bedrock](https://img.shields.io/badge/AWS%20Bedrock-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white) Claude Sonnet 4.6 (기본값, `BEDROCK_MODEL_ID`로 교체 가능) |
 | 임베딩 | ![Hugging Face](https://img.shields.io/badge/Hugging%20Face%20TEI-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black) intfloat/multilingual-e5-base (768차원) |
 | API 문서 | ![Swagger](https://img.shields.io/badge/Swagger-85EA2D?style=for-the-badge&logo=swagger&logoColor=black) |
 | 테스트 | ![JUnit5](https://img.shields.io/badge/JUnit5-25A162?style=for-the-badge&logo=junit5&logoColor=white) |
@@ -88,7 +98,6 @@
 | 분류 | 기술 |
 |---|---|
 | RDBMS + Vector DB | ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white) ![pgvector](https://img.shields.io/badge/pgvector-4169E1?style=for-the-badge&logoColor=white) |
-| 캐시 | ![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=for-the-badge&logo=redis&logoColor=white) |
 
 ### Infra
 
@@ -124,21 +133,19 @@
 [Next.js/Vercel] --HTTPS--> [Nginx(EC2)] --> [Spring Boot] --+--> [RDS: PostgreSQL+pgvector]
                                                               +--> [임베딩 서버(TEI): 질문/문서 벡터 변환]
                                                               +--> [AWS Bedrock: LLM 응답 생성]
-                                                              +--> [Kakao 길찾기 REST API: 백엔드에서 호출]
-                                                              +--> [Redis: 컨테이너만 구성, 코드 사용은 아직 없음]
+                                                              +--> [Kakao REST API: 길찾기·장소 검색, 백엔드에서 호출]
 ```
 
 - 사용자 질문 → 질문 변환(LLM) → 백엔드가 pgvector로 유사 FAQ·요금제 검색(RAG) → 검색 결과를 근거로 Bedrock 호출 → 자연어 답변을 SSE로 스트리밍하면서 채팅 세션에 저장
-- 채팅은 요청과 응답이 분리돼 있다. 메시지 전송(`POST /chat/sessions/{id}/messages`)은 `PENDING` 답변 자리를 만들고 바로 돌아오고, 진행 단계(`thinking` → `retrieving_faq` → `generating`)와 답변 조각(delta)은 SSE(`GET /chat/sessions/{id}/events`)로 내려간다. SSE 연결 목록은 서버 메모리에 있어 인스턴스 1대를 전제로 하며, 여러 대로 늘리면 Redis pub/sub 등이 필요하다
+- 채팅은 요청과 응답이 분리돼 있다. 메시지 전송(`POST /chat/sessions/{id}/messages`)은 `PENDING` 답변 자리를 만들고 바로 돌아오고, 진행 단계(`thinking` → `retrieving_faq` → `generating`)와 답변 조각(delta)은 SSE(`GET /chat/sessions/{id}/events`)로 내려간다. SSE 연결 목록은 서버 메모리에 있어 인스턴스 1대를 전제로 한다(여러 대로 늘리면 연결을 공유하는 방식이 별도로 필요하다)
 - 위치 질의 시 매장 좌표 기반 거리 계산 → 지도 표시용 데이터 반환, 길찾기는 백엔드가 Kakao 길찾기 API를 호출해 응답 (지도 SDK 자체는 프론트엔드에서 직접 사용)
-- Redis(캐싱/토큰 블랙리스트)는 인프라에는 구성돼 있으나 아직 코드에서 사용하지 않음
 - 인프라는 AWS EC2 단일 인스턴스(dev/prod 포트 분리) + RDS + Nginx/Let's Encrypt HTTPS, GitHub Actions로 배포 자동화
 
 ---
 
 ## 5. ERD
 
-<img width="3237" height="3110" alt="Vita-500_2026-10-01T05_39_29 329Z" src="https://github.com/user-attachments/assets/b081fec5-d0ba-46b0-8d35-b9c0b1762ee3" />
+<img width="3600" height="3157" alt="erd (1)" src="https://github.com/user-attachments/assets/9970f9af-f9da-4379-bc4b-2ae47de88cff" />
 
 | 테이블 | 설명 |
 |---|---|
@@ -147,7 +154,7 @@
 | `user_oauths` | 소셜 로그인 연동(LOCAL/GOOGLE/KAKAO/NAVER), 한 사용자가 여러 소셜 계정 연결 가능 |
 | `faqs` | FAQ 본문(`category`/`subcategory`/`question`/`answer`) + `embedding vector(768)`(intfloat/multilingual-e5-base, 질문+답변 결합 임베딩). 삭제는 `status`를 `INACTIVE`로 바꾸는 소프트 삭제이며, RAG 검색은 `status='ACTIVE'`만 대상. `source_faq_id`/`source_policy_ids`는 FAQ 원본 재적재(upsert) 키 |
 | `plans` | 가상 요금제 20종(범용 + 연령대별 키즈·틴·청년·시니어 + 기기 전용 워치·태블릿). `target_group`은 GENERAL/TEEN/YOUTH/SENIOR/KIDS/TABLET/WATCH이고 `min_age`/`max_age`로 가입 연령을 둔다. `monthly_fee`/`network_type`/`target_group`/`data_policy`/`voice_policy`/`sms_policy` 등 정형 컬럼과, 이를 자연어로 풀어 쓴 `description`(임베딩 대상)을 함께 가짐 — FAQ와 동일 모델·차원 사용. 관리자 API(`/admin/plans`)로 등록하거나 설명을 수정하면 임베딩을 함께 갱신하고, 삭제는 `status` 비활성화 방식 |
-| `faqs_en` / `plans_en` | FAQ·요금제의 영어 번역본(원본과 같은 id를 PK로 공유, 영어 임베딩 포함). 영어로 번역해 검색하는 실험용이며 서비스 검색에는 쓰지 않는다 |
+| `faqs_en` / `plans_en` | FAQ·요금제의 영어 번역본(원본과 같은 id를 PK로 공유, 영어 임베딩 포함). 영어로 번역해 검색하는 실험용이며 서비스 검색에는 쓰지 않는다(실험 코드는 제거했고 테이블과 마이그레이션만 남아 있다) |
 | `stores` | 매장 정보(좌표, 영업시간, 연락처) + `consult_services`/`provided_services`(상담 가능 업무·제공 서비스 배열) + `store_type`(`PHONE` 통신 매장 / `PARTNER` 제휴 매장, CHECK 제약, 기본 `PHONE`). 제휴 매장도 같은 테이블의 행이라 상세 조회·길찾기는 그대로 동작하고, "가장 가까운 매장"·"주변 매장" 검색은 통신 매장(`PHONE`)만 대상 |
 | `benefits` / `store_benefits` | 제휴 혜택과 매장-혜택 매핑(N:M). 혜택은 브랜드(`brand`, UNIQUE)당 1개이며 업종(`category`)은 혜택에만 두고 매장의 업종은 `store_benefits`를 따라가 구한다. 제휴 매장은 이름이 브랜드명과 같거나 "브랜드명 + 공백"으로 시작하면 해당 혜택에 연결되고(V16 시드: 11개 브랜드), 매장의 혜택 보유 여부는 컬럼이 아니라 `store_benefits` 행 존재로 판단. 조회 API(`GET /benefits/list`, `GET /benefits/{category}/stores`)와 관리자 API(`/admin/benefits`)가 있다. 업종은 카페·아이스크림·영화·외식·자동차·쇼핑·여가 7종 |
 | `chat_sessions` / `chat_messages` | 대화 세션과 메시지. 세션은 회원(`user_id`) 또는 비회원 게스트(`guest_id`, UUID) 중 **정확히 하나**에 속하며(CHECK 제약), 게스트 세션은 로그인하면 해당 회원 계정으로 이어지며(프론트가 로그인 직후 세션별 claim API를 호출해 `user_id`로 이전, 이전 후 `guest_id`는 비움). `chat_messages.status`로 생성중/완료/실패/재시도 상태 관리, 응답 시간은 컬럼으로 저장하지 않고 요청마다 DTO에서 계산해 반환. 답변에는 `feedback`(LIKE/DISLIKE), 매장 질문의 지도·버튼(`store_map`, `actions`: JSONB), 미해결 질문 자동 감지 결과(`unresolved_reason`)와 검색 최고 유사도(`top_similarity`)도 함께 저장한다 |
@@ -172,7 +179,7 @@
 | 인증 | 회원가입 / 로그인 / 마이페이지 조회·수정 | 필수 |
 | 채팅 | AI 질문-답변(RAG) — 질문 변환 → 검색 → 답변 생성 / SSE 스트리밍(`GET /chat/sessions/{id}/events`) / 응답 상태 처리 / 세션·히스토리 저장 | 필수 |
 | 채팅 | 비회원(게스트) 채팅 — `X-Guest-Id`로 식별, 로그인하면 비회원 때의 채팅이 로그인 계정으로 이어짐(`POST /chat/sessions/{id}/claim`) | 필수 |
-| 채팅 | 매장·제휴 혜택 질문 — 질문에서 매장 의도를 읽어 주변 통신 매장·제휴 매장과 혜택을 안내하고, 지도 데이터(`store_map`)와 지도 화면 이동 버튼(`actions`)을 함께 내려줌 | 필수 |
+| 채팅 | 매장·제휴 혜택 질문 — 질문에서 매장 의도를 읽어 주변 통신 매장·제휴 매장과 혜택을 안내하고("방학역 근처" 같은 장소나 매장 이름이 있으면 그 기준으로 찾음), 지도 데이터(`store_map`)와 지도 화면 이동 버튼(`actions`)을 함께 내려줌 | 필수 |
 | 채팅 | 미해결 질문 관리자 신고 (`POST /chat/messages/{id}/report-to-admin`) | 필수 |
 | 채팅 | 미해결 질문 자동 감지 — 검색 결과가 없거나 유사도가 기준에 못 미친 답변을 사유(`NO_MATCH`/`LOW_SIMILARITY`/`ANSWER_FAILED`)와 함께 기록 | 필수 |
 | 채팅 | 답변 피드백(👍/👎) (`POST /chat/messages/{id}/feedback`) — 본인 세션의 완료된 답변에만 | 선택 |
@@ -217,7 +224,8 @@ ORDER BY distance_km
 - 두 검색 모두 통신 매장(`store_type='PHONE'`)만 대상이고, 제휴 매장은 제외한다. 이 방식은 전체 매장 행에 대해 거리를 계산하므로 `lat`/`lng` 인덱스로는 가속되지 않는다. 지금 매장 규모에서는 문제없고, 매장이 크게 늘면 PostGIS의 공간 인덱스로 전환을 검토한다
 - 거리는 도로가 아닌 직선 거리이고, 응답에는 소수 둘째 자리로 반올림해 내려준다
 - 위치(`lat`/`lng`)가 없으면 `LOCATION_REQUIRED` 에러를 반환한다
-- **제휴 매장**은 `GET /benefits/{category}/stores`가 같은 Haversine 계산으로 업종별 거리순 목록을 돌려주고(`openNow`/`openAt`으로 영업 중 필터), 챗봇의 매장 질문은 질문 변환이 읽어 낸 조건(업무·영업 중·시각·브랜드)으로 같은 검색을 호출한다(통신 매장은 반경 5km, 최대 4곳). 영업시간은 여는·닫는 시각(`open_time`/`close_time`)으로 나눠 저장해, 닫는 시각이 더 이르면 자정을 넘기는 매장으로 판정한다
+- **제휴 매장**은 `GET /benefits/{category}/stores`가 같은 Haversine 계산으로 업종별 거리순 목록을 돌려주고(`openNow`/`openAt`으로 영업 중 필터), 챗봇의 매장 질문은 질문 변환이 읽어 낸 조건(업무·영업 중·시각·브랜드·장소·매장 이름)으로 같은 검색을 호출한다(통신 매장은 반경 5km, 최대 4곳). 영업시간은 여는·닫는 시각(`open_time`/`close_time`)으로 나눠 저장해, 닫는 시각이 더 이르면 자정을 넘기는 매장으로 판정한다
+- **챗봇의 장소·매장 이름 기준 검색**: 질문 변환이 장소(`store_place`, 예: "방학역 근처")나 매장 이름(`store_name`)을 읽으면 사용자 위치 대신 그 기준으로 찾는다. 기준점 우선순위는 매장 이름 > 장소 > 사용자 위치다. 매장 이름은 DB에서 이름으로 찾아 그 매장을 목록 첫 번째로 두고, 장소는 카카오 장소 검색(`PlaceSearchService`, 지하철역을 먼저 찾고 없으면 일반 장소 1위)으로 좌표를 구한다. 거리가 어느 기준인지 안내문에 함께 적어 사용자 위치 기준으로 오해하지 않게 한다. 통신 매장이 반경 5km 안에 없으면 100km까지 넓혀 가장 가까운 매장을 안내하되 5km 안에는 없다는 점을 함께 알린다(매장 데이터가 서울 근처에 몰려 있다). 장소를 찾지 못하면 그 사실을 알리고 역·동네 이름으로 다시 물어봐 달라고 안내한다
 
 **길찾기**: `GET /stores/{storeId}/directions?fromLat&fromLng&mode`로 요청하면, 매장 좌표를 도착지로 삼아 이동수단(`mode`)에 맞는 카카오 API를 호출한다. 카카오 REST API 키는 서버에만 있고(`KAKAO_REST_API_KEY`, 소셜 로그인 키와는 별개), 프론트는 지도 SDK만 쓴다.
 
@@ -282,7 +290,7 @@ RAG 파이프라인은 질문 변환 → 임베딩 → 검색·후처리(thresho
   ```
   `normalize: true`로 TEI가 L2 정규화된 벡터를 반환해 cosine 유사도 계산이 단순해지고, `truncate: true`로 모델 최대 길이를 넘는 입력은 에러 대신 서버가 잘라서 처리한다. 응답 배열 개수(1개)와 차원(768)을 검증해 어긋나면 `EmbeddingException`을 던진다.
 - **Query/Document 비대칭 인코딩**: E5는 `"query: "` / `"passage: "` prefix가 붙은 쌍으로 contrastive learning된 비대칭 dual-encoder다. 같은 문장이라도 어떤 prefix로 인코딩하느냐에 따라 벡터가 달라지도록 학습되어 있어, 질문(`embedQuery`)과 문서(`embedDocument`)를 반드시 구분해서 호출해야 검색 품질이 나온다.
-- **FAQ 적재**: 대표 FAQ 1,084건(`faq_all_cleaned.jsonl`)을 `faq.import.enabled=true`일 때만 동작하는 JSONL 적재기가 `source_faq_id` 기준으로 upsert — 재실행하면 관리자가 수정한 내용과 `INACTIVE` 상태도 덮어쓸 수 있어 기본은 꺼져 있음
+- **FAQ 적재**: 대표 FAQ 1,084건(`faq_all_cleaned.jsonl`)을 `faq.import.enabled=true`일 때만 동작하는 JSONL 적재기가 `source_faq_id` 기준으로 upsert한다. 같은 출처의 행은 내용이 바뀐 것만 갱신하고, 질문·답변이 바뀐 행은 임베딩을 비워 다음 임베딩 배치가 다시 채우게 한다. 관리자가 수정한 행(`updated_by`가 있는 행)은 덮어쓰지 않고 `status`도 바꾸지 않으며, 파일에서 빠진 FAQ를 지우지도 않는다. 데이터를 갱신할 때만 켜므로 기본은 꺼져 있다
 - **배치 파이프라인(문서 임베딩)**: 앱 기동 시(`ApplicationRunner`, `faq.embedding.enabled=true`일 때만 동작) `embedding IS NULL`인 FAQ·요금제를 `batch-size`(기본 100)만큼 찾아 `embedDocument()`로 벡터화하고 DB에 영구 저장 — pending이 없어질 때까지 반복. 저장 시 `embedding_model`/`embedding_version`/`embedded_at` 메타데이터도 함께 기록해 어떤 모델·시점에 임베딩됐는지 추적
 - **관리자 API 등록·수정**: FAQ·요금제를 관리자 API로 등록하거나 질문·답변(요금제는 설명)을 수정하면 저장과 같은 트랜잭션에서 즉시 임베딩하고, 임베딩에 실패하면 저장도 취소(502)되어 임베딩 없는 행이 생기지 않는다. 적재기로 넣은 데이터만 기동 시 배치가 채운다
 - **실시간 파이프라인(질의 임베딩)**: 채팅 요청마다 `embedQuery()`로 즉석 계산하고, 그 요청의 검색에만 쓰고 저장하지 않음(다음 요청은 처음부터 재계산)
@@ -424,6 +432,9 @@ threshold 미달 후보의 최고 점수(`topSimilarity`)도 버리지 않고 �
 - **요금제의 남은 약점**: 요금제 평가셋 v2 기준 조건 매칭 경로는 nDCG 95% 안팎이지만, 조건이 없는 서술형 상황 질문("영상 많이 보는데 어떤 요금제가 좋아요?")은 nDCG 약 50%, 최상급 정형 조회는 정확 일치 약 73%다
 - **같은 질문에도 답변이 달라질 수 있다**: 질문 변환과 답변 생성이 모두 `temperature 0.3`의 LLM 호출이라 변환문과 답변 표현이 호출마다 조금씩 달라지고, 변환문이 달라지면 검색된 FAQ도 달라진다
 - **LLM 호출이 질문마다 2회**(질문 변환 + 답변 생성)라 응답 지연과 비용이 늘어난다. 정형·매장 질문도 질문 변환은 거친다
+- **Bedrock 일시 오류에 취약하다**: Bedrock이 503(`ServiceUnavailableException`)을 돌려주면 재시도나 대체 모델 없이 그 답변이 `FAILED`가 된다. 스트리밍 도중 오류가 나면 FE는 그때까지 받은 텍스트만 보여 준다
+- **스트림이 예외 없이 중간에 끝나면 잘린 답변이 `COMPLETED`로 저장될 수 있다**: 현재는 답변의 종료 사유를 확인하지 않고 텍스트 조각이 하나라도 왔는지만 본다. 개발 서버에서 문장 중간에서 끊긴 답변이 완료로 저장된 사례를 확인했고, 원인을 조사하고 있다
+- **조건 없는 전체 요금제 조회는 답하지 못할 수 있다**: "전체 요금제 목록"처럼 가격·데이터량·대상 조건이 없는 질문은 조건 매칭 경로를 타지 못하고 벡터 상위 5개(유사도 0.81 이상)로 처리돼 "확인이 어렵다"고 답할 수 있다. "5만원 이하"처럼 조건이 하나라도 있으면 최대 20개까지 정상적으로 나온다
 
 ### 검색 품질 평가와 방식 선택
 
@@ -453,13 +464,13 @@ LLM 질문 변환은 호출마다 결과가 달라질 수 있어, 평가 러너�
 질문 변환을 저장 파일 없이 실제로 다시 호출해 요금제 조건 추출 확장 이후 코드·요금제 평가셋 v2로 재측정한 결과도 같은 방향이었다(FAQ nDCG A 77.4%, C 78.3%, C+H 79.2%).
 
 - **현재 적용: 질문 변환(C) + 벡터 검색.** 원문(A) 대비 FAQ nDCG 차이는 +0.2~0.9%p로 작아 신뢰구간이 0을 포함한다(질문 변환의 실행 간 흔들림이 ±0.7%p 안팎). 다만 질문 변환 결과는 정형·매장·최상급 분기에 어차피 필요해, 검색 질의로 쓰는 데 추가 비용이 들지 않는다.
-- **영어 번역(B·D)은 도입하지 않았다.** FAQ에서 한국어와 같거나 낮고 요금제에서는 더 낮았다. 영어 유사도가 한국어보다 낮아 threshold(0.83/0.81)에 더 많이 걸리고, 번역문에 한국어 조각이 남거나 문서와 용어 표기가 어긋나는 사례가 있었다. 실험용 플래그(`vita.experiment.translate-question`)와 영어 검색기·변환기는 기본 설정에서 쓰지 않는다.
+- **영어 번역(B·D)은 도입하지 않았다.** FAQ에서 한국어와 같거나 낮고 요금제에서는 더 낮았다. 영어 유사도가 한국어보다 낮아 threshold(0.83/0.81)에 더 많이 걸리고, 번역문에 한국어 조각이 남거나 문서와 용어 표기가 어긋나는 사례가 있었다. 결정 후 번역기·영어 검색기·D 변환기와 실험 플래그(`vita.experiment.translate-question`)는 코드에서 제거했고, 영어 번역본 테이블(`faqs_en`, `plans_en`)과 마이그레이션만 남겼다.
 - **요금제의 BM25는 도입하지 않았다.** 요금제 후보가 20개뿐이고 조건 규칙이 대부분의 질문을 처리해 어느 버전에서도 이득이 없었다.
 - **FAQ 검색에만 Hybrid(BM25 + 벡터)를 더하는 구성(요금제는 벡터 유지)이 점수는 가장 높다**(질문 변환 대비 nDCG +1%p 안팎, 신뢰구간은 0 경계). BM25는 pg_search 확장이 필요해 AWS RDS에서는 쓸 수 없어 Hybrid 구현은 develop에 포함하지 않았고, DB를 확장이 있는 이미지(ParadeDB)로 옮기는 시점에 다시 검토한다.
 
 ### LLM 연동
 
-- **모델**: AWS Bedrock, 기본 모델 `openai.gpt-oss-120b-1:0`, 리전 `ap-northeast-1`(도쿄) — 해당 모델이 서울 리전에서는 제공되지 않아 도쿄 리전을 사용한다. 리전과 모델 ID는 환경변수(`AWS_REGION`, `BEDROCK_MODEL_ID`)로 바꿀 수 있다. Spring AI `ChatClient`(Bedrock Converse API)로 래핑해 향후 다른 LLM 제공자로 교체 가능한 구조 유지(NFR-EXT01). 생성 옵션은 `temperature 0.3`, `max-tokens 4096`으로 사실 기반 답변 위주의 낮은 무작위성을 택함. 질문 변환과 답변 생성이 같은 옵션을 쓴다
+- **모델**: AWS Bedrock, 기본 모델 `global.anthropic.claude-sonnet-4-6`(Claude Sonnet 4.6, 글로벌 추론 프로필), 리전 `ap-northeast-1`(도쿄)이며 EC2·RDS의 리전(서울)과 다르다. 이전에는 `openai.gpt-oss-120b-1:0`을 썼다. 리전과 모델 ID는 환경변수(`AWS_REGION`, `BEDROCK_MODEL_ID`)로 바꿀 수 있다. Spring AI `ChatClient`(Bedrock Converse API)로 래핑해 향후 다른 LLM 제공자로 교체 가능한 구조 유지(NFR-EXT01). 생성 옵션은 `temperature 0.3`, `max-tokens 4096`으로 사실 기반 답변 위주의 낮은 무작위성을 택함. 질문 변환과 답변 생성이 같은 옵션을 쓴다. Anthropic 모델은 계정에서 사용 목적(use case) 양식을 제출해야 하고, 최신 세대(Sonnet 5 등)는 이 계정에서 접근이 허용되지 않아 Sonnet 4.6을 쓴다
 
 - **Context 직렬화**: 검색 결과를 사람이 읽는 문장이 아니라, LLM이 근거와 잡담을 구분하기 쉽도록 태그로 감싼 블록으로 바꾼다. 종류는 네 가지이고 이 순서로 이어 붙인다.
 
@@ -565,10 +576,41 @@ sequenceDiagram
 
 ### 기타 설계 원칙
 
-**인증**: JWT 기반, Access Token은 HttpOnly Cookie로 발급. 쿠키 기반 인증에서 필요해진 CSRF는 `/auth/csrf` 발급 + 토큰 검증으로 방어. 비회원은 `X-Guest-Id` 헤더(UUID)로 식별해 `ROLE_GUEST`로 취급하고, 회원 전용 경로(`/users/**`)는 막되 채팅은 허용하며, 로그인 상태에서 게스트 헤더가 함께 와도 회원을 우선한다. 로그인 시 게스트 채팅 이전은 서버가 자동 처리하지 않고, 프론트가 세션별 claim API를 호출해 완료한다. Refresh Token(Redis 저장·rotation)은 설계만 되어 있고 아직 미구현. 회원 상태(`ACTIVE`/`SUSPENDED`/`DELETED`)와 권한이 바뀌면 `token_version`을 올려 이미 발급된 토큰을 거부하고, 관리자의 계정 변경은 사유와 함께 `user_audit_logs`에 기록한다(변경은 락 행으로 직렬화해 마지막 관리자 보호를 검사)
+**인증**: JWT 기반, Access Token은 HttpOnly Cookie로 발급. 쿠키 기반 인증에서 필요해진 CSRF는 `/auth/csrf` 발급 + 토큰 검증으로 방어. 비회원은 `X-Guest-Id` 헤더(UUID)로 식별해 `ROLE_GUEST`로 취급하고, 회원 전용 경로(`/users/**`)는 막되 채팅은 허용하며, 로그인 상태에서 게스트 헤더가 함께 와도 회원을 우선한다. 로그인 시 게스트 채팅 이전은 서버가 자동 처리하지 않고, 프론트가 세션별 claim API를 호출해 완료한다. Refresh Token(rotation)은 설계만 되어 있고 아직 미구현. 회원 상태(`ACTIVE`/`SUSPENDED`/`DELETED`)와 권한이 바뀌면 `token_version`을 올려 이미 발급된 토큰을 거부하고, 관리자의 계정 변경은 사유와 함께 `user_audit_logs`에 기록한다(변경은 락 행으로 직렬화해 마지막 관리자 보호를 검사)
 
 **FAQ·요금제 소프트 삭제**: 하드 삭제 대신 `status=INACTIVE` 전환, 임베딩은 보존하되 RAG 검색 대상에서 제외
 
+**입력 검증**: 채팅 질문은 비어 있거나 2,000자를 넘으면 LLM 호출 전에 거부한다(질문마다 LLM 호출 비용이 들기 때문). 위치 좌표는 위도 ±90, 경도 ±180 범위만 받는다.
+
 **보안 원칙**: PII 마스킹(응답/로그), 관리자 API는 역할(role=ADMIN) 미들웨어 검증, DB 자격증명은 환경변수로만 주입, 네이티브 쿼리는 파라미터 바인딩
+
+---
+
+## 8. 멘토링 피드백 반영 현황과 남은 과제
+
+### 8.1 피드백 항목별 현황
+
+| 멘토링 피드백 | 한 일 | 결과 | 상태 |
+|---|---|---|---|
+| 현재 RAG를 Baseline으로 두고 변수 하나씩 바꿔 비교 | 평가 러너(FAQ 200문항·요금제 144문항)로 A~D와 Hybrid를 더한 8개 버전을 같은 코드·DB·정답지에서 비교. 질문 변환 결과를 파일로 고정해 "변환을 바꾼 실험"과 "검색 방식을 바꾼 실험"을 분리 | FAQ nDCG@10: A 77.4%, C 77.6%, C+H 78.8% (비교 표는 7장 "검색 품질 평가와 방식 선택") | 완료 |
+| Retrieval과 Generation 분리 평가 | Retrieval은 3·2·1점 등급 정답지로 Recall·nDCG·MRR 측정. Generation(같은 질문·같은 Context에서 프롬프트·모델·Temperature 비교, Hallucination 테스트)은 정리된 결과가 없음 | Retrieval 수치 확보 | Retrieval 완료, Generation 남음 |
+| Query Transformation | FAQ용·요금제용 질의와 최상급·정형 여부, 매장 의도(장소·매장 이름 포함)를 LLM 1회 JSON으로 읽음. 분류 호출을 따로 두지 않아 질문당 LLM 호출은 2회 | A 대비 FAQ nDCG +0.2~0.9%p로 신뢰구간이 0을 포함. 정형·매장·최상급 분기의 기반으로 쓰임 | 완료, 적용 중 |
+| 영어 임베딩 실험 | 질문 번역(B)과 질문 변환 후 번역(D), 영어 번역본(FAQ·요금제)에서 영어 벡터 검색 | FAQ nDCG B 76.2%, D 77.1%로 A·C와 같거나 낮고 요금제는 더 낮음 | 완료, 보류(코드 제거) |
+| BM25 + Vector + RRF를 로컬에서 먼저 검증 | 로컬 ParadeDB(pg_search)에서 FAQ·요금제 Hybrid를 구현하고 측정. 요금제는 BM25 비중을 높인 설정까지 확인 | FAQ는 +1%p 안팎(신뢰구간 0 경계), 요금제는 이득 없음 | 완료, 보류. RDS에 pg_search가 없어 DB 이전이 필요하므로 인프라 변경은 하지 않음 |
+| Threshold 재점검 | FAQ 0.83·요금제 0.81을 회귀 414문항과 실측 분포로 다시 확인. 요금제의 개별 컷·게이트·컷 없음 방식을 시뮬레이션으로 비교 | 값 유지. 게이트 방식은 시뮬레이션에서 nDCG +0.9%p였으나 적용하지 않음 | 완료 |
+| FAQ 후보 30개 선택 근거 | 후보 풀 크기(10·20·30·50)별 지표를 평가 러너가 함께 출력. 같은 답변의 변형은 중복 제거 후 상위 10개 | 풀 크기별 수치를 문서로 정리하지 못함 | 일부 |
+| Prompt 규칙 보강, Temperature | 시스템 프롬프트에 근거 밖 추측 금지, 개인화 정보 차단, 프롬프트 인젝션 방어, 매장·최상급 결과 처리 규칙 11개. `temperature 0.3` | 같은 질문에도 답변 표현이 달라질 수 있음 | 일부. Temperature와 프롬프트 조합 비교는 하지 않음 |
+| 더 좋은 LLM 비교 | 기본 모델을 gpt-oss-120b에서 Claude Sonnet 4.6으로 교체 | 같은 질문·Context로 비교한 품질·속도·비용 수치는 정리하지 못함 | 교체 완료, 비교 정리 남음 |
+| Trace/Span | 단계별 시간(질문 변환·임베딩·FAQ 검색·요금제 검색·Context 구성)은 로그와 평가 리포트로만 확인 가능. 요청 단위 기록은 남기지 않음 | - | 미착수 |
+| FAQ는 Chunking 불필요 | Q&A 1건 단위로 임베딩 | - | 반영 |
+
+### 8.2 최근 확인한 문제와 대응 방향
+
+| 문제 | 원인 | 대응 방향 |
+|---|---|---|
+| 개발 서버에서 답변이 중간에 끊기거나 "답변을 받지 못했어요"가 뜸 | Bedrock이 503(`ServiceUnavailableException`)을 반복해서 돌려줌. 앱에는 재시도와 대체 모델이 없음 | 첫 텍스트가 나가기 전의 503은 재시도하고, 반복되면 대체 모델로 응답. AWS에는 Request ID로 원인 문의 |
+| 문장 중간에서 끊긴 답변이 완료 상태로 저장됨 | 스트림이 예외 없이 끝나면 받은 만큼을 `COMPLETED`로 저장하고 종료 사유를 확인하지 않음 | 마지막 청크의 종료 사유를 확인해 비정상이면 `FAILED`로 처리. 원인(스트림이 왜 끝났는지)은 조사 중 |
+| "다시 시도"를 누르면 같은 질문이 사용자 메시지로 여러 번 쌓임 | 프론트의 재시도가 새 메시지를 보냄 | 재시도를 기존 메시지 재요청으로 바꾸도록 FE와 협의 |
+| "전체 요금제 목록"에 답하지 못함 | 조건이 없어 벡터 검색 상위 5개·threshold 경로로 감 | "전체/모든/목록" 표현을 조건 매칭 경로로 보내 20종을 돌려주는 규칙을 요금제 검색(BE3)에 추가 검토 |
 
 > **1조 : 500 Team**
