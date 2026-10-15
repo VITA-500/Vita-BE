@@ -80,6 +80,13 @@ public class BenefitService {
     public BenefitStoreListResponse findStores(String category, BigDecimal lat, BigDecimal lng,
                                                Double radiusKm, Integer limit, Long benefitId,
                                                Boolean openNow, String openAt){
+        return findStores(category, lat, lng, radiusKm, null, limit, benefitId, openNow, openAt);
+    }
+
+    /** minKm을 주면 그보다 먼 매장만 (채팅의 "1km 이상" 질문) */
+    public BenefitStoreListResponse findStores(String category, BigDecimal lat, BigDecimal lng,
+                                               Double radiusKm, Double minKm, Integer limit, Long benefitId,
+                                               Boolean openNow, String openAt){
         if(radiusKm != null && radiusKm <= 0){
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "반경(radius)은 0보다 커야합니다.");
         }
@@ -94,7 +101,7 @@ public class BenefitService {
 
         String target = category == null ? null : category.trim();
         List<BenefitStoreListResponse.Item> stores = storeRepository
-                .findPartnersNearby(lat, lng, target, benefitId, radiusKm, filterTime, size).stream()
+                .findPartnersNearby(lat, lng, target, benefitId, radiusKm, minKm, filterTime, size).stream()
                 .map(p -> new BenefitStoreListResponse.Item(p.getId(), p.getName(),
                         p.getAddress(), p.getLat(), p.getLng(), Math.round(p.getDistanceKm() * 100) / 100.0,
                         p.getBusinessHours(), BusinessHours.openAt(p.getBusinessHours(), now),
