@@ -104,6 +104,7 @@ public class ChatMessageService {
 	/** 세션 존재 여부와 소유자를 검증한다. 실패 시 BusinessException. */
 	public ChatSession getOwnedSession(Long sessionId, Long userId, UUID guestId) {
 	    ChatSession session = chatSessionRepository.findById(sessionId)
+				.filter(s -> !s.isDeleted())
 	            .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "존재하지 않는 세션입니다."));
 
 	    boolean isOwner = (session.getUserId() != null)

@@ -2,20 +2,14 @@ package com.vita.chat.controller;
 
 import java.util.UUID;
 
+import com.vita.chat.dto.*;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import com.vita.auth.security.UserPrincipal;
-import com.vita.chat.dto.ChatSessionClaimResponse;
-import com.vita.chat.dto.ChatSessionCreateResponse;
-import com.vita.chat.dto.ChatSessionListResponse;
 import com.vita.chat.service.ChatSessionService;
 import com.vita.common.exception.BusinessException;
 import com.vita.common.exception.ErrorCode;
@@ -82,4 +76,33 @@ public class ChatSessionController {
 
 		return ResponseEntity.ok(response);
 	}
+
+	@DeleteMapping("/{sessionId}")
+	public ResponseEntity<Void> deleteSession(
+			@PathVariable Long sessionId,
+			@AuthenticationPrincipal UserPrincipal user){
+
+		Long userId = PrincipalUtils.userIdOf(user);
+		if(userId == null) {
+			throw new BusinessException(ErrorCode.UNAUTHORIZED);
+		}
+
+		chatSessionService.deleteSession(sessionId, userId);
+		return ResponseEntity.noContent().build();
+	}
+
+	@PatchMapping("/{sessionId}/pin")
+	public ChatSessionPinResponse pinSession(
+			@PathVariable Long sessionId,
+			@AuthenticationPrincipal UserPrincipal user,
+			@Valid @RequestBody ChatSessionPinRequest request) {
+
+		Long userId = PrincipalUtils.userIdOf(user);
+		if (userId == null) {
+			throw new BusinessException(ErrorCode.UNAUTHORIZED); // 고정은 회원만
+		}
+
+		return chatSessionService.pinSession(sessionId, userId, request.pinned());
+	}
+
 }
