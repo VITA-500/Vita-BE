@@ -32,6 +32,7 @@ public class LlmQueryTransformer implements QueryTransformer {
     
     /** GB -> MB 환산. BE3가 DB에 저장한 값과 같은 기준이어야 한다 (아래 "확인할 것" 참고) */
     private static final int MB_PER_GB = 1024;
+    private static final double MAX_STORE_KM = 100.0;   // 거리 조건 상한 (매장 조회 최대 범위와 같음)
 
     private final BedrockChatClient bedrockChatClient;
     private final String systemPrompt;
@@ -141,14 +142,40 @@ public class LlmQueryTransformer implements QueryTransformer {
                 services.add(service.asText().trim());
             }
         });
+        // 장소가 여러 개면 첫 번째로 찾고 나머지는 안내에만 쓴다 ("안양역과 선릉역 근처")
+        List<String> places = new ArrayList<>();
+        node.path("store_places").forEach(place -> {
+            if (place.isTextual() && !place.asText().isBlank()) {
+                places.add(place.asText().trim());
+            }
+        });
+        Double minKm = parseKm(node, "store_min_km");
+        Double maxKm = parseKm(node, "store_max_km");
+        if (minKm != null && maxKm != null && minKm >= maxKm) {
+            log.warn("거리 조건이 맞지 않아 조건 없음으로 처리 - minKm={}, maxKm={}", minKm, maxKm);
+            minKm = null;
+            maxKm = null;
+        }
         return new StoreIntent(type,
                 blankToNull(textOrNull(node, "benefit_category")),
                 blankToNull(textOrNull(node, "benefit_brand")),
                 List.copyOf(services),
                 node.path("open_now").asBoolean(false),
                 parseTime(textOrNull(node, "open_at")),
-                blankToNull(textOrNull(node, "store_place")),
-                blankToNull(textOrNull(node, "store_name")));
+                places.isEmpty() ? null : places.get(0),
+                blankToNull(textOrNull(node, "store_name")),
+                places.size() > 1 ? List.copyOf(places.subList(1, places.size())) : List.of(),
+                minKm, maxKm);
+    }
+
+    /** 거리 조건(km). 0 이하이거나 100km를 넘으면 조건 없음(null)으로 본다 */
+    private static Double parseKm(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        if (value == null || !value.isNumber()) {
+            return null;
+        }
+        double km = value.asDouble();
+        return km > 0 && km <= MAX_STORE_KM ? km : null;
     }
 
     /** "HH:mm" 시각. 형식이 틀리면 조건 없음(null)으로 처리한다. */
