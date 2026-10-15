@@ -18,6 +18,15 @@ class PlanListRequestDetectorTest {
 	}
 
 	@Test
+	void detectsRequestsWhereAllIsFollowedByDa() {
+		assertThat(PlanListRequestDetector.matches("요금제 전부 다 알려줘")).isTrue();
+		assertThat(PlanListRequestDetector.matches("요금제 모두 다 보여주세요")).isTrue();
+		assertThat(PlanListRequestDetector.matches("요금제 전체 다 알려줘")).isTrue();
+		assertThat(PlanListRequestDetector.matches("비타 요금제 전부 다 설명해줘")).isTrue();
+		assertThat(PlanListRequestDetector.matches("전부 다 요금제 알려줘")).isTrue();
+	}
+
+	@Test
 	void detectsListNounsAndWhatExistsQuestions() {
 		assertThat(PlanListRequestDetector.matches("요금제 목록 보여줘")).isTrue();
 		assertThat(PlanListRequestDetector.matches("VITA 요금제 종류 알려줘")).isTrue();
@@ -40,6 +49,8 @@ class PlanListRequestDetectorTest {
 		assertThat(PlanListRequestDetector.matches("데이터 다 쓰고 나면 속도가 어떻게 되나요?")).isFalse();
 		assertThat(PlanListRequestDetector.matches("전체 데이터 사용량 확인하고 싶어요")).isFalse();
 		assertThat(PlanListRequestDetector.matches("요금제 다 내면 언제 정지돼?")).isFalse();
+		assertThat(PlanListRequestDetector.matches("요금제 전부 다 쓰면 어떻게 돼요?")).isFalse();
+		assertThat(PlanListRequestDetector.matches("요금제 데이터 전부 다 쓰고 나면 속도가 어떻게 돼요?")).isFalse();
 	}
 
 	@Test
