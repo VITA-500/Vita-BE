@@ -486,4 +486,29 @@ class RetrievalPipelineTest {
 
 		verify(planSearchService).search(any(), any(), any(float[].class), eq(7), eq(20));
 	}
+
+	@Test
+	void passesTheListNoticeThroughAndSkipsTheThresholdForAWholeListRequest() {
+		stubSearch(0.70, 0.50);
+		PlanSimilarityResult lowSimilarity = new PlanSimilarityResult(
+				1L, "VITA-LITE-5", "비타 라이트 5", "요약", 25000, "설명", 0.50, null,
+				"5G", "GENERAL", null, null, "LIMITED", 5120L, null, "UNLIMITED", null, "UNLIMITED", null);
+		when(planSearchService.search(any(), any(), any(float[].class), anyInt(), anyInt()))
+				.thenReturn(new PlanSearchService.PlanSearchOutcome(List.of(lowSimilarity), true, "안내: 전체 목록임"));
+
+		FaqRetrievalContext context = searchContext("전체 요금제 알려줘", 3);
+
+		// 유사도 0.50은 요금제 threshold(0.81) 아래지만, 전체 목록 요청은 안내할 요금제를 확정한 결과라 그대로 전달한다.
+		assertThat(context.planReferences()).hasSize(1);
+		assertThat(context.planNotice()).isEqualTo("안내: 전체 목록임");
+	}
+
+	@Test
+	void leavesThePlanNoticeEmptyForOrdinaryQuestions() {
+		stubSearch(0.87, 0.85);
+
+		FaqRetrievalContext context = searchContext("자동이체 계좌를 변경하고 싶어요", 3);
+
+		assertThat(context.planNotice()).isNull();
+	}
 }

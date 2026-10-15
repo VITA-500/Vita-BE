@@ -216,10 +216,13 @@ public class RetrievalPipeline {
 		}
 
 		double topSimilarity = Math.max(faq.topSimilarity(), planTopSimilarity);
+		// 전체 목록 요청의 안내 한 줄은 전달할 요금제가 있을 때만 붙인다.
+		String planNotice = planResults.isEmpty() ? null : planOutcome.listNotice();
 		FaqRetrievalContext context = new FaqRetrievalContext(
 				faq.results().stream().map(RetrievalPipeline::toReference).toList(),
 				planResults.stream().map(RetrievalPipeline::toPlanReference).toList(),
-				topSimilarity);
+				topSimilarity,
+				planNotice);
 
 		StageTimings timings = new StageTimings(transformNanos, embeddingNanos, faqSearchNanos, planSearchNanos, clock.lap());
 		return finish(transformed, faq, planOutcome, planResults, planTopSimilarity, topSimilarity, irrelevantRules,

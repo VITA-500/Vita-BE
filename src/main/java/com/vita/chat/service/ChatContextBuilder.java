@@ -42,6 +42,15 @@ public class ChatContextBuilder {
 
 	public ChatContext build(String question, List<FaqReference> faqs, List<PlanReference> plans,
 	        PlanIntent intent, PriceRange priceRange, DataRange dataRange) {
+	    return build(question, faqs, plans, intent, priceRange, dataRange, null);
+	}
+
+	/**
+	 * @param planNotice 요금제 전체 목록을 물은 질문에서 검색(BE3)이 붙인 안내 한 줄(전체 목록이라는 점, 기기 전용 요금제가
+	 *                   빠졌다는 점). 일반 질문이면 null이다. 일반 요금제 목록 바로 앞에 {@code <plan_notice>}로 넣는다.
+	 */
+	public ChatContext build(String question, List<FaqReference> faqs, List<PlanReference> plans,
+	        PlanIntent intent, PriceRange priceRange, DataRange dataRange, String planNotice) {
 
 		List<PlanReference> extremePlans = List.of();
 		if (intent.extreme()) {
@@ -74,6 +83,9 @@ public class ChatContextBuilder {
 			sb.append("<comparison_result>\n확인 결과: 사용자가 요청한 조건에 해당하는 요금제가 없음. 이 사실을 그대로 안내할 것.\n</comparison_result>\n");
 		}
 
+		if (planNotice != null && !planNotice.isBlank() && !generalPlans.isEmpty()) {
+			sb.append("<plan_notice>\n").append(PromptEscaper.escape(planNotice)).append("\n</plan_notice>\n");
+		}
 		generalPlans.stream().map(this::toPlanXml).forEach(xml -> sb.append(xml).append("\n"));
 		faqs.stream().map(this::toFaqXml).forEach(xml -> sb.append(xml).append("\n"));
 

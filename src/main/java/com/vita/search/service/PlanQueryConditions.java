@@ -114,6 +114,16 @@ public record PlanQueryConditions(
 	}
 
 	/**
+	 * 대상 그룹 하나만 지정했고 가격·데이터량·통화·문자·제외 그룹 같은 다른 조건은 없는지. "워치 요금제 포함해서 전체 요금제 알려줘"처럼
+	 * 기기를 말했을 뿐인 질문을 다른 조건이 걸린 질문과 구분하는 데 쓴다.
+	 */
+	public boolean hasOnlyTargetGroup() {
+		return targetGroup != null && feeMin == null && feeMax == null && dataMbMin == null && dataMbMax == null
+				&& dataPolicy == null && voicePolicy == null && smsPolicy == null && excludedGroups.isEmpty()
+				&& voiceMinutesMin == null && voiceMinutesMax == null && smsCountMin == null && smsCountMax == null;
+	}
+
+	/**
 	 * 데이터 정책 조건만 뺀 사본. "청년 요금제 무제한 있어?"처럼 조건을 모두 만족하는 요금제가 없을 때,
 	 * 가장 덜 확실한 조건(무제한 여부)을 포기하고 다시 찾기 위해 쓴다.
 	 */
