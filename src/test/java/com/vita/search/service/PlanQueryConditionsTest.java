@@ -147,4 +147,21 @@ class PlanQueryConditionsTest {
 
 		assertThat(own.orElse(of(null, null, null, null, null, null))).isEqualTo(own);
 	}
+
+	@Test
+	void withoutTargetGroupKeepsFeeDataAndPolicyButDropsTheGroupAndExclusions() {
+		PlanQueryConditions conditions = new PlanQueryConditions(30_000, 39_999, 1_024L, null, "YOUTH", "LIMITED", "UNLIMITED", null,
+				java.util.Set.of("SENIOR"), null, null, null, null);
+
+		PlanQueryConditions without = conditions.withoutTargetGroup();
+
+		assertThat(without.targetGroup()).isNull();
+		assertThat(without.excludedGroups()).isEmpty();
+		assertThat(without.feeMin()).isEqualTo(30_000);
+		assertThat(without.feeMax()).isEqualTo(39_999);
+		assertThat(without.dataMbMin()).isEqualTo(1_024L);
+		assertThat(without.dataPolicy()).isEqualTo("LIMITED");
+		assertThat(without.voicePolicy()).isEqualTo("UNLIMITED");
+		assertThat(of(null, null, null, null, "YOUTH", null).withoutTargetGroup().isEmpty()).isTrue();
+	}
 }

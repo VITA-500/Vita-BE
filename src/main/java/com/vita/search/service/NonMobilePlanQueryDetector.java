@@ -3,7 +3,8 @@ package com.vita.search.service;
 import java.util.regex.Pattern;
 
 /**
- * 모바일이 아닌 서비스(인터넷, IPTV, TV, 인터넷전화, CCTV)의 요금·상품을 묻는 질문인지 문장 모양(정규식)으로 알아본다.
+ * 요금제 표(plans 테이블)에 없는 서비스(인터넷, IPTV, TV, 인터넷전화, CCTV, 로밍)의 요금·상품을 묻는 질문인지 문장 모양(정규식)으로
+ * 알아본다. 로밍은 모바일 서비스지만 로밍 요금은 요금제가 아니라 FAQ(로밍 안내)가 답한다.
  *
  * <p>요금제 검색은 모바일 요금제(plans 테이블)만 다룬다. "인터넷 월 요금은 얼마예요?"처럼 모바일이 아닌 서비스의 요금을
  * 물어도 임베딩 유사도가 threshold를 넘으면 엉뚱한 모바일 요금제가 답으로 나가므로, 이런 질문은 요금제 검색을 건너뛴다.
@@ -16,9 +17,12 @@ import java.util.regex.Pattern;
  */
 public final class NonMobilePlanQueryDetector {
 
-	/** 모바일이 아닌 서비스 이름. "기가 인터넷", "가정용 인터넷"처럼 앞에 수식어가 붙어도 서비스 이름 부분만 맞으면 된다. */
+	/**
+	 * 요금제 표에 없는 서비스 이름. "기가 인터넷", "가정용 인터넷", "해외 로밍"처럼 앞에 수식어가 붙어도 서비스 이름 부분만 맞으면 된다.
+	 * 로밍은 "로밍 요금제 알려줘"가 로밍 요금제가 없는 요금제 표에서 엉뚱한 요금제를 끌어오는 질문이라 넣었다.
+	 */
 	private static final String SERVICE =
-			"(?:인터넷전화|인터넷|IPTV|iptv|아이피티비|(?<![A-Za-z])TV(?![A-Za-z])|티비|티브이|CCTV|cctv|시시티비|셋톱박스)";
+			"(?:인터넷전화|인터넷|IPTV|iptv|아이피티비|(?<![A-Za-z])TV(?![A-Za-z])|티비|티브이|CCTV|cctv|시시티비|셋톱박스|로밍)";
 
 	/** 요금·상품을 가리키는 말. */
 	private static final String FEE_WORD = "(?:요금제|요금|가격|비용|상품|플랜|할인|약정|사은품|월정액)";
@@ -38,6 +42,12 @@ public final class NonMobilePlanQueryDetector {
 	private static final Pattern MOBILE_MARKER = Pattern.compile(
 			"휴대폰|핸드폰|모바일|스마트폰|무선|(?<![가-힣])폰(?![가-힣])");
 
+	/**
+	 * 그 서비스의 요금제를 일부러 제외하는 표현. "로밍 요금제 말고 3만원대 요금제"는 로밍이 아니라 모바일 요금제를 묻는 질문이라
+	 * 요금제 검색을 건너뛰면 안 된다.
+	 */
+	private static final Pattern EXCLUSION = Pattern.compile("말고|빼고|제외|아니고|아닌(?![가-힣])");
+
 	private NonMobilePlanQueryDetector() {
 	}
 
@@ -51,7 +61,7 @@ public final class NonMobilePlanQueryDetector {
 		if (query == null || query.isBlank()) {
 			return false;
 		}
-		if (MOBILE_MARKER.matcher(query).find()) {
+		if (MOBILE_MARKER.matcher(query).find() || EXCLUSION.matcher(query).find()) {
 			return false;
 		}
 		return SERVICE_THEN_FEE.matcher(query).find() || SERVICE_THEN_HOW_MUCH.matcher(query).find();

@@ -291,7 +291,22 @@ public final class PlanQueryConditionExtractor {
 		if (!PLAN_CONTEXT.matcher(query).find()) {
 			return new PlanQueryConditions(null, null, null, null, null, null);
 		}
+		return read(query);
+	}
 
+	/**
+	 * {@link #extract}와 같지만 질문에 "요금제" 같은 말이 없어도 조건을 읽는다. 극값 조회("5만원 이하 중에 데이터 제일 많이 주는 거")처럼
+	 * 요금제 질문이라고 이미 확정된 뒤에 쓴다. 요금제 질문인지 모르는 질문에는 {@link #extract}를 쓴다.
+	 */
+	public static PlanQueryConditions extractAssumingPlanContext(String rawQuery) {
+		if (rawQuery == null) {
+			return new PlanQueryConditions(null, null, null, null, null, null);
+		}
+		return read(normalizeNumbers(fixSpelling(rawQuery)));
+	}
+
+	/** 정리된 질문에서 조건을 읽는다. 요금제 질문인지의 판단은 호출하는 쪽이 한다. */
+	private static PlanQueryConditions read(String query) {
 		Range fee = extractFee(query);
 		Range data = extractData(query);
 		Policies policies = extractPolicies(query);
