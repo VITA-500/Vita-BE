@@ -223,7 +223,11 @@ public class PlanEvalRunner implements CommandLineRunner {
 		TransformedQuery transformed;
 		if (TYPE_EXTREME.equals(question.type())) {
 			// BE4는 최상급 의도를 알아내면 검색 결과 대신 정형 조회 결과를 쓴다.
-			delivered = planLookupService.findExtremeForQuery(PlanSortKey.valueOf(question.sortKey()), extremeLimit, question.query())
+			// 조회 뒤의 마무리도 BE4와 같다: 정렬 기준 값이 같은 요금제는 개수 제한을 넘어도 함께 남긴다(ChatContextBuilder).
+			// BE4가 변환기에서 받는 가격·데이터량 범위 필터는 재현하지 않는다. 같은 조건은 조회 쪽이 질문 원문에서 읽어 이미 적용한다.
+			PlanSortKey sortKey = PlanSortKey.valueOf(question.sortKey());
+			delivered = PlanLookupService.limitWithTies(
+							planLookupService.findExtremeForQuery(sortKey, extremeLimit, question.query()), sortKey, extremeLimit)
 					.stream().map(PlanReference::planCode).toList();
 			path = PlanEvalPath.LOOKUP_NAME;
 			// 정형 조회는 질문 변환을 거치지 않고 원문으로 부른다(BE4의 최상급 분기).

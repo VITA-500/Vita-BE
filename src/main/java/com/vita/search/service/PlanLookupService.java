@@ -1,7 +1,9 @@
 package com.vita.search.service;
 
 import com.vita.search.dto.PlanReference;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * BE4가 요금제 비교·최상급 질문(가장 저렴한/비싼, 데이터 제일 많은/적은)의 의도를 감지했을 때
@@ -40,11 +42,78 @@ public interface PlanLookupService {
 	 * @param query 사용자 질문 원문
 	 */
 	default List<PlanReference> findExtremeForQuery(PlanSortKey sortKey, int limit, String query) {
+		if (limit < 1) {
+			throw new IllegalArgumentException("limit은 1 이상이어야 합니다.");
+		}
 		if (NonMobilePlanQueryDetector.matches(query)) {
 			return List.of();
 		}
 		String group = PlanQueryConditionExtractor.targetGroupOf(query);
-		return findExtreme(sortKey, limit, group != null ? group : GENERAL_GROUP);
+		String scope = group != null ? group : GENERAL_GROUP;
+
+		// "3만원대 중에서 가장 저렴한", "무제한 중에 제일 싼"처럼 질문에 가격·데이터량·무제한 조건이 함께 있으면 그 조건을 만족하는
+		// 요금제 안에서 가장 ~한 것을 찾는다. 조건을 보지 않으면 조건 밖의 요금제(25,000원)가 "3만원대에서 가장 저렴한 것"으로 나간다.
+		PlanQueryConditions narrowing = PlanQueryConditionExtractor.extractAssumingPlanContext(query).withoutTargetGroup();
+		Set<String> allowed = narrowing.isEmpty() ? null : matchingPlanCodes(narrowing);
+
+		// 조건으로 거를 때는 넉넉히 가져오고, 아니면 동률(같은 값이 여러 요금제)을 알아볼 만큼만 더 가져온다.
+		int fetch = allowed != null ? EXTREME_FETCH_LIMIT : limit + MAX_TIED_EXTRA;
+		List<PlanReference> sorted = findExtreme(sortKey, Math.max(fetch, limit), scope);
+		if (allowed != null) {
+			sorted = sorted.stream().filter(plan -> allowed.contains(plan.planCode())).toList();
+		}
+		return limitWithTies(sorted, sortKey, limit);
+	}
+
+	/** 조건으로 거를 때 한 번에 가져올 후보 수. 요금제가 20종 안팎이라 부담이 없다. */
+	int EXTREME_FETCH_LIMIT = 50;
+
+	/** 동률일 때 limit 개수에 더해 돌려줄 최대 개수. 같은 값이 많아도 목록이 길어지지 않게 한다. */
+	int MAX_TIED_EXTRA = 2;
+
+	/**
+	 * 조건({@link PlanQueryConditions})을 모두 만족하는 요금제의 plan_code. 조건으로 거르는 것을 지원하지 않는 구현은 null을
+	 * 돌려주며, 이때 극값 조회는 조건 없이 동작한다(기존 동작).
+	 */
+	default Set<String> matchingPlanCodes(PlanQueryConditions conditions) {
+		return null;
+	}
+
+	/**
+	 * 정렬된(가장 ~한 요금제가 앞) 목록에서 limit개를 고르되, 마지막으로 고른 요금제와 정렬 기준 값이 같은 요금제가 뒤에 이어지면
+	 * (최대 {@link #MAX_TIED_EXTRA}개까지) 함께 돌려준다. "데이터 제일 많이 주는 요금제"에서 무제한 요금제가 둘이면 하나만 답하지
+	 * 않고 둘 다 알려주기 위해서다.
+	 *
+	 * @param sortedBestFirst 정렬 기준에 따라 정렬된 목록
+	 * @param sortKey         정렬 기준(동률 판단에 쓸 값을 정한다: 요금 또는 데이터량)
+	 * @param limit           기본으로 고를 개수
+	 */
+	static List<PlanReference> limitWithTies(List<PlanReference> sortedBestFirst, PlanSortKey sortKey, int limit) {
+		if (limit < 1) {
+			return List.of();
+		}
+		if (sortedBestFirst.size() <= limit) {
+			return List.copyOf(sortedBestFirst);
+		}
+		List<PlanReference> chosen = new ArrayList<>(sortedBestFirst.subList(0, limit));
+		long boundary = sortValue(sortKey, chosen.get(limit - 1));
+		for (int i = limit, extra = 0; i < sortedBestFirst.size() && extra < MAX_TIED_EXTRA; i++, extra++) {
+			if (sortValue(sortKey, sortedBestFirst.get(i)) != boundary) {
+				break;
+			}
+			chosen.add(sortedBestFirst.get(i));
+		}
+		return List.copyOf(chosen);
+	}
+
+	/** 동률 판단에 쓰는 값. 요금 기준이면 월 요금, 데이터 기준이면 데이터량(무제한은 가장 큰 값, 정보가 없으면 -1). */
+	private static long sortValue(PlanSortKey sortKey, PlanReference plan) {
+		return switch (sortKey) {
+			case CHEAPEST, MOST_EXPENSIVE -> plan.monthlyFee();
+			case MOST_DATA, LEAST_DATA -> "UNLIMITED".equals(plan.dataPolicy())
+					? Long.MAX_VALUE
+					: plan.baseDataMb() == null ? -1L : plan.baseDataMb();
+		};
 	}
 
 	/**

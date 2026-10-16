@@ -64,11 +64,12 @@ public class ChatContextBuilder {
 		if (intent.extreme()) {
 		    boolean hasRange = !priceRange.isEmpty() || !dataRange.isEmpty();
 		    int fetch = hasRange ? EXTREME_FETCH_LIMIT : intent.limit();
-		    extremePlans = planLookupService.findExtremeForQuery(intent.sortKey(), fetch, question).stream()
+		    List<PlanReference> inRange = planLookupService.findExtremeForQuery(intent.sortKey(), fetch, question).stream()
 		            .filter(p -> priceRange.contains(p.monthlyFee()))
 		            .filter(p -> dataRange.contains(isUnlimited(p), p.baseDataMb()))
-		            .limit(intent.limit())
 		            .toList();
+		    // 정렬 기준 값이 같은 요금제(무제한이 둘일 때 등)는 limit을 넘어도 함께 안내한다.
+		    extremePlans = PlanLookupService.limitWithTies(inRange, intent.sortKey(), intent.limit());
 		}
 
 	 // 범위 조건이 있는 극값 질문인데 조건에 맞는 요금제가 없는 경우
