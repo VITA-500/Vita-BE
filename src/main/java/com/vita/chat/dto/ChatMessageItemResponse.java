@@ -15,6 +15,7 @@ public record ChatMessageItemResponse(
 		LocalDateTime createdAt,
 		ChatMessageStatus status,
 		ChatStoreMap storeMap,
+		List<ChatPlanCard> plans,
 		List<ChatAction> actions,
 		ChatMessageFeedback feedback
 		) {
@@ -26,6 +27,7 @@ public record ChatMessageItemResponse(
 				message.getCreatedAt(),
 				message.getStatus(),
 				message.getStoreMap(),
+				message.getPlans(),
 				message.getActions(),
 				message.getFeedback()
 				);

@@ -1,5 +1,6 @@
 package com.vita.chat.service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -25,8 +26,15 @@ public class ChatContextBuilder {
 	/** 가격 범위로 거른 뒤 limit만큼 쓰기 위해 넉넉히 조회한다 (요금제 수가 적어 부담 없음) */
 	private static final int EXTREME_FETCH_LIMIT = 50;
 
-	public record ChatContext(String text, List<FaqReference> faqs) {
-		public static ChatContext empty() { return new ChatContext("", List.of()); }
+	/** @param plans LLM에 넘긴 요금제. 답변에 나온 것만 골라 요금제 카드로 쓴다 */
+	public record ChatContext(String text, List<FaqReference> faqs, List<PlanReference> plans) {
+		public ChatContext(String text, List<FaqReference> faqs) {
+			this(text, faqs, List.of());
+		}
+
+		public static ChatContext empty() {
+			return new ChatContext("", List.of());
+		}
 	}
 
 	/**
@@ -94,7 +102,9 @@ public class ChatContextBuilder {
 				extremePlans.stream().map(PlanReference::name).toList(),
 				generalPlans.stream().map(PlanReference::name).toList());
 
-		return new ChatContext(sb.toString(), faqs);
+		List<PlanReference> contextPlans = new ArrayList<>(extremePlans);
+		contextPlans.addAll(generalPlans);
+		return new ChatContext(sb.toString(), faqs, List.copyOf(contextPlans));
 	}
 	
 	private static boolean isUnlimited(PlanReference p) {

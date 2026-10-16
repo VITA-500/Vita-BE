@@ -7,6 +7,7 @@ import java.util.List;
 
 import com.vita.chat.UnresolvedReason;
 import com.vita.chat.dto.ChatAction;
+import com.vita.chat.dto.ChatPlanCard;
 import com.vita.chat.dto.ChatStoreMap;
 import com.vita.chat.ChatMessageFeedback;
 import com.vita.chat.ChatMessageRole;
@@ -70,6 +71,11 @@ public class ChatMessage {
 	@Column(name = "store_map", columnDefinition = "jsonb")
 	private ChatStoreMap storeMap;
 
+	// 답변과 함께 보낸 요금제 카드
+	@JdbcTypeCode(SqlTypes.JSON)
+	@Column(columnDefinition = "jsonb")
+	private List<ChatPlanCard> plans;
+
 	// 답변 아래 추천 버튼
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(columnDefinition = "jsonb")
@@ -117,15 +123,26 @@ public class ChatMessage {
 		markCompleted(content, storeMap, actions, null, null);
 	}
 
-	/** 매장 지도·추천 버튼·미해결 여부와 함께 완료 처리. 빈 버튼 목록은 null로 저장 */
 	public void markCompleted(String content, ChatStoreMap storeMap, List<ChatAction> actions,
+	                          UnresolvedReason unresolvedReason, Double topSimilarity) {
+		markCompleted(content, storeMap, List.of(), actions, unresolvedReason, topSimilarity);
+	}
+
+	/** 매장 지도, 요금제 카드, 추천 버튼, 미해결 여부와 함께 완료 처리. */
+	public void markCompleted(String content, ChatStoreMap storeMap, List<ChatPlanCard> plans, List<ChatAction> actions,
 	                          UnresolvedReason unresolvedReason, Double topSimilarity) {
 		this.content = content;
 		this.status = ChatMessageStatus.COMPLETED;
 		this.storeMap = storeMap;
+		this.plans = (plans == null || plans.isEmpty()) ? null : plans;
 		this.actions = (actions == null || actions.isEmpty()) ? null : actions;
 		this.unresolvedReason = unresolvedReason;
 		this.topSimilarity = topSimilarity;
+	}
+
+	/** 요금제 카드. */
+	public List<ChatPlanCard> getPlans() {
+		return plans == null ? List.of() : plans;
 	}
 	
 	/**
