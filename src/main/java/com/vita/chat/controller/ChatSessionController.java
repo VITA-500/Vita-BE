@@ -105,4 +105,18 @@ public class ChatSessionController {
 		return chatSessionService.pinSession(sessionId, userId, request.pinned());
 	}
 
+	@PatchMapping("/{sessionId}/title")
+	public ChatSessionTitleResponse renameSession(
+			@PathVariable Long sessionId,
+			@AuthenticationPrincipal UserPrincipal user,
+			@Valid @RequestBody ChatSessionTitleRequest request) {
+
+		Long userId = PrincipalUtils.userIdOf(user);
+		if (userId == null) {
+			throw new BusinessException(ErrorCode.UNAUTHORIZED); // 이름 변경은 회원만
+		}
+
+		return chatSessionService.renameSession(sessionId, userId, request.title());
+	}
+
 }
