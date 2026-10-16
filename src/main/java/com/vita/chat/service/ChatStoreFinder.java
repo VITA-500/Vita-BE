@@ -35,8 +35,12 @@ public class ChatStoreFinder {
     private static final DateTimeFormatter HH_MM = DateTimeFormatter.ofPattern("HH:mm");
 
     // 매장 데이터에 요일별 영업 정보가 없어 매일 같은 시간으로 본다 (LLM이 휴무일을 지어내지 않게)
+    // 목록은 가까운 일부라서 개수·"가장 ~한 매장"을 전체 기준으로 단정하지 않게 한다
     private static final String ON_MAP =
-            "안내: 아래 매장 목록은 화면의 지도에도 함께 표시됨. 모든 매장은 요일과 상관없이 매일 같은 영업시간으로 영업함.\n";
+            "안내: 아래 매장 목록은 화면의 지도에도 함께 표시됨. 모든 매장은 요일과 상관없이 매일 같은 영업시간으로 영업함. " +
+                    "목록은 조건에 맞는 매장 중 가까운 순 최대 " + LIMIT + "곳임. 사용자가 매장 수를 묻거나 " +
+                    "'가장 먼', '가장 늦게까지'처럼 전체를 비교하는 질문을 했을 때만 가까운 " + LIMIT + "곳 기준이라는 점을 밝히고 " +
+                    "전체 개수나 전체 중 1위처럼 단정하지 말 것. 그 외 질문에는 이 내용을 덧붙이지 말 것.\n";
 
     private static final String NO_LOCATION =
             "확인 결과: 사용자 위치 정보가 없어 주변 매장을 조회하지 못함. 위치 사용을 허용하면 " +
@@ -88,7 +92,10 @@ public class ChatStoreFinder {
     private SearchPoint searchPoint(StoreIntent intent, BigDecimal lat, BigDecimal lng) {
         String missedStore = null;
         List<String> others = intent.otherPlaces();
-        if (intent.storeName() != null) {
+        // "1호점"처럼 번호만 있는 이름은 매장을 특정할 수 없어 찾지 않는다 (아무 1호점이나 잡히지 않게)
+        if (intent.storeName() != null && isVagueStoreName(intent.storeName())) {
+            missedStore = intent.storeName();
+        } else if (intent.storeName() != null) {
             Optional<StorePointResponse> store = storeService.findByNameForChat(intent.storeName());
             log.info("매장 이름 검색 - storeName={}, found={}", intent.storeName(), store.map(StorePointResponse::name));
             if (store.isPresent()) {
@@ -162,9 +169,20 @@ public class ChatStoreFinder {
     }
 
     private static String missedStoreNote(SearchPoint point) {
-        return point.missedStore() == null ? "" :
-                "안내: 사용자가 말한 매장 \"" + PromptEscaper.escape(point.missedStore()) + "\"은 매장 목록에 없음. " +
-                        "이 사실을 먼저 안내할 것.\n";
+        if (point.missedStore() == null) {
+            return "";
+        }
+        String name = PromptEscaper.escape(point.missedStore());
+        if (isVagueStoreName(point.missedStore())) {
+            return "안내: 사용자가 말한 \"" + name + "\"은 같은 이름의 매장이 여러 곳이라 특정할 수 없음. " +
+                    "역이나 동네 이름과 함께 물어봐 달라고 먼저 안내할 것.\n";
+        }
+        return "안내: 사용자가 말한 매장 \"" + name + "\"은 매장 목록에 없음. 이 사실을 먼저 안내할 것.\n";
+    }
+
+    // 비타·번호·호점·출구·점을 빼고 남는 글자가 없으면 매장을 특정할 수 없는 이름 ("1호점", "3번출구점")
+    private static boolean isVagueStoreName(String name) {
+        return name.replaceAll("\\s+|비타|\\d+|호점|번출구|출구|번|점", "").isEmpty();
     }
 
     private StoreLookup findPhoneStores(StoreIntent intent, SearchPoint point){
@@ -177,35 +195,58 @@ public class ChatStoreFinder {
         // 거리 조건: 최대 거리를 말했으면 그 반경, 최소 거리만 말했으면 최대 범위(100km)에서 가까운 순
         Double minKm = point.named() ? null : intent.minKm();
         Double maxKm = point.named() ? null : intent.maxKm();
-        boolean distanceAsked = minKm != null || maxKm != null;
+        PhoneSearch found = searchPhoneStores(point, services, time, minKm, maxKm);
+        log.info("통신 매장 조회 - storeIntent={}, count={}", intent, found.stores().size());
+
+        String note = placeNote(point) + distanceNote(minKm, maxKm);
+        // 그 시각에 영업하는 매장이 없으면 시간 조건 없이 다시 찾아 영업시간과 함께 안내한다 ("아침 8시에 갈 수 있는 매장")
+        if(found.stores().isEmpty() && time != null){
+            PhoneSearch anyTime = searchPhoneStores(point, services, null, minKm, maxKm);
+            if(!anyTime.stores().isEmpty()){
+                found = anyTime;
+                note += closedAtNote(intent, "통신");
+            }
+        }
+        if(found.stores().isEmpty()){
+            String condition = minKm != null || maxKm != null ? "거리 조건(" + distanceText(minKm, maxKm) + ")에" : "조건에";
+            return new StoreLookup(result(note + "확인 결과: " + condition +
+                    " 맞는 통신 매장이 없음. 이 사실을 그대로 안내할 것.\n"), null);
+        }
+        List<StoreChatItemResponse> stores = found.stores();
+        String xml = stores.stream()
+                .map(this::toPhoneStoreXml).collect(Collectors.joining());
+        return new StoreLookup(result(note + found.farNote() + ON_MAP + xml),
+                ChatStoreMap.ofPhoneStores(stores, intent.services(), point.lat(), point.lng(), point.place()));
+    }
+
+    /** @param farNote 5km 안에 없어 더 넓게 찾았을 때의 안내 (아니면 빈 문자열) */
+    private record PhoneSearch(List<StoreChatItemResponse> stores, String farNote) {
+    }
+
+    // 최대 거리를 말했으면 그 반경, 최소 거리만 말했으면 최대 범위(100km)에서 가까운 순
+    // 거리 조건이 없고 5km 안에 없으면 100km까지 넓혀 가장 가까운 매장을 찾는다 (매장 데이터가 서울 근처뿐이라 그 밖에서 물을 때)
+    private PhoneSearch searchPhoneStores(SearchPoint point, List<String> services, LocalTime time,
+                                          Double minKm, Double maxKm) {
         double radiusKm = maxKm != null ? maxKm : (minKm != null ? PHONE_STORE_FALLBACK_RADIUS_KM : PHONE_STORE_RADIUS_KM);
         List<StoreChatItemResponse> stores = storeService.findNearbyForChat(
                 point.lat(), point.lng(), radiusKm, minKm, LIMIT, services, time);
-        log.info("통신 매장 조회 - storeIntent={}, count={}", intent, stores.size());
-
-        String note = placeNote(point) + distanceNote(minKm, maxKm);
-        String farNote = "";
-        if(stores.isEmpty()){
-            // 사용자가 거리를 직접 정했으면 범위를 넓히지 않는다
-            if(distanceAsked){
-                return new StoreLookup(result(note + "확인 결과: 거리 조건(" + distanceText(minKm, maxKm) +
-                        ")에 맞는 통신 매장이 없음. 이 사실을 그대로 안내할 것.\n"), null);
-            }
-            // 5km 안에 없으면 더 넓게 찾아 가장 가까운 매장을 안내한다 (매장 데이터가 서울 근처뿐이라 그 밖에서 물을 때)
-            stores = storeService.findNearbyForChat(
-                    point.lat(), point.lng(), PHONE_STORE_FALLBACK_RADIUS_KM, LIMIT, services, time);
-            log.info("통신 매장 5km 밖 조회 - count={}", stores.size());
-            if(stores.isEmpty()){
-                return new StoreLookup(result(note +
-                        "확인 결과: 조건에 맞는 통신 매장이 없음. 이 사실을 그대로 안내할 것.\n"), null);
-            }
-            farNote = "확인 결과: 반경 5km 안에는 조건에 맞는 통신 매장이 없음. 아래는 그보다 먼 곳 중 가장 가까운 매장이니 " +
-                    "5km 안에는 없다는 점과 거리를 함께 안내할 것.\n";
+        // 사용자가 거리를 직접 정했으면 범위를 넓히지 않는다
+        if (!stores.isEmpty() || minKm != null || maxKm != null) {
+            return new PhoneSearch(stores, "");
         }
-        String xml = stores.stream()
-                .map(this::toPhoneStoreXml).collect(Collectors.joining());
-        return new StoreLookup(result(note + farNote + ON_MAP + xml),
-                ChatStoreMap.ofPhoneStores(stores, intent.services(), point.lat(), point.lng(), point.place()));
+        stores = storeService.findNearbyForChat(
+                point.lat(), point.lng(), PHONE_STORE_FALLBACK_RADIUS_KM, LIMIT, services, time);
+        log.info("통신 매장 5km 밖 조회 - count={}", stores.size());
+        return new PhoneSearch(stores, stores.isEmpty() ? "" :
+                "확인 결과: 반경 5km 안에는 조건에 맞는 통신 매장이 없음. 아래는 그보다 먼 곳 중 가장 가까운 매장이니 " +
+                        "5km 안에는 없다는 점과 거리를 함께 안내할 것.\n");
+    }
+
+    // 시간 조건을 빼고 다시 찾았을 때 안내 (그 시각에 연다고 오해하지 않게)
+    private static String closedAtNote(StoreIntent intent, String storeKind) {
+        String when = intent.openNow() ? "지금" : "요청한 시각(" + intent.openAt().format(HH_MM) + ")에";
+        return "확인 결과: " + when + " 영업하는 " + storeKind + " 매장은 없음. 아래는 시간 조건 없이 찾은 가까운 매장이니, " +
+                "그 시각에는 영업하지 않는다는 점과 각 매장의 영업시간을 함께 안내할 것.\n";
     }
 
     private StoreLookup findPartnerStores(StoreIntent intent, BigDecimal lat, BigDecimal lng) {
@@ -243,6 +284,14 @@ public class ChatStoreFinder {
                 intent, category, benefitId, stores.size());
 
         xml.append(placeNote(point)).append(distanceNote(minKm, maxKm));
+        // 그 시각에 영업하는 매장이 없으면 시간 조건 없이 다시 찾아 영업시간과 함께 안내한다
+        if (stores.isEmpty() && time != null) {
+            stores = benefitService.findStores(category, point.lat(), point.lng(), maxKm, minKm, LIMIT,
+                    benefitId, null, null).stores();
+            if (!stores.isEmpty()) {
+                xml.append(closedAtNote(intent, "제휴"));
+            }
+        }
         if (stores.isEmpty()) {
             return new StoreLookup(result(xml +
                     "확인 결과: 조건에 맞는 제휴 매장이 없음.\n"), null);
