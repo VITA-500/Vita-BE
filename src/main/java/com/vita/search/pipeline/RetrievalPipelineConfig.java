@@ -23,7 +23,7 @@ public class RetrievalPipelineConfig {
 	@Bean
 	public RetrievalSettings retrievalSettings(
 			@Value("${retrieval.similarity-threshold:0.83}") double faqThreshold,
-			@Value("${plan.retrieval.similarity-threshold:0.81}") double planThreshold,
+			@Value("${plan.retrieval.similarity-threshold:0.79}") double planThreshold,
 			@Value("${retrieval.irrelevant-rule.enabled:true}") boolean irrelevantRuleEnabled,
 			@Value("${retrieval.category-boost.bonus:0.01}") double categoryBoostBonus,
 			@Value("${plan.retrieval.top-k:5}") int planTopK,
