@@ -26,7 +26,6 @@
    - [LLM 연동](#llm-연동)
    - [Temperature 비교 (환각 평가)](#temperature-비교-환각-평가)
    - [기타 설계 원칙](#기타-설계-원칙)
-8. [멘토링 피드백 반영 현황](#8-멘토링-피드백-반영-현황)
 
 ---
 
@@ -50,7 +49,7 @@
 | RAG 구성 | 질문 변환(LLM) → 벡터 검색(FAQ·요금제) → 요금제 조건 매칭 → 후처리·threshold → 답변 생성(SSE 스트리밍) |
 | 검색 방식 | 질문 변환 + 벡터 검색으로 확정. 영어 번역·BM25 Hybrid는 실험 후 도입하지 않음 |
 | LLM | Claude Sonnet 4.6 (AWS Bedrock) |
-| 평가 | FAQ 224문항(정답지 v2.3)·요금제 158문항 정답지로 방식별 Recall·nDCG·MRR 비교, 환각 평가 30문항 |
+| 평가 | FAQ 224문항(정답지 v2.3)·요금제 158문항 정답지로 방식별 Recall·nDCG·MRR 비교, 환각 평가(60문항 + 30문항×3회, 사람 판정) |
 
 ---
 
@@ -101,10 +100,6 @@
 | 배포 | ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white) ![AWS EC2](https://img.shields.io/badge/AWS%20EC2-FF9900?style=for-the-badge&logo=amazonec2&logoColor=white) ![AWS RDS](https://img.shields.io/badge/AWS%20RDS-527FFF?style=for-the-badge&logo=amazonrds&logoColor=white) |
 | HTTPS | ![Nginx](https://img.shields.io/badge/Nginx-009639?style=for-the-badge&logo=nginx&logoColor=white) ![Let's Encrypt](https://img.shields.io/badge/Let's%20Encrypt-003A70?style=for-the-badge&logo=letsencrypt&logoColor=white) |
 | CI/CD | ![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white) |
-
-### Frontend
-
-Next.js 16 · React 19 · TypeScript · Tailwind CSS · Zustand · TanStack Query · React Hook Form · Zod · Kakao Maps SDK · MSW · Playwright · Vercel 배포
 
 **왜 pgvector인가**: 별도 Vector DB(Chroma 등)를 구축하지 않고 PostgreSQL의 pgvector 확장으로 RDB와 Vector DB를 하나로 통합 — 인프라를 단순화하고 팀 규모/예산(7주, 약 48만원)에 맞춘 선택
 
@@ -166,7 +161,9 @@ Next.js 16 · React 19 · TypeScript · Tailwind CSS · Zustand · TanStack Quer
 **채팅**
 
 - AI 질문-답변(RAG) — 질문 변환 → 검색 → 답변 생성 / SSE 스트리밍(`GET /chat/sessions/{id}/events`) / 응답 상태 처리 / 세션·히스토리 저장 `필수`
+- 요금제 카드 — 답변에 이름이 나온 요금제를 카드 화면용 데이터(`plans`)로 함께 내려주고, 답변 시점의 값을 메시지에 저장해 요금제가 나중에 바뀌어도 과거 대화는 당시 카드로 보인다 `선택`
 - 대화 고정·삭제(회원 전용) — `PATCH /chat/sessions/{id}/pin`으로 고정하면 목록에서 먼저 보이고, `DELETE /chat/sessions/{id}`는 소프트 삭제(미해결 질문 신고·통계가 메시지를 참조해 행은 남김) `선택`
+- 대화 이름 변경(회원 전용) — `PATCH /chat/sessions/{id}/title`로 대화 이름을 바꾼다. 바꾸기 전에는 첫 질문의 앞 18자가 이름이 된다 `선택`
 - 비회원(게스트) 채팅 — `X-Guest-Id`로 식별, 로그인하면 비회원 때의 채팅이 로그인 계정으로 이어짐(`POST /chat/sessions/{id}/claim`) `필수`
 - 매장·제휴 혜택 질문 — 질문에서 매장 의도를 읽어 주변 통신 매장·제휴 매장과 혜택을 안내하고("방학역 근처" 같은 장소나 매장 이름이 있으면 그 기준으로 찾음), 지도 데이터(`store_map`)와 지도 화면 이동 버튼(`actions`)을 함께 내려줌 `필수`
 - 미해결 질문 관리자 신고 (`POST /chat/messages/{id}/report-to-admin`) `필수`
@@ -253,7 +250,7 @@ flowchart TD
     E --> F["FAQ 유사도 검색<br/>후보 30개 → 분류 이름 가산점<br/>같은 답변 중복 제거 → 상위 10개"]
     E --> G["요금제 검색<br/>PlanSearchService<br/>조건 매칭 + 벡터 유사도"]
     F --> H{"유사도<br/>≥ 0.83?"}
-    G --> I{"조건 매칭됨<br/>또는<br/>유사도 ≥ 0.81?"}
+    G --> I{"조건 매칭됨<br/>또는<br/>유사도 ≥ 0.79?"}
     H -->|Yes| J[참고 FAQ 목록]
     H -->|No| K["topSimilarity만 기록<br/>(미해결 질문<br/>판정용)"]
     I -->|Yes| M[참고 요금제 목록]
@@ -298,7 +295,7 @@ flowchart TD
 
 **threshold는 실측으로 정했다**
 - **FAQ 0.83** — 카테고리를 늘린 데이터로 재측정한 값이다. "심카드를 새로 받아야 하는데..."처럼 "유심"을 피한 질문의 top1이 엉뚱한 요금/납부 FAQ로 0.8179가 나온 적이 있는데, 0.83은 로밍/요금 파라프레이즈 정답(0.8423/0.8547)은 통과시키고 이 오매칭(0.8179)과 무관 질문(\~0.80)은 걸러내는 경계값이다
-- **요금제 0.81** — 요금제는 설명 문장 형태라 FAQ와 분포가 다르다. 대상 그룹이 맞는 질문의 top1은 0.8208–0.8767, 무관 질문은 0.7414–0.8008이라 그 사이값으로 잡았고, 20종으로 늘린 뒤에도 유지했다
+- **요금제 0.79** — 요금제는 설명 문장 형태라 FAQ와 분포가 다르다. 처음에는 대상 그룹이 맞는 질문의 top1(0.8208–0.8767)과 무관 질문의 top1(0.7414–0.8008) 사이인 0.81로 잡았다. 그런데 20종으로 늘린 뒤 "통화는 많이 하는데 데이터는 거의 안 써요" 같은 서술형 질문이 조건으로 읽히지 않고 유사도도 0.79–0.81이라 빈 응답이 되는 문제가 있어 0.79로 낮췄다. 요금제 평가셋 158문항(질문 변환 결과 고정)에서 0.81/0.80/0.79/0.78을 비교했더니 정답이 있는데 빈 응답이 된 질문이 4건에서 0건으로, 서술형 12문항의 Hit@1이 66.7%에서 83.3%로 나아졌다. 0.77 이하는 "맛집 추천해줘"까지 새서 0.79에서 멈췄다
 
 **요금제 조건 매칭**: 임베딩은 "3만1천원"과 "31,000원"이 같은 값이라는 것도, "무제한 아니고" 같은 부정도 잘 구분하지 못한다. 그래서 질문에서 가격·데이터량·대상 그룹·무제한 여부·통화/문자 조건을 규칙(정규식, LLM 호출 없음)으로 뽑아 `plans` 컬럼과 직접 비교한다(`PlanQueryConditionExtractor`). 원문에서 먼저 읽고 못 읽으면 요금제용 질의에서 읽는다.
 - "요금제"·"플랜"이나 요금제 이름이 있을 때만 실행하고, 할인·쿠폰·로밍이 붙은 금액("3만원 할인 쿠폰")은 조건으로 읽지 않으며 "요금재" 같은 오표기는 바르게 고쳐 읽는다
@@ -314,15 +311,15 @@ flowchart TD
 
 | 규칙 | 잡는 질문 |
 |---|---|
-| `PERSONAL_LOOKUP` | "내 요금 얼마 나왔어?"처럼 1인칭과 조회 표현이 함께 있는 질문(방법·절차를 묻는 질문은 제외) |
+| `PERSONAL_LOOKUP` | "내 요금 얼마 나왔어?"처럼 1인칭과 조회 표현이 함께 있는 질문, 또는 1인칭이 없어도 "지난달 요금이 얼마 나왔는지", "남은 데이터가 얼마야?", "지금 이용 중인 요금제가 뭐예요?"처럼 본인의 사용·청구 기록과 가입 상태를 묻는 질문(방법·절차·정책이나 가능 여부를 묻는 질문은 제외) |
 | `COMPETITOR_BRAND` | SKT·KT·LG유플러스·알뜰폰 등 타사 이름이 들어간 질문 |
-| `COMPETITOR_GENERIC` | "다른 통신사"와 비교·혜택 표현이 함께 있는 질문 |
+| `COMPETITOR_GENERIC` | "다른 통신사"·"기존에 쓰던 통신사"와 비교·혜택 표현이 함께 있는 질문 |
 
-회귀 측정에서 정상 질문 오탐 0건(1,863개)이었고 threshold를 넘어 새던 무관 질문의 45–79%를 막았다. `retrieval.irrelevant-rule.enabled=false`로 즉시 끌 수 있다.
+규칙을 넓히기 전의 회귀 측정에서 정상 질문 오탐 0건(1,863개)이었고 threshold를 넘어 새던 무관 질문의 45–79%를 막았다. `retrieval.irrelevant-rule.enabled=false`로 즉시 끌 수 있다.
 
 **미해결 질문 자동 감지**: 답변이 끝날 때 context가 있거나 매장·제휴 질문이면 해결(`NULL`), context가 비었으면 검색 최고 유사도 0.80 이상은 `LOW_SIMILARITY`, 그 아래는 `NO_MATCH`, 답변 생성 실패는 `ANSWER_FAILED`로 `chat_messages.unresolved_reason`에 남긴다. 사용자 신고(`USER_REPORT`)·싫어요(`DISLIKED`)와 합쳐 관리자 대시보드(`GET /admin/stats/chat`)가 같은 질문끼리 묶어 보여 주며, 실시간 분기가 아니라 FAQ·threshold·프롬프트 개선 재료로 쓴다.
 
-**검색 정확도 회귀 테스트**: FAQ 224문항 + 요금제 90문항 + 무관 질문 100문항 = 414문항을 `SearchAccuracyRegressionRunner`로 다시 돌릴 수 있다(`search.regression.enabled=true`, 기본 꺼짐). threshold 유지 결론도 이 테스트로 확인했다. `faqs`/`plans`에는 HNSW/IVFFlat 없이 완전탐색을 쓰며, 이 규모에서는 인덱스의 이득이 없다.
+**검색 정확도 회귀 테스트**: FAQ 230문항 + 요금제 90문항 + 무관 질문 100문항 = 420문항을 `SearchAccuracyRegressionRunner`로 다시 돌릴 수 있다(`search.regression.enabled=true`, 기본 꺼짐). FAQ threshold(0.83) 유지가 맞다는 결론도 이 테스트로 확인했다. `faqs`/`plans`에는 HNSW/IVFFlat 없이 완전탐색을 쓰며, 이 규모에서는 인덱스의 이득이 없다.
 
 ### 검색 품질 평가와 방식 선택
 
@@ -332,7 +329,7 @@ flowchart TD
 |---|---|---|---|
 | `RetrievalEvalRunner` | FAQ 검색 평가셋 v2.3 — 224문항(v2.2의 200문항 + 새 FAQ를 반영한 24문항), 정답을 3·2·1점 등급 묶음으로 표시 | Recall@10, nDCG@10, MRR, Hit@1, threshold 후 Hit, 질문 수에 따른 안정성(bootstrap), 후보 풀 크기별 비교, 단계별 응답 시간 | `search.eval.enabled=true` |
 | `PlanEvalRunner` | 요금제 평가셋 v2 — 158문항(요금제 20종 기준, 전체 목록 질문 8개 포함) | Recall·정밀도·정확 일치·nDCG, 누수(요금제 아님 질문에 요금제가 전달된 수), 대안 전달, 조건 매칭/벡터/정형 조회 경로별 점수 | `search.plan-eval.enabled=true` |
-| `SearchAccuracyRegressionRunner` | threshold·무관 질문 규칙 회귀 414문항 | 정상·무관 질문 판정 손익 | `search.regression.enabled=true` |
+| `SearchAccuracyRegressionRunner` | threshold·무관 질문 규칙 회귀 420문항 | 정상·무관 질문 판정 손익 | `search.regression.enabled=true` |
 
 LLM 질문 변환은 호출마다 결과가 달라질 수 있어, 평가 러너는 변환 결과를 파일로 저장해(`search.eval.transform-cache`) "변환을 바꾼 실험"과 "그 위에서 검색 방식만 바꾼 실험"을 같은 변환 결과로 비교한다.
 
@@ -352,7 +349,7 @@ LLM 질문 변환은 호출마다 결과가 달라질 수 있어, 평가 러너�
 질문 변환을 저장 파일 없이 실제로 다시 호출해 요금제 조건 추출 확장 이후 코드·요금제 평가셋 v2로 재측정한 결과도 같은 방향이었다(FAQ nDCG A 77.4%, C 78.3%, C+H 79.2%).
 
 - **현재 적용: 질문 변환(C) + 벡터 검색.** 원문(A) 대비 FAQ nDCG 차이는 +0.2–0.9%p로 작아 신뢰구간이 0을 포함한다(질문 변환의 실행 간 흔들림이 ±0.7%p 안팎). 다만 질문 변환 결과는 정형·매장·최상급 분기에 어차피 필요해, 검색 질의로 쓰는 데 추가 비용이 들지 않는다.
-- **영어 번역(B·D)은 도입하지 않았다.** FAQ에서 한국어와 같거나 낮고 요금제에서는 더 낮았다. 영어 유사도가 한국어보다 낮아 threshold(0.83/0.81)에 더 많이 걸리고, 번역문에 한국어 조각이 남거나 문서와 용어 표기가 어긋나는 사례가 있었다. 결정 후 번역기·영어 검색기·D 변환기와 실험 플래그(`vita.experiment.translate-question`)는 코드에서 제거했고, 영어 번역본 테이블(`faqs_en`, `plans_en`)과 마이그레이션만 남겼다.
+- **영어 번역(B·D)은 도입하지 않았다.** FAQ에서 한국어와 같거나 낮고 요금제에서는 더 낮았다. 영어 유사도가 한국어보다 낮아 threshold(실험 당시 FAQ 0.83·요금제 0.81)에 더 많이 걸리고, 번역문에 한국어 조각이 남거나 문서와 용어 표기가 어긋나는 사례가 있었다. 결정 후 번역기·영어 검색기·D 변환기와 실험 플래그(`vita.experiment.translate-question`)는 코드에서 제거했고, 영어 번역본 테이블(`faqs_en`, `plans_en`)과 마이그레이션만 남겼다.
 - **요금제의 BM25는 도입하지 않았다.** 요금제 후보가 20개뿐이고 조건 규칙이 대부분의 질문을 처리해 어느 버전에서도 이득이 없었다.
 - **FAQ 검색에만 Hybrid(BM25 + 벡터)를 더하는 구성(요금제는 벡터 유지)이 점수는 가장 높다**(질문 변환 대비 nDCG +1%p 안팎, 신뢰구간은 0 경계). BM25는 pg_search 확장이 필요해 AWS RDS에서는 쓸 수 없어 Hybrid 구현은 develop에 포함하지 않았다.
 
@@ -453,24 +450,5 @@ temperature를 올리면 지어내는 답이 늘어나는지 보려고 같은 �
 **입력 검증**: 채팅 질문은 비어 있거나 2,000자를 넘으면 LLM 호출 전에 거부한다(질문마다 LLM 호출 비용이 들기 때문). 위치 좌표는 위도 ±90, 경도 ±180 범위만 받는다.
 
 **보안 원칙**: PII 마스킹(응답/로그), 관리자 API는 역할(role=ADMIN) 미들웨어 검증, DB 자격증명은 환경변수로만 주입, 네이티브 쿼리는 파라미터 바인딩
-
----
-
-## 8. 멘토링 피드백 반영 현황
-
-| 멘토링 피드백 | 한 일 | 결과 | 상태 |
-|---|---|---|---|
-| 현재 RAG를 Baseline으로 두고 변수 하나씩 바꿔 비교 | 평가 러너(FAQ 정답지 v2.2 200문항, 요금제 정답지)로 A\~D와 Hybrid를 더한 8개 버전을 같은 코드·DB·정답지에서 비교. 질문 변환 결과를 파일로 고정해 "변환을 바꾼 실험"과 "검색 방식을 바꾼 실험"을 분리 | FAQ nDCG@10: A 77.4%, C 77.6%, C+H 78.8% (비교 표는 7장 "검색 품질 평가와 방식 선택") | 완료 |
-| Retrieval과 Generation 분리 평가 | Retrieval은 3·2·1점 등급 정답지로 Recall·nDCG·MRR 측정. Generation은 같은 질문·같은 Context에서 temperature 5단계(0–1.0)를 비교하는 환각 평가를 사람 판정으로 진행(60문항 1회, "왜 \~해?" 30문항 3회, 흔한 CS 질문 3개 3회)하고 자동 채점 30문항도 실행 | Retrieval 수치 확보. 환각은 0–0.7에서 거의 같고 1.0에서 증가(3회 평균 환각 비율 3.3–4.4%, 1.0은 7.8%) — 상세는 7장 "Temperature 비교" | Retrieval 완료, Generation은 환각 평가 수행 |
-| Query Transformation | FAQ용·요금제용 질의와 최상급·정형 여부, 매장 의도(장소·매장 이름 포함)를 LLM 1회 JSON으로 읽음. 분류 호출을 따로 두지 않아 질문당 LLM 호출은 2회 | A 대비 FAQ nDCG +0.2–0.9%p로 신뢰구간이 0을 포함. 정형·매장·최상급 분기의 기반으로 쓰임 | 완료, 적용 중 |
-| 영어 임베딩 실험 | 질문 번역(B)과 질문 변환 후 번역(D), 영어 번역본(FAQ·요금제)에서 영어 벡터 검색 | FAQ nDCG B 76.2%, D 77.1%로 A·C와 같거나 낮고 요금제는 더 낮음 | 완료, 미채택(코드 제거) |
-| BM25 + Vector + RRF를 로컬에서 먼저 검증 | 로컬 ParadeDB(pg_search)에서 FAQ·요금제 Hybrid를 구현하고 측정. 요금제는 BM25 비중을 높인 설정까지 확인 | FAQ는 +1%p 안팎(신뢰구간 0 경계), 요금제는 이득 없음 | 완료, 미채택. RDS에 pg_search가 없어 DB 이전이 필요하므로 인프라 변경은 하지 않음 |
-| Threshold 재점검 | FAQ 0.83·요금제 0.81을 회귀 414문항과 실측 분포로 다시 확인. 요금제의 개별 컷·게이트·컷 없음 방식을 시뮬레이션으로 비교 | 값 유지. 게이트 방식은 시뮬레이션에서 nDCG +0.9%p였으나 적용하지 않음 | 완료 |
-| FAQ 후보 30개 선택 근거 | 후보 풀 크기(10·20·30·50)별 지표를 평가 러너가 함께 출력. 같은 답변의 변형은 중복 제거 후 상위 10개 | - | 측정 도구 반영 |
-| Prompt 규칙 보강, Temperature | 시스템 프롬프트를 근거·형식·질문 유형·보안 13개 규칙으로 재정비(추측 금지 항목 명시, 요금제 표 형식, 고객센터 번호 고정 정보). temperature 5단계를 사람 판정으로 비교해 0.3 유지 | temperature는 틀린 기본 답을 고치지 못하고 표현만 바꿈. 틀린 답(명의변경 증명서, 카드 변경 위약금)은 프롬프트의 문제였음 | 완료(temperature 0.3 유지) |
-| 더 좋은 LLM 비교 | 기본 모델을 gpt-oss-120b에서 Claude Sonnet 4.6으로 교체 | - | 교체 완료 |
-| Trace/Span | 단계별 시간(질문 변환·임베딩·FAQ 검색·요금제 검색·Context 구성)은 로그와 평가 리포트로만 확인 가능. 요청 단위 기록은 남기지 않음 | - | 미반영 |
-| FAQ는 Chunking 불필요 | Q&A 1건 단위로 임베딩 | - | 반영 |
-
 
 > **1조 : 500 Team**
