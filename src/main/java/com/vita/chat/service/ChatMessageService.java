@@ -139,7 +139,7 @@ public class ChatMessageService {
 	/**
 	 * 답변 피드백 저장 (회원만). null이면 취소
 	 * 내 세션의 완료된 답변에만 남길 수 있다
-	 * (싫어요)면 관리자 미해결 목록(unresolved_question_reports)에 올리고 (좋아요)로 바꾸거나 취소하면 내린다
+	 * (아쉬워요)면 관리자 미해결 목록에 올리고 (좋아요)로 바꾸거나 취소하면 내린다
 	 */
 	@Transactional
 	public ChatFeedbackResponse applyFeedback(Long messageId, Long userId, ChatMessageFeedback feedback){

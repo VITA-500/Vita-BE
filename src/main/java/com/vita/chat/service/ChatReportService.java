@@ -39,7 +39,7 @@ public class ChatReportService {
 				.orElseGet(() -> createReport(message, userId));
 	}
 
-	/** 👎 취소. 관리자가 이미 처리(RESOLVED)한 신고는 기록으로 남긴다 */
+	/** (아쉬워요) 취소. 관리자가 이미 처리한 신고는 기록으로 남긴다 */
 	@Transactional
 	public void cancel(Long messageId, Long userId) {
 		reportRepository.deleteByMessageIdAndUserIdAndStatus(messageId, userId, ReportStatus.OPEN);
