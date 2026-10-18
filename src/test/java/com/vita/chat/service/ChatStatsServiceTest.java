@@ -125,5 +125,24 @@ class ChatStatsServiceTest {
 
 		assertThat(candidate.likeCount()).isZero();
 		assertThat(candidate.dislikeCount()).isZero();
+		assertThat(candidate.comments()).isEmpty();
+	}
+
+	@Test
+	void showsRecentCommentsOfTheGroup() {
+		List<UnresolvedQuestionReport> reports = new java.util.ArrayList<>();
+		for (int i = 1; i <= 7; i++) {
+			UnresolvedQuestionReport report = disliked(answer(10L + i, null), "위약금 얼마야");
+			ReflectionTestUtils.setField(report, "createdAt", NOW.plusMinutes(i));
+			// 6번째는 이유 없이 (아쉬워요)만 누름
+			ReflectionTestUtils.setField(report, "comment", i == 6 ? null : "이유 " + i);
+			reports.add(report);
+		}
+		when(reportRepository.findAllByStatus(ReportStatus.OPEN)).thenReturn(reports);
+
+		ChatStatsResponse.Candidate candidate = service.getUnresolvedStats(null).candidates().get(0);
+
+		assertThat(candidate.count()).isEqualTo(7);
+		assertThat(candidate.comments()).containsExactly("이유 7", "이유 5", "이유 4", "이유 3", "이유 2");
 	}
 }

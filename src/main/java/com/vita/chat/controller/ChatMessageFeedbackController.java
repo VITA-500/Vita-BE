@@ -30,6 +30,6 @@ public class ChatMessageFeedbackController {
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
 
-        return chatMessageService.applyFeedback(messageId, userId, request.feedback());
+        return chatMessageService.applyFeedback(messageId, userId, request.feedback(), request.comment());
     }
 }

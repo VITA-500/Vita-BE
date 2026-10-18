@@ -41,11 +41,13 @@ public class ChatStatsService {
     private static final int DEFAULT_LIMIT = 50;
     private static final int MAX_LIMIT = 200;
     private static final String SOURCE_CHAT = "CHAT";
+    private static final int COMMENT_LIMIT = 5;
 
     private final ChatMessageRepository chatMessageRepository;
     private final UnresolvedQuestionReportRepository reportRepository;
 
-    private record Occurrence(Long messageId, String question, String answer, String reason, LocalDateTime occurredAt) {
+    private record Occurrence(Long messageId, String question, String answer, String reason, LocalDateTime occurredAt,
+                              String comment) {
     }
 
     public ChatStatsResponse getUnresolvedStats(Integer limit) {
@@ -64,7 +66,7 @@ public class ChatStatsService {
                     FeedbackCount feedback = feedbackCounts.getOrDefault(normalize(latest.question()), FeedbackCount.NONE);
                     return new ChatStatsResponse.Candidate(latest.messageId(), latest.question().trim(), latest.answer(),
                             SOURCE_CHAT, latest.reason(), count, latest.occurredAt(),
-                            feedback.likeCount(), feedback.dislikeCount());
+                            feedback.likeCount(), feedback.dislikeCount(), recentComments(list));
                 })
                 .sorted(Comparator.comparingLong(ChatStatsResponse.Candidate::count).reversed()
                         .thenComparing(ChatStatsResponse.Candidate::lastOccurredAt, Comparator.reverseOrder()))
@@ -98,6 +100,16 @@ public class ChatStatsService {
         return new ChatDismissResponse(id, messageIds.size());
     }
 
+    // (아쉬워요) 이유 최근 순 COMMENT_LIMIT개
+    private static List<String> recentComments(List<Occurrence> list) {
+        return list.stream()
+                .filter(o -> o.comment() != null)
+                .sorted(Comparator.comparing(Occurrence::occurredAt).reversed())
+                .map(Occurrence::comment)
+                .limit(COMMENT_LIMIT)
+                .toList();
+    }
+
     private record FeedbackCount(long likeCount, long dislikeCount) {
         static final FeedbackCount NONE = new FeedbackCount(0, 0);
     }
@@ -120,10 +132,11 @@ public class ChatStatsService {
         List<Occurrence> occurrences = new ArrayList<>();
         chatMessageRepository.findUnresolvedWithQuestion().forEach(row ->
                 occurrences.add(new Occurrence(row.getId(), row.getQuestion(), row.getAnswer(),
-                        row.getReason(), row.getCreatedAt())));
+                        row.getReason(), row.getCreatedAt(), null)));
         reportRepository.findAllByStatus(ReportStatus.OPEN).forEach(report ->
                 occurrences.add(new Occurrence(report.getMessage().getId(), report.getQuestionText(),
-                        report.getMessage().getContent(), UnresolvedReason.DISLIKED.name(), report.getCreatedAt())));
+                        report.getMessage().getContent(), UnresolvedReason.DISLIKED.name(), report.getCreatedAt(),
+                        report.getComment())));
 
         Map<String, List<Occurrence>> groups = new LinkedHashMap<>();
         occurrences.stream()

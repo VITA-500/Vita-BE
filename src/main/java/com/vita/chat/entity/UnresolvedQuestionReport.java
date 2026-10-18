@@ -42,6 +42,10 @@ public class UnresolvedQuestionReport {
 	@Column(name = "question_text", columnDefinition = "TEXT")
 	private String questionText;
 
+	// (아쉬워요) 이유. 사용자가 남기지 않으면 비어 있음
+	@Column(length = 200)
+	private String comment;
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false)
 	private ReportStatus status;
@@ -55,6 +59,11 @@ public class UnresolvedQuestionReport {
 		this.userId = userId;
 		this.questionText = questionText;
 		this.status = ReportStatus.OPEN;
+	}
+
+	/** (아쉬워요) 이유 저장. null이면 지움 */
+	public void changeComment(String comment) {
+		this.comment = comment;
 	}
 
 	/** 관리자 "무시": 답변에 문제가 없다고 판단 */

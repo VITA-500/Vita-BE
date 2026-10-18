@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.vita.chat.ChatMessageRole;
 import com.vita.chat.dto.ReportResponse;
 import com.vita.chat.entity.ChatMessage;
+import com.vita.chat.entity.UnresolvedQuestionReport;
 import com.vita.chat.repository.ChatMessageRepository;
 import com.vita.chat.repository.UnresolvedQuestionReportRepository;
 import com.vita.common.exception.BusinessException;
@@ -37,6 +38,15 @@ public class ChatReportService {
 		return reportRepository.findByMessageIdAndUserId(messageId, userId)
 				.map(ReportResponse::from)
 				.orElseGet(() -> createReport(message, userId));
+	}
+
+	/** (아쉬워요) 이유 저장. report 다음에 부른다. null이면 지움 */
+	@Transactional
+	public ReportResponse changeComment(Long messageId, Long userId, String comment) {
+		UnresolvedQuestionReport report = reportRepository.findByMessageIdAndUserId(messageId, userId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+		report.changeComment(comment);
+		return ReportResponse.from(report);
 	}
 
 	/** (아쉬워요) 취소. 관리자가 이미 처리한 신고는 기록으로 남긴다 */
