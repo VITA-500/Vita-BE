@@ -86,6 +86,10 @@ public class ChatMessage {
 	@Column(name = "unresolved_reason", length = 30)
 	private UnresolvedReason unresolvedReason;
 
+	// 관리자가 미해결 목록에서 무시한 시각
+	@Column(name = "unresolved_dismissed_at")
+	private LocalDateTime unresolvedDismissedAt;
+
 	// 검색 최고 유사도
 	@Column(name = "top_similarity")
 	private Double topSimilarity;
@@ -161,5 +165,12 @@ public class ChatMessage {
 	public void applyFeedback(ChatMessageFeedback feedback) {
         this.feedback = feedback;
     }
+
+	/** 관리자 "무시": 자동 감지된 미해결 답변을 목록에서 내린다. 자동 감지가 아니면 아무것도 하지 않는다 */
+	public void dismissUnresolved() {
+		if(this.unresolvedReason != null && this.unresolvedDismissedAt == null) {
+			this.unresolvedDismissedAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+		}
+	}
 	
 }

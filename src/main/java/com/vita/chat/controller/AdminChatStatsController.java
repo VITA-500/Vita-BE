@@ -23,7 +23,7 @@ public class AdminChatStatsController {
         return chatStatsService.getUnresolvedStats(limit);
     }
 
-    /** 목록의 한 항목(같은 질문 묶음)에 들어 있는 👎를 모두 무시 처리 */
+    /** 목록의 한 항목에 들어 있는 자동 감지와 (아쉬워요)를 모두 무시 처리 */
     @PatchMapping("/chat/{id}/dismiss")
     public ChatDismissResponse dismiss(@PathVariable Long id) {
         return chatStatsService.dismiss(id);

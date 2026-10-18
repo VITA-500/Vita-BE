@@ -148,7 +148,7 @@
 - PII 컬럼(email/name/phone)은 로그·API 응답 양쪽에서 마스킹 처리 원칙
 - 테이블명은 전부 복수형(`users`만 PostgreSQL 예약어 회피 목적으로 원래도 복수형)
 
-> 미해결 질문은 자동 감지(`chat_messages.unresolved_reason`), 사용자 신고(`unresolved_question_reports`), 답변 피드백(👎)을 합쳐 관리자 대시보드(`GET /admin/stats/chat`)에서 같은 질문끼리 묶어 보여준다.
+> 미해결 질문은 자동 감지(`chat_messages.unresolved_reason`), 사용자 신고(`unresolved_question_reports`), 답변 피드백(아쉬워요)을 합쳐 관리자 대시보드(`GET /admin/stats/chat`)에서 같은 질문끼리 묶어 보여준다.
 
 ---
 
@@ -168,7 +168,7 @@
 - 매장·제휴 혜택 질문 — 질문에서 매장 의도를 읽어 주변 통신 매장·제휴 매장과 혜택을 안내하고("방학역 근처" 같은 장소나 매장 이름이 있으면 그 기준으로 찾음), 지도 데이터(`store_map`)와 지도 화면 이동 버튼(`actions`)을 함께 내려줌 `필수`
 - 미해결 질문 관리자 신고 (`POST /chat/messages/{id}/report-to-admin`) `필수`
 - 미해결 질문 자동 감지 — 검색 결과가 없거나 유사도가 기준에 못 미친 답변을 사유(`NO_MATCH`/`LOW_SIMILARITY`/`ANSWER_FAILED`)와 함께 기록 `필수`
-- 답변 피드백(👍/👎) (`POST /chat/messages/{id}/feedback`) — 본인 세션의 완료된 답변에만 `선택`
+- 답변 피드백(좋아요/아쉬워요) (`POST /chat/messages/{id}/feedback`) — 본인 세션의 완료된 답변에만 `선택`
 
 **매장**
 
@@ -180,7 +180,7 @@
 
 - FAQ 관리 CRUD (목록은 질문·답변 포함, 정렬 지원) / 요금제 관리 CRUD / 매장 관리 CRUD (통신·제휴 매장 유형 필터·등록 지원) / 제휴 혜택 관리 CRUD(`/admin/benefits`) `필수`
 - 사용자 관리(`/admin/users`) — 목록·상세·생성·수정·권한 변경·상태 변경·삭제, 변경 이력 조회 `선택`
-- 미해결 질문 통계 대시보드(`GET /admin/stats/chat`) — 자동 감지·신고·👎를 같은 질문끼리 묶어 건수 순으로 `선택`
+- 미해결 질문 통계 대시보드(`GET /admin/stats/chat`) — 자동 감지·신고·(아쉬워요)를 같은 질문끼리 묶어 건수 순으로 `선택`
 
 ---
 
@@ -317,7 +317,7 @@ flowchart TD
 
 규칙을 넓히기 전의 회귀 측정에서 정상 질문 오탐 0건(1,863개)이었고 threshold를 넘어 새던 무관 질문의 45–79%를 막았다. `retrieval.irrelevant-rule.enabled=false`로 즉시 끌 수 있다.
 
-**미해결 질문 자동 감지**: 답변이 끝날 때 context가 있거나 매장·제휴 질문이면 해결(`NULL`), context가 비었으면 검색 최고 유사도 0.80 이상은 `LOW_SIMILARITY`, 그 아래는 `NO_MATCH`, 답변 생성 실패는 `ANSWER_FAILED`로 `chat_messages.unresolved_reason`에 남긴다. 사용자 신고(`USER_REPORT`)·싫어요(`DISLIKED`)와 합쳐 관리자 대시보드(`GET /admin/stats/chat`)가 같은 질문끼리 묶어 보여 주며, 실시간 분기가 아니라 FAQ·threshold·프롬프트 개선 재료로 쓴다.
+**미해결 질문 자동 감지**: 답변이 끝날 때 context가 있거나 매장·제휴 질문이면 해결(`NULL`), context가 비었으면 검색 최고 유사도 0.80 이상은 `LOW_SIMILARITY`, 그 아래는 `NO_MATCH`, 답변 생성 실패는 `ANSWER_FAILED`로 `chat_messages.unresolved_reason`에 남긴다. 사용자 신고(`USER_REPORT`)·아쉬워요(`DISLIKED`)와 합쳐 관리자 대시보드(`GET /admin/stats/chat`)가 같은 질문끼리 묶어 보여 주며, 실시간 분기가 아니라 FAQ·threshold·프롬프트 개선 재료로 쓴다.
 
 **검색 정확도 회귀 테스트**: FAQ 230문항 + 요금제 90문항 + 무관 질문 100문항 = 420문항을 `SearchAccuracyRegressionRunner`로 다시 돌릴 수 있다(`search.regression.enabled=true`, 기본 꺼짐). FAQ threshold(0.83) 유지가 맞다는 결론도 이 테스트로 확인했다. `faqs`/`plans`에는 HNSW/IVFFlat 없이 완전탐색을 쓰며, 이 규모에서는 인덱스의 이득이 없다.
 

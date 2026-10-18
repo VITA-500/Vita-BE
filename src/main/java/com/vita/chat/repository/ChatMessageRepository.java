@@ -20,7 +20,7 @@ public interface ChatMessageRepository  extends JpaRepository<ChatMessage, Long>
 	List<ChatMessage> findBySession_IdAndStatusOrderByCreatedAtDescIdDesc(
             Long sessionId, ChatMessageStatus status, Pageable pageable);
 
-	/** 미해결로 표시된 답변과, 그 답변 바로 앞의 사용자 질문 */
+	/** 미해결로 표시된 답변(관리자가 무시한 것 제외)과, 그 답변 바로 앞의 사용자 질문 */
 	interface UnresolvedMessageRow {
 		Long getId();
 		String getReason();
@@ -35,7 +35,23 @@ public interface ChatMessageRepository  extends JpaRepository<ChatMessage, Long>
 			         WHERE u.session_id = a.session_id AND u.role = 'USER' AND u.id < a.id
 			         ORDER BY u.id DESC LIMIT 1) AS question
 			FROM chat_messages a
-			WHERE a.unresolved_reason IS NOT NULL
+			WHERE a.unresolved_reason IS NOT NULL AND a.unresolved_dismissed_at IS NULL
 			""", nativeQuery = true)
 	List<UnresolvedMessageRow> findUnresolvedWithQuestion();
+
+	/** (좋아요)/(아쉬워요)를 받은 답변의 피드백과 그 답변 바로 앞의 사용자 질문 */
+	interface FeedbackRow {
+		String getFeedback();
+		String getQuestion();
+	}
+
+	@Query(value = """
+			SELECT a.feedback::text AS feedback,
+			       (SELECT u.content FROM chat_messages u
+			         WHERE u.session_id = a.session_id AND u.role = 'USER' AND u.id < a.id
+			         ORDER BY u.id DESC LIMIT 1) AS question
+			FROM chat_messages a
+			WHERE a.feedback IS NOT NULL
+			""", nativeQuery = true)
+	List<FeedbackRow> findFeedbackWithQuestion();
 }

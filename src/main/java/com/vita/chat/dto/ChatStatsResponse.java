@@ -25,8 +25,11 @@ public record ChatStatsResponse(Summary summary, List<Candidate> candidates) {
      * @param source         CHAT
      * @param failReason     가장 최근 발생의 이유 (NO_MATCH, LOW_SIMILARITY, ANSWER_FAILED, DISLIKED)
      * @param count          같은 질문이 미해결로 나온 횟수
+     * @param likeCount      같은 질문의 답변이 받은 (좋아요) 수 (전체 기간)
+     * @param dislikeCount   같은 질문의 답변이 받은 (아쉬워요) 수 (전체 기간, 무시한 것 포함)
      */
     public record Candidate(Long id, String question, String answer, String source,
-                            String failReason, long count, LocalDateTime lastOccurredAt) {
+                            String failReason, long count, LocalDateTime lastOccurredAt,
+                            long likeCount, long dislikeCount) {
     }
 }
