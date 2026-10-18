@@ -27,9 +27,10 @@ public record ChatStatsResponse(Summary summary, List<Candidate> candidates) {
      * @param count          같은 질문이 미해결로 나온 횟수
      * @param likeCount      같은 질문의 답변이 받은 (좋아요) 수 (전체 기간)
      * @param dislikeCount   같은 질문의 답변이 받은 (아쉬워요) 수 (전체 기간, 무시한 것 포함)
+     * @param comments       (아쉬워요) 이유. 최근 순 최대 5개, 없으면 빈 목록
      */
     public record Candidate(Long id, String question, String answer, String source,
                             String failReason, long count, LocalDateTime lastOccurredAt,
-                            long likeCount, long dislikeCount) {
+                            long likeCount, long dislikeCount, List<String> comments) {
     }
 }
