@@ -6,6 +6,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,10 +14,12 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.vita.chat.ChatMessageFeedback;
 import com.vita.chat.ReportStatus;
 import com.vita.chat.UnresolvedReason;
 import com.vita.chat.dto.ChatDismissResponse;
 import com.vita.chat.dto.ChatStatsResponse;
+import com.vita.chat.entity.ChatMessage;
 import com.vita.chat.entity.UnresolvedQuestionReport;
 import com.vita.chat.repository.ChatMessageRepository;
 import com.vita.chat.repository.UnresolvedQuestionReportRepository;
@@ -27,7 +30,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * 관리자 대시보드 미해결 질문 통계.
- * 자동 감지와 (싫어요)를 합쳐 같은 질문끼리 묶는다.
+ * 자동 감지와 (아쉬워요)를 합쳐 같은 질문끼리 묶는다.
  * 띄어쓰기, 문장부호 대소문자만 다른 질문은 같은 질문으로 본다.
  */
 @Service
@@ -52,13 +55,16 @@ public class ChatStatsService {
         }
 
         LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        Map<String, FeedbackCount> feedbackCounts = countFeedbackByQuestion();
         List<ChatStatsResponse.Candidate> candidates = groupByQuestion().stream()
                 .map(list -> {
                     Occurrence latest = list.stream().max(Comparator.comparing(Occurrence::occurredAt)).orElseThrow();
-                    // 자동 감지된 답변에 (싫어요)까지 받아도 같은 답변이면 1회로 센다
+                    // 자동 감지된 답변에 (아쉬워요)까지 받아도 같은 답변이면 1회로 센다
                     long count = list.stream().map(Occurrence::messageId).distinct().count();
+                    FeedbackCount feedback = feedbackCounts.getOrDefault(normalize(latest.question()), FeedbackCount.NONE);
                     return new ChatStatsResponse.Candidate(latest.messageId(), latest.question().trim(), latest.answer(),
-                            SOURCE_CHAT, latest.reason(), count, latest.occurredAt());
+                            SOURCE_CHAT, latest.reason(), count, latest.occurredAt(),
+                            feedback.likeCount(), feedback.dislikeCount());
                 })
                 .sorted(Comparator.comparingLong(ChatStatsResponse.Candidate::count).reversed()
                         .thenComparing(ChatStatsResponse.Candidate::lastOccurredAt, Comparator.reverseOrder()))
@@ -73,9 +79,10 @@ public class ChatStatsService {
     }
 
     /**
-     * 관리자 "무시": 목록의 한 항목(같은 질문 묶음)에 들어 있는 (싫어요)를 모두 DISMISSED로 바꾼다.
-     * 무시한 (싫어요)는 같은 사용자가 다시 눌러도 목록에 다시 올라오지 않는다.
-     * 자동 감지 기록은 처리 상태가 없어서 그대로 남는다.
+     * 관리자 "무시": 목록의 한 항목을 목록에서 내린다.
+     * (아쉬워요)는 DISMISSED로 바꾸고 자동 감지된 답변은 무시한 시각을 남긴다.
+     * 무시한 (아쉬워요)는 같은 사용자가 다시 눌러도 목록에 다시 올라오지 않는다.
+     * 같은 질문이 새로 미해결로 나오면 새 항목으로 다시 올라온다.
      */
     @Transactional
     public ChatDismissResponse dismiss(Long id) {
@@ -85,15 +92,30 @@ public class ChatStatsService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "미해결 질문을 찾을 수 없습니다."))
                 .stream().map(Occurrence::messageId).distinct().toList();
 
-        List<UnresolvedQuestionReport> reports = reportRepository.findAllByMessageIdInAndStatus(messageIds, ReportStatus.OPEN);
-        if (reports.isEmpty()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "👎 받은 답변이 없는 항목입니다. 자동 감지 항목은 아직 무시할 수 없습니다.");
-        }
-        reports.forEach(UnresolvedQuestionReport::dismiss);
-        return new ChatDismissResponse(id, reports.size());
+        reportRepository.findAllByMessageIdInAndStatus(messageIds, ReportStatus.OPEN)
+                .forEach(UnresolvedQuestionReport::dismiss);
+        chatMessageRepository.findAllById(messageIds).forEach(ChatMessage::dismissUnresolved);
+        return new ChatDismissResponse(id, messageIds.size());
     }
 
-    // 자동 감지 + (싫어요(OPEN))를 모아 같은 질문끼리 묶는다
+    private record FeedbackCount(long likeCount, long dislikeCount) {
+        static final FeedbackCount NONE = new FeedbackCount(0, 0);
+    }
+
+    // 같은 질문(띄어쓰기, 문장부호, 대소문자 무시)의 답변이 받은 (좋아요)/(아쉬워요) 수
+    private Map<String, FeedbackCount> countFeedbackByQuestion() {
+        Map<String, FeedbackCount> counts = new HashMap<>();
+        chatMessageRepository.findFeedbackWithQuestion().stream()
+                .filter(row -> row.getQuestion() != null && !row.getQuestion().isBlank())
+                .forEach(row -> {
+                    boolean like = ChatMessageFeedback.LIKE.name().equals(row.getFeedback());
+                    counts.merge(normalize(row.getQuestion()), new FeedbackCount(like ? 1 : 0, like ? 0 : 1),
+                            (a, b) -> new FeedbackCount(a.likeCount() + b.likeCount(), a.dislikeCount() + b.dislikeCount()));
+                });
+        return counts;
+    }
+
+    // 자동 감지 + (아쉬워요(OPEN))를 모아 같은 질문끼리 묶는다
     private Collection<List<Occurrence>> groupByQuestion() {
         List<Occurrence> occurrences = new ArrayList<>();
         chatMessageRepository.findUnresolvedWithQuestion().forEach(row ->
