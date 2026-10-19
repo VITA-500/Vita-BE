@@ -23,7 +23,6 @@ import com.vita.chat.service.ChatContextBuilder.ChatContext;
 import com.vita.chat.service.ChatStoreFinder.StoreLookup;
 import com.vita.chat.service.QueryTransformer.TransformOutcome;
 import com.vita.chat.service.QueryTransformer.TransformTrace;
-import com.vita.search.dto.FaqRetrievalContext;
 import com.vita.search.pipeline.TransformInfo;
 import com.vita.search.service.FaqRetrievalService;
 import com.vita.trace.SpanRecord;
@@ -51,7 +50,8 @@ class ChatAnswerStreamerTraceTest {
         when(queryTransformer.transformWithStatus(anyString(), any())).thenReturn(new TransformOutcome(
                 QueryTransformResult.original("로밍 요금 알려줘"), TransformInfo.changed(),
                 new TransformTrace("프롬프트", "{\"faq_query\":\"로밍\"}", 10L, 5L, 15L)));
-        when(faqRetrievalService.search(anyString(), any(), any(), anyInt())).thenReturn(FaqRetrievalContext.empty());
+        when(faqRetrievalService.searchWithDetails(anyString(), any(), any(), anyInt()))
+                .thenReturn(TestRetrievalResults.searchedBoth("로밍 요금 알려줘", "로밍 요금 알려줘", "로밍 요금 알려줘"));
         when(chatContextBuilder.build(anyString(), anyList(), anyList(), any(), any(), any(), any()))
                 .thenReturn(ChatContext.empty());
         when(chatStoreFinder.find(any(), any(), any())).thenReturn(StoreLookup.empty());
@@ -70,7 +70,7 @@ class ChatAnswerStreamerTraceTest {
     }
 
     @Test
-    void savesTransformAndGenerationSpansOnceTheAnswerIsCompleted() {
+    void savesAllStepSpansInOrderOnceTheAnswerIsCompleted() {
         ChatAnswerStreamer streamer = streamer();
         streamsTwoChunksThenReturns(new StreamResult("조립된 프롬프트", "model-x", 100L, 20L, 120L));
 
@@ -81,12 +81,12 @@ class ChatAnswerStreamerTraceTest {
         TraceRecord record = captor.getValue();
         assertThat(record.messageId()).isEqualTo(99L);
         assertThat(record.spans()).extracting(SpanRecord::type)
-                .containsExactly(SpanType.TRANSFORM, SpanType.GENERATION);
+                .containsExactly(SpanType.TRANSFORM, SpanType.FAQ_RETRIEVE, SpanType.PLAN_RETRIEVE, SpanType.GENERATION);
         assertThat(record.spans().get(0).history())
                 .containsEntry("question", "로밍 요금 알려줘")
                 .containsEntry("raw_response", "{\"faq_query\":\"로밍\"}")
                 .containsEntry("total_tokens", 15L);
-        assertThat(record.spans().get(1).history())
+        assertThat(record.spans().get(3).history())
                 .containsEntry("answer", "안녕하세요")
                 .containsEntry("delta_count", 2)
                 .containsEntry("user_prompt", "조립된 프롬프트")
@@ -104,7 +104,7 @@ class ChatAnswerStreamerTraceTest {
 
         ArgumentCaptor<TraceRecord> captor = ArgumentCaptor.forClass(TraceRecord.class);
         verify(traceRepository).save(captor.capture());
-        assertThat(captor.getValue().spans().get(1).history())
+        assertThat(captor.getValue().spans().get(3).history())
                 .containsEntry("answer", "안녕하세요")
                 .containsKey("context")
                 .doesNotContainKeys("user_prompt", "total_tokens");
@@ -125,9 +125,9 @@ class ChatAnswerStreamerTraceTest {
         ArgumentCaptor<TraceRecord> captor = ArgumentCaptor.forClass(TraceRecord.class);
         verify(traceRepository).save(captor.capture());
         assertThat(captor.getValue().spans()).extracting(SpanRecord::type)
-                .containsExactly(SpanType.TRANSFORM, SpanType.GENERATION);
+                .containsExactly(SpanType.TRANSFORM, SpanType.FAQ_RETRIEVE, SpanType.PLAN_RETRIEVE, SpanType.GENERATION);
         // 끊기기 전까지 받은 답변 조각이 남고, 오류가 기록된다
-        assertThat(captor.getValue().spans().get(1).history())
+        assertThat(captor.getValue().spans().get(3).history())
                 .containsEntry("answer", "안녕")
                 .containsKey("error");
     }

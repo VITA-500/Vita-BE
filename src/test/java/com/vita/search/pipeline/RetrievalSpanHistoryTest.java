@@ -38,7 +38,7 @@ class RetrievalSpanHistoryTest {
 	private static RetrievalResult result(FaqSelection faq, PlanSearchOutcome planOutcome,
 			Set<IrrelevantQueryDetector.Rule> rules, RetrievalTrace trace, TransformedQuery query) {
 		return new RetrievalResult(query, faq, planOutcome, planOutcome.results(), 0.0, faq.topSimilarity(), rules,
-				new StageTimings(0, 0, 0, 0, 0), FaqRetrievalContext.empty(), trace);
+				new StageTimings(2_000_000, 3_000_000, 4_000_000, 5_000_000, 1_000_000), FaqRetrievalContext.empty(), trace);
 	}
 
 	private static RetrievalTrace trace(float[] faqVector, float[] planVector, boolean faqSearched, boolean planSearched,
@@ -77,6 +77,8 @@ class RetrievalSpanHistoryTest {
 		assertThat(rest).hasSize(1);
 		assertThat(rest.get(0)).containsEntry("rank", 3).containsEntry("faq_id", 3L).containsEntry("question", "질문3")
 				.doesNotContainKey("answer");
+		assertThat((Map<String, Object>) history.get("took_ms")).containsEntry("embedding", 3.0)
+				.containsEntry("faq_search", 4.0).containsEntry("context", 1.0);
 		assertThat(new ObjectMapper().writeValueAsString(history)).contains("\"candidates\"");
 	}
 
@@ -112,7 +114,8 @@ class RetrievalSpanHistoryTest {
 
 		assertThat(history).containsEntry("type", "PLAN").containsEntry("path", "CONDITION")
 				.containsEntry("embedding_shared", true).containsEntry("condition_matched", true)
-				.containsEntry("threshold", 0.79).doesNotContainKey("query_embedding");
+				.containsEntry("threshold", 0.79).doesNotContainKey("query_embedding")
+				.containsEntry("took_ms", Map.of("plan_search", 5.0));
 		assertThat((Map<String, Object>) history.get("conditions")).containsEntry("fee_min", 30000)
 				.containsEntry("fee_max", 39999).containsEntry("target_group", "TEEN").doesNotContainKey("data_policy");
 		// 조건으로 좁혀진 결과는 유사도가 threshold보다 낮아도 통과로 본다

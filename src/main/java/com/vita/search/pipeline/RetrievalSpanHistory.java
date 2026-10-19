@@ -63,6 +63,11 @@ public final class RetrievalSpanHistory {
 		map.put("top_k", trace.options().topK());
 		map.put("threshold", settings.faqThreshold());
 		map.put("top_similarity", faq.topSimilarity());
+		// 임베딩은 FAQ용·요금제용 질문이 다르면 두 번 부른 시간의 합이다.
+		map.put("took_ms", Map.of(
+				"embedding", StageTimings.toMillis(result.timings().embeddingNanos()),
+				"faq_search", StageTimings.toMillis(result.timings().faqSearchNanos()),
+				"context", StageTimings.toMillis(result.timings().contextNanos())));
 
 		Map<String, Object> boost = new LinkedHashMap<>();
 		boost.put("bonus", settings.categoryBoostBonus());
@@ -112,6 +117,7 @@ public final class RetrievalSpanHistory {
 		map.put("condition_matched", outcome.conditionMatched());
 		map.put("top_similarity", outcome.results().stream().mapToDouble(PlanSimilarityResult::similarity).max().orElse(0.0));
 		map.put("list_notice", outcome.listNotice());
+		map.put("took_ms", Map.of("plan_search", StageTimings.toMillis(result.timings().planSearchNanos())));
 		putRules(map, result.irrelevantRules());
 		map.put("candidates", planCandidates(outcome, settings.planThreshold()));
 		return map;
