@@ -9,13 +9,17 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.metadata.ChatResponseMetadata;
+import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.stereotype.Component;
 
 import com.vita.chat.dto.CompletionResult;
+import com.vita.chat.dto.StreamResult;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 @Component
@@ -165,20 +169,37 @@ public class BedrockChatClient {
             """;
     
 
-	/** 스트리밍 호출. 답변 텍스트 조각이 올 때마다 onDelta를 호출하고, 스트림이 끝나면 리턴한다. */
-	public void askStream(String question, String context, String conversationHistory, Consumer<String> onDelta) {
+	/**
+	 * 스트리밍 호출. 답변 텍스트 조각이 올 때마다 onDelta를 호출하고, 스트림이 끝나면 호출 기록을 돌려준다.
+	 *
+	 * @return 보낸 user 프롬프트와 토큰 사용량(trace 기록용). 스트림에 사용량이 없으면 토큰 수는 null
+	 */
+	public StreamResult askStream(String question, String context, String conversationHistory, Consumer<String> onDelta) {
 	    String userPrompt = USER_TURN_TEMPLATE.formatted(context, conversationHistory, PromptEscaper.escape(question));
-	    
+
 	    log.info("===== LLM PROMPT [stream] =====\n[system]\n{}\n[user]\n{}\n===== END PROMPT [stream] =====",
 	    		SYSTEM_PROMPT, userPrompt);
 	    AtomicInteger chunkCount = new AtomicInteger();
-	
+	    // 사용량은 보통 마지막 chunk의 메타데이터에 실려 오므로, 값이 있는 마지막 것을 보관한다.
+	    AtomicReference<Usage> lastUsage = new AtomicReference<>();
+	    AtomicReference<String> model = new AtomicReference<>();
+
 	    chatClient.prompt()
 	            .system(SYSTEM_PROMPT)
 	            .user(userPrompt)
 	            .stream()
 	            .chatResponse()
 	            .doOnNext(response -> {
+	                ChatResponseMetadata metadata = response.getMetadata();
+	                if (metadata != null) {
+	                    if (metadata.getUsage() != null && metadata.getUsage().getTotalTokens() != null
+	                            && metadata.getUsage().getTotalTokens() > 0) {
+	                        lastUsage.set(metadata.getUsage());
+	                    }
+	                    if (metadata.getModel() != null && !metadata.getModel().isBlank()) {
+	                        model.set(metadata.getModel());
+	                    }
+	                }
 	                if (response.getResult() == null) {
 	                    return; // 메타데이터만 있는 마지막 chunk 등
 	                }
@@ -193,5 +214,16 @@ public class BedrockChatClient {
 	    if (chunkCount.get() == 0) {
 	        throw new IllegalStateException("LLM 응답 내용이 없습니다.");
 	    }
+	    Usage usage = lastUsage.get();
+	    return new StreamResult(userPrompt, model.get(),
+	            usage == null ? null : toLong(usage.getPromptTokens()),
+	            usage == null ? null : toLong(usage.getCompletionTokens()),
+	            usage == null ? null : toLong(usage.getTotalTokens()),
+	            SYSTEM_PROMPT);
+	}
+
+	/** 답변 생성에 쓰는 시스템 프롬프트 원문. 어떤 프롬프트로 답했는지 기록(trace)하는 데 쓴다. */
+	public static String answerSystemPrompt() {
+	    return SYSTEM_PROMPT;
 	}
 }

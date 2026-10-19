@@ -6,6 +6,8 @@ import java.util.function.Consumer;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
+import com.vita.chat.dto.StreamResult;
+
 /**
  * FE 연동 테스트용 더미 구현. --spring.profiles.active=dummy 일 때만 동작.
  * Bedrock을 붙이기 전에 FE1이 타이핑 UI를 먼저 확인할 수 있다.
@@ -15,7 +17,7 @@ import org.springframework.stereotype.Component;
 public class DummyLlmStreamClient implements LlmStreamClient {
 
     @Override
-    public void stream(String question, String context, String conversationHistory, Consumer<String> onDelta) {
+    public StreamResult stream(String question, String context, String conversationHistory, Consumer<String> onDelta) {
         List<String> chunks = List.of("배송은 보통 ", "2~3일 정도 ", "소요됩니다.");
         for (String chunk : chunks) {
             try {
@@ -26,5 +28,6 @@ public class DummyLlmStreamClient implements LlmStreamClient {
             }
             onDelta.accept(chunk);
         }
+        return StreamResult.none();
     }
 }

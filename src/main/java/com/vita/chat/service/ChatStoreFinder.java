@@ -53,9 +53,19 @@ public class ChatStoreFinder {
     /**
      * @param text      <store_result> 문자열
      * @param storeMap 매장 지도
+     * @param error    조회가 예외로 실패해 매장 정보 없이 답변하는 경우 그 예외의 종류와 메시지(Trace/Span 기록용). 정상이면 null
      */
-    public record StoreLookup(String text, ChatStoreMap storeMap) {
+    public record StoreLookup(String text, ChatStoreMap storeMap, String error) {
+        public StoreLookup(String text, ChatStoreMap storeMap) {
+            this(text, storeMap, null);
+        }
+
         public static StoreLookup empty() { return new StoreLookup("", null); }
+
+        /** 조회 실패. 답변에는 매장 정보가 없고, 실패 원인만 기록용으로 남긴다. */
+        static StoreLookup failed(Exception cause) {
+            return new StoreLookup("", null, cause.getClass().getSimpleName() + ": " + cause.getMessage());
+        }
     }
 
     /**
@@ -84,7 +94,7 @@ public class ChatStoreFinder {
                     : findPhoneStores(intent, searchPoint(intent, lat, lng));
         } catch(Exception e) {
             log.warn("매장 조회 실패, 매장 정보 없이 답변 - intent={}", intent, e);
-            return StoreLookup.empty();
+            return StoreLookup.failed(e);
         }
     }
 

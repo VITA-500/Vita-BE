@@ -70,4 +70,53 @@ class ChatContextBuilderTest {
 
 		assertThat(text).contains("<plan>").doesNotContain("plan_notice");
 	}
+
+	@Test
+	void recordsTheExtremeLookupInputsAndHowTheResultWasNarrowed() {
+		PlanLookupService lookup = mock(PlanLookupService.class);
+		org.mockito.Mockito.when(lookup.findExtremeForQuery(com.vita.search.service.PlanSortKey.CHEAPEST, 50, "3만원대 중 가장 싼 요금제"))
+				.thenReturn(List.of(plan("비타 라이트 5", 25_000), plan("비타 라이트 10", 31_000), plan("비타 라이트 20", 37_000)));
+		ChatContextBuilder withLookup = new ChatContextBuilder(lookup);
+
+		ChatContextBuilder.ChatContext context = withLookup.build("3만원대 중 가장 싼 요금제", List.of(), List.of(),
+				new PlanIntent(true, com.vita.search.service.PlanSortKey.CHEAPEST, 1), new PriceRange(30_000L, 39_999L),
+				DataRange.none());
+
+		ChatContextBuilder.ExtremeLookup recorded = context.extremeLookup();
+		assertThat(recorded.sortKey()).isEqualTo(com.vita.search.service.PlanSortKey.CHEAPEST);
+		assertThat(recorded.limit()).isEqualTo(1);
+		assertThat(recorded.scopeGroup()).isEqualTo("GENERAL");
+		assertThat(recorded.fetched()).isEqualTo(3);
+		assertThat(recorded.inRange()).isEqualTo(2);
+		assertThat(recorded.returned()).extracting(PlanReference::name).containsExactly("비타 라이트 10");
+		assertThat(recorded.noMatch()).isFalse();
+		assertThat(recorded.nonMobileGuard()).isFalse();
+		assertThat(recorded.priceRange().minWon()).isEqualTo(30_000L);
+	}
+
+	@Test
+	void recordsNoMatchAndKeepsTheLookupWhenNothingFitsTheRange() {
+		PlanLookupService lookup = mock(PlanLookupService.class);
+		org.mockito.Mockito.when(lookup.findExtremeForQuery(com.vita.search.service.PlanSortKey.CHEAPEST, 50, "1만원 이하 중 가장 싼 요금제"))
+				.thenReturn(List.of(plan("비타 라이트 5", 25_000)));
+		ChatContextBuilder withLookup = new ChatContextBuilder(lookup);
+
+		ChatContextBuilder.ChatContext context = withLookup.build("1만원 이하 중 가장 싼 요금제", List.of(), List.of(),
+				new PlanIntent(true, com.vita.search.service.PlanSortKey.CHEAPEST, 1), new PriceRange(null, 10_000L),
+				DataRange.none());
+
+		assertThat(context.extremeLookup().noMatch()).isTrue();
+		assertThat(context.extremeLookup().returned()).isEmpty();
+		assertThat(context.extremeLookup().fetched()).isEqualTo(1);
+	}
+
+	@Test
+	void marksTheNonMobileGuardForAnInternetPriceQuestionAndHasNoLookupForOrdinaryQuestions() {
+		ChatContextBuilder.ChatContext internet = builder.build("가장 저렴한 인터넷 요금제", List.of(), List.of(),
+				new PlanIntent(true, com.vita.search.service.PlanSortKey.CHEAPEST, 1), PriceRange.none(), DataRange.none());
+		ChatContextBuilder.ChatContext ordinary = build(List.of(plan("비타 라이트 5", 25_000)), null);
+
+		assertThat(internet.extremeLookup().nonMobileGuard()).isTrue();
+		assertThat(ordinary.extremeLookup()).isNull();
+	}
 }
