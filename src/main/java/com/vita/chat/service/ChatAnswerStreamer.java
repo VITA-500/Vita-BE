@@ -116,7 +116,7 @@ public class ChatAnswerStreamer {
             }
 
             // 매장 질문이면 BE5 매장 조회 결과를 context 뒤에 붙인다 (실패해도 답변은 계속)
-            StoreLookup stores = chatStoreFinder.find(q.storeIntent(), lat, lng);
+            StoreLookup stores = chatStoreFinder.find(q.storeIntent(), lat, lng, question);
             String contextText = context.text() + stores.text();
 
             // 4) 답변 생성 (원문 질문으로 호출)
