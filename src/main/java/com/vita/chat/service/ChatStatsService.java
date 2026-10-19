@@ -10,6 +10,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,34 +52,85 @@ public class ChatStatsService {
                               String comment) {
     }
 
-    public ChatStatsResponse getUnresolvedStats(Integer limit) {
+    /** 목록 한 항목과, 그 묶음에 들어 있는 사유들 (reason 필터용) */
+    private record Item(ChatStatsResponse.Candidate candidate, Set<String> reasons) {
+    }
+
+    /**
+     * @param limit  목록 개수 (1~200, 기본 50)
+     * @param reason 이 사유가 묶음 안에 하나라도 있는 항목만 (null이면 전체). summary는 필터와 관계없이 전체 기준
+     */
+    public ChatStatsResponse getUnresolvedStats(Integer limit, String reason) {
         int size = limit == null ? DEFAULT_LIMIT : limit;
         if (size < 1 || size > MAX_LIMIT) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "limit은 1~" + MAX_LIMIT + " 사이여야 합니다.");
         }
+        String reasonFilter = parseReason(reason);
 
         LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        Collection<List<Occurrence>> groups = groupByQuestion();
         Map<String, FeedbackCount> feedbackCounts = countFeedbackByQuestion();
-        List<ChatStatsResponse.Candidate> candidates = groupByQuestion().stream()
+        List<Item> items = groups.stream()
                 .map(list -> {
                     Occurrence latest = list.stream().max(Comparator.comparing(Occurrence::occurredAt)).orElseThrow();
                     // 자동 감지된 답변에 (아쉬워요)까지 받아도 같은 답변이면 1회로 센다
                     long count = list.stream().map(Occurrence::messageId).distinct().count();
                     FeedbackCount feedback = feedbackCounts.getOrDefault(normalize(latest.question()), FeedbackCount.NONE);
-                    return new ChatStatsResponse.Candidate(latest.messageId(), latest.question().trim(), latest.answer(),
-                            SOURCE_CHAT, latest.reason(), count, latest.occurredAt(),
-                            feedback.likeCount(), feedback.dislikeCount(), recentComments(list));
+                    ChatStatsResponse.Candidate candidate = new ChatStatsResponse.Candidate(latest.messageId(),
+                            latest.question().trim(), latest.answer(), SOURCE_CHAT, latest.reason(), count,
+                            latest.occurredAt(), feedback.likeCount(), feedback.dislikeCount(), recentComments(list));
+                    return new Item(candidate, list.stream().map(Occurrence::reason).collect(Collectors.toSet()));
                 })
-                .sorted(Comparator.comparingLong(ChatStatsResponse.Candidate::count).reversed()
-                        .thenComparing(ChatStatsResponse.Candidate::lastOccurredAt, Comparator.reverseOrder()))
+                .sorted(Comparator.comparingLong((Item i) -> i.candidate().count()).reversed()
+                        .thenComparing(i -> i.candidate().lastOccurredAt(), Comparator.reverseOrder()))
                 .toList();
 
-        long repeatCount = candidates.stream().mapToLong(ChatStatsResponse.Candidate::count).sum();
-        long todayCount = candidates.stream().filter(c -> c.lastOccurredAt().toLocalDate().equals(today)).count();
+        long repeatCount = items.stream().mapToLong(i -> i.candidate().count()).sum();
+        long todayCount = items.stream().filter(i -> i.candidate().lastOccurredAt().toLocalDate().equals(today)).count();
+        List<Occurrence> occurrences = groups.stream().flatMap(List::stream).toList();
+        Map<String, Long> todayFeedback = countFeedbackOn(today);
 
         return new ChatStatsResponse(
-                new ChatStatsResponse.Summary(candidates.size(), repeatCount, todayCount),
-                candidates.stream().limit(size).toList());
+                new ChatStatsResponse.Summary(items.size(), repeatCount, todayCount,
+                        todayFeedback.getOrDefault(ChatMessageFeedback.LIKE.name(), 0L),
+                        todayFeedback.getOrDefault(ChatMessageFeedback.DISLIKE.name(), 0L),
+                        countByReason(occurrences),
+                        countByReason(occurrences.stream()
+                                .filter(o -> o.occurredAt().toLocalDate().equals(today)).toList())),
+                items.stream()
+                        .filter(i -> reasonFilter == null || i.reasons().contains(reasonFilter))
+                        .map(Item::candidate)
+                        .limit(size)
+                        .toList());
+    }
+
+    private static String parseReason(String reason) {
+        if (reason == null || reason.isBlank()) {
+            return null;
+        }
+        try {
+            return UnresolvedReason.valueOf(reason.trim().toUpperCase()).name();
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "reason은 NO_MATCH, LOW_SIMILARITY, ANSWER_FAILED, DISLIKED 중 하나여야 합니다.");
+        }
+    }
+
+    // 사유별 발생 수. 자동 감지된 답변에 (아쉬워요)까지 받으면 두 사유에 하나씩 센다
+    private static Map<String, Long> countByReason(List<Occurrence> occurrences) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (UnresolvedReason r : UnresolvedReason.values()) {
+            counts.put(r.name(), 0L);
+        }
+        occurrences.forEach(o -> counts.merge(o.reason(), 1L, Long::sum));
+        return counts;
+    }
+
+    // 그날(KST) 누른 (좋아요)/(아쉬워요) 수. 취소한 피드백은 빠진다
+    private Map<String, Long> countFeedbackOn(LocalDate day) {
+        return chatMessageRepository.countFeedbackBetween(day.atStartOfDay(), day.plusDays(1).atStartOfDay()).stream()
+                .collect(Collectors.toMap(ChatMessageRepository.FeedbackCountRow::getFeedback,
+                        ChatMessageRepository.FeedbackCountRow::getCount));
     }
 
     /**
