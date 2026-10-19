@@ -28,6 +28,11 @@ public final class TraceCollector {
 		this.startedAt = LocalDateTime.now(clock);
 	}
 
+	/** 이 기록이 쓰는 시계의 현재 시각. 단계의 시작·종료 시각을 직접 정해 줄 때 기준으로 쓴다. */
+	public LocalDateTime now() {
+		return LocalDateTime.now(clock);
+	}
+
 	/** 단계를 시작한다. 시작 시각을 지금으로 기록하고, 끝낼 때 쓸 {@link Span}을 돌려준다. */
 	public synchronized Span begin(SpanType type) {
 		Span span = new Span(type, LocalDateTime.now(clock));
@@ -64,7 +69,7 @@ public final class TraceCollector {
 	public final class Span {
 
 		private final SpanType type;
-		private final LocalDateTime startedAt;
+		private LocalDateTime startedAt;
 		private LocalDateTime endedAt;
 		private Map<String, Object> history = new LinkedHashMap<>();
 
@@ -81,6 +86,22 @@ public final class TraceCollector {
 				}
 				history = historyToKeep == null ? new LinkedHashMap<>() : new LinkedHashMap<>(historyToKeep);
 				endedAt = LocalDateTime.now(clock);
+			}
+		}
+
+		/**
+		 * 단계를 정상으로 끝내되 시작·종료 시각을 직접 정한다. 한 번의 호출 안에서 여러 단계가 차례로 일어났는데 각 단계의 시간을 따로
+		 * 알고 있을 때(예: 검색 호출 하나가 FAQ 검색과 요금제 검색을 이어서 한 경우) 단계마다 자기 구간만 갖게 하려고 쓴다.
+		 * 종료가 시작보다 앞서면 시작 시각으로 맞춘다. 이미 끝난 단계에는 아무 일도 하지 않는다.
+		 */
+		public void endAt(LocalDateTime startedAtOverride, LocalDateTime endedAtOverride, Map<String, Object> historyToKeep) {
+			synchronized (TraceCollector.this) {
+				if (endedAt != null) {
+					return;
+				}
+				startedAt = startedAtOverride;
+				endedAt = endedAtOverride.isBefore(startedAtOverride) ? startedAtOverride : endedAtOverride;
+				history = historyToKeep == null ? new LinkedHashMap<>() : new LinkedHashMap<>(historyToKeep);
 			}
 		}
 

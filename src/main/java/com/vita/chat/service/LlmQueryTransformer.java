@@ -14,7 +14,8 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.vita.chat.client.BedrockChatClient;import com.vita.search.pipeline.TransformInfo;
+import com.vita.chat.client.BedrockChatClient;
+import com.vita.search.pipeline.TransformInfo;
 
 import lombok.extern.slf4j.Slf4j;
 import com.fasterxml.jackson.databind.JsonNode;

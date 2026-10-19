@@ -1,10 +1,12 @@
 package com.vita.chat.service;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 
 import com.vita.chat.dto.ChatAction;
 import com.vita.chat.dto.ChatPlanCard;
@@ -25,6 +27,7 @@ import com.vita.search.dto.FaqRetrievalContext;
 import com.vita.search.dto.PlanReference;
 import com.vita.search.pipeline.RetrievalResult;
 import com.vita.search.pipeline.RetrievalSpanHistory;
+import com.vita.search.pipeline.StageTimings;
 import com.vita.search.service.FaqRetrievalService;
 import com.vita.trace.SpanType;
 import com.vita.trace.TraceCollector;
@@ -87,7 +90,14 @@ public class ChatAnswerStreamer {
         // 처리 과정 기록(trace). 저장은 맨 끝에서 비동기로 맡기고, 기록 때문에 답변이 막히지 않는다.
         TraceCollector trace = traceRecorder.start(messageId);
         // 이 질문을 처리할 때의 설정(임계값, 모델, 프롬프트 해시)도 함께 남겨 시기별 결과를 비교할 수 있게 한다.
-        traceConfigProvider.snapshot(TOP_K).forEach(trace::putConfig);
+        // 기록을 끈 상태면 만들지 않고, 만들다 실패해도 답변은 계속한다.
+        if (traceRecorder.enabled()) {
+            try {
+                traceConfigProvider.snapshot(TOP_K).forEach(trace::putConfig);
+            } catch (RuntimeException e) {
+                log.warn("trace 설정 스냅샷을 만들지 못했습니다(답변에는 영향 없음). 원인={}", e.getClass().getSimpleName());
+            }
+        }
         try {
             // 1) 질문 변환 (FAQ용 / 요금제용)
             publishStatus(sessionId, messageId, AssistantStatus.THINKING);
@@ -99,7 +109,7 @@ public class ChatAnswerStreamer {
                 transformSpan.fail(e, Map.of("question", question));
                 throw e;
             }
-            transformSpan.end(TransformSpanHistory.of(question, history, transformed));
+            transformSpan.end(safeHistory(() -> TransformSpanHistory.of(question, history, transformed)));
             QueryTransformResult q = transformed.result();
             log.info("query transform - original={}, faqQuery={}, planQuery={}, extreme={}, sortKey={}, limit={}, structured={}, priceRange={}, dataRange={}",
                     question, q.faqQuery(), q.planQuery(),
@@ -149,6 +159,7 @@ public class ChatAnswerStreamer {
             UnresolvedReason unresolved = UnresolvedReason.judge(
                     !q.storeIntent().isNone(), !context.text().isBlank(), retrieved.topSimilarity());
             String unresolvedName = unresolved == null ? null : unresolved.name();
+            Double topSimilarity = retrieved.topSimilarity();
 
             // 4) 답변 생성 (원문 질문으로 호출)
             publishStatus(sessionId, messageId, AssistantStatus.GENERATING);
@@ -165,12 +176,12 @@ public class ChatAnswerStreamer {
                 });
             } catch (RuntimeException e) {
                 // 중간에 끊겨도 그때까지 받은 답변 조각과 보낸 context는 남긴다.
-                generationSpan.fail(e, GenerationSpanHistory.of(question, contextText, history, full.toString(), progress, null,
-                        unresolvedName, retrieved.topSimilarity()));
+                generationSpan.fail(e, safeHistory(() -> GenerationSpanHistory.of(question, contextText, history,
+                        full.toString(), progress, null, unresolvedName, topSimilarity)));
                 throw e;
             }
-            generationSpan.end(GenerationSpanHistory.of(question, contextText, history, full.toString(), progress, streamed,
-                    unresolvedName, retrieved.topSimilarity()));
+            generationSpan.end(safeHistory(() -> GenerationSpanHistory.of(question, contextText, history, full.toString(),
+                    progress, streamed, unresolvedName, topSimilarity)));
 
             List<Long> faqIds = context.faqs().stream().map(FaqReference::faqId).toList();
 
@@ -223,6 +234,7 @@ public class ChatAnswerStreamer {
 
         TraceCollector.Span faqSpan = trace.begin(SpanType.FAQ_RETRIEVE);
         TraceCollector.Span planSpan = trace.begin(SpanType.PLAN_RETRIEVE);
+        LocalDateTime searchStart = trace.now();
         RetrievalResult result;
         try {
             result = faqRetrievalService.searchWithDetails(question, faqQuery, planQuery, TOP_K);
@@ -233,23 +245,34 @@ public class ChatAnswerStreamer {
             planSpan.fail(e, Map.of("query", planQuery == null ? "" : planQuery));
             throw e;
         }
+        LocalDateTime searchEnd = trace.now();
 
-        Map<String, Object> faqHistory = RetrievalSpanHistory.faq(result);
-        if (faqHistory == null) {
-            faqHistory = RetrievalSpanHistory.skipped("NO_DETAILS");
-        } else if (faqQuery == null && faqSkipReason != null) {
-            faqHistory = RetrievalSpanHistory.skipped(faqSkipReason);
-        }
-        Map<String, Object> planHistory = RetrievalSpanHistory.plan(result);
-        if (planHistory == null) {
-            planHistory = RetrievalSpanHistory.skipped("NO_DETAILS");
-        }
-        if (fallbackOf != null) {
-            faqHistory = withFallback(faqHistory, fallbackOf);
-            planHistory = withFallback(planHistory, fallbackOf);
-        }
-        faqSpan.end(faqHistory);
-        planSpan.end(planHistory);
+        Map<String, Object> faqHistory = safeHistory(() -> {
+            Map<String, Object> built = RetrievalSpanHistory.faq(result);
+            if (built == null) {
+                built = RetrievalSpanHistory.skipped("NO_DETAILS");
+            } else if (faqQuery == null && faqSkipReason != null) {
+                built = RetrievalSpanHistory.skipped(faqSkipReason);
+            }
+            return fallbackOf == null ? built : withFallback(built, fallbackOf);
+        });
+        Map<String, Object> planHistory = safeHistory(() -> {
+            Map<String, Object> built = RetrievalSpanHistory.plan(result);
+            if (built == null) {
+                built = RetrievalSpanHistory.skipped("NO_DETAILS");
+            }
+            return fallbackOf == null ? built : withFallback(built, fallbackOf);
+        });
+
+        // 검색은 한 번의 호출이지만 안에서 임베딩 -> FAQ 검색 -> 요금제 검색 순으로 일어난다. 두 span이 같은 구간을 갖지 않도록,
+        // 단계별 시간(StageTimings)으로 FAQ 쪽(임베딩 + FAQ 검색)과 요금제 쪽(요금제 검색)의 구간을 나눠 기록한다.
+        StageTimings timings = result.timings();
+        long faqNanos = timings == null ? 0 : timings.embeddingNanos() + timings.faqSearchNanos();
+        long planNanos = timings == null ? 0 : timings.planSearchNanos();
+        LocalDateTime faqEnd = earlier(searchEnd, searchStart.plusNanos(faqNanos));
+        LocalDateTime planEnd = earlier(searchEnd, faqEnd.plusNanos(planNanos));
+        faqSpan.endAt(searchStart, faqEnd, faqHistory);
+        planSpan.endAt(faqEnd, planEnd, planHistory);
 
         FaqRetrievalContext c = result.context();
         List<FaqReference> faqs = (faqQuery != null && c.hasRelevantFaq()) ? c.references() : List.of();
@@ -281,9 +304,9 @@ public class ChatAnswerStreamer {
         if (lookupSpan != null) {
             // 처음 조립에서 조회 결과가 비면 곧바로 일반 검색으로 넘어간다
             boolean fallbackToSearch = dbOnly && !afterFallback && context.text().isBlank();
-            lookupSpan.end(context.extremeLookup() == null
+            lookupSpan.end(safeHistory(() -> context.extremeLookup() == null
                     ? RetrievalSpanHistory.skipped("NO_DETAILS")
-                    : PlanLookupSpanHistory.of(context.extremeLookup(), fallbackToSearch, afterFallback));
+                    : PlanLookupSpanHistory.of(context.extremeLookup(), fallbackToSearch, afterFallback)));
         }
         return context;
     }
@@ -301,9 +324,30 @@ public class ChatAnswerStreamer {
             throw e;
         }
         if (storeSpan != null) {
-            storeSpan.end(StoreLookupSpanHistory.of(q.storeIntent(), lat != null && lng != null, stores));
+            storeSpan.end(safeHistory(() -> StoreLookupSpanHistory.of(q.storeIntent(), lat != null && lng != null, stores)));
         }
         return stores;
+    }
+
+    /**
+     * 단계 기록(history)을 만든다. 기록은 부가 기능이라, 기록을 끈 상태면 만들지 않고, 만들다 예외가 나도 답변을 막지 않고
+     * 어떤 예외였는지만 남긴다.
+     */
+    private Map<String, Object> safeHistory(Supplier<Map<String, Object>> builder) {
+        if (!traceRecorder.enabled()) {
+            return Map.of();
+        }
+        try {
+            Map<String, Object> built = builder.get();
+            return built == null ? Map.of() : built;
+        } catch (RuntimeException e) {
+            log.warn("trace 단계 기록을 만들지 못했습니다(답변에는 영향 없음). 원인={}", e.getClass().getSimpleName());
+            return Map.of("history_error", e.getClass().getSimpleName());
+        }
+    }
+
+    private static LocalDateTime earlier(LocalDateTime a, LocalDateTime b) {
+        return a.isBefore(b) ? a : b;
     }
 
     /** 검색을 이쪽에서 건너뛴 경로(극값 조회만 / 매장 조회만)를 FAQ·요금제 span에 사유와 함께 남긴다. */
