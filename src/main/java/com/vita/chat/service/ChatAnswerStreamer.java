@@ -2,6 +2,7 @@ package com.vita.chat.service;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 
 import com.vita.chat.dto.ChatAction;
@@ -16,10 +17,14 @@ import com.vita.chat.entity.ChatEvents;
 import com.vita.chat.entity.ChatEvents.AssistantStatus;
 import com.vita.chat.service.ChatContextBuilder.ChatContext;
 import com.vita.chat.service.ChatStoreFinder.StoreLookup;
+import com.vita.chat.service.QueryTransformer.TransformOutcome;
 import com.vita.search.dto.FaqReference;
 import com.vita.search.dto.FaqRetrievalContext;
 import com.vita.search.dto.PlanReference;
 import com.vita.search.service.FaqRetrievalService;
+import com.vita.trace.SpanType;
+import com.vita.trace.TraceCollector;
+import com.vita.trace.TraceRecorder;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -40,6 +45,7 @@ public class ChatAnswerStreamer {
     private final ChatStoreFinder chatStoreFinder;
     private final LlmStreamClient llmStreamClient;
     private final ChatMessagePersistence chatMessagePersistence;
+    private final TraceRecorder traceRecorder;
     private final Executor executor;
 
     public ChatAnswerStreamer(
@@ -50,6 +56,7 @@ public class ChatAnswerStreamer {
             ChatStoreFinder chatStoreFinder,
             LlmStreamClient llmStreamClient,
             ChatMessagePersistence chatMessagePersistence,
+            TraceRecorder traceRecorder,
             @Qualifier("chatStreamExecutor") Executor executor) {
         this.registry = registry;
         this.faqRetrievalService = faqRetrievalService;
@@ -58,6 +65,7 @@ public class ChatAnswerStreamer {
         this.chatStoreFinder = chatStoreFinder;
         this.llmStreamClient = llmStreamClient;
         this.chatMessagePersistence = chatMessagePersistence;
+        this.traceRecorder = traceRecorder;
         this.executor = executor;
     }
 
@@ -69,10 +77,21 @@ public class ChatAnswerStreamer {
 
     private void run(Long sessionId, Long messageId, String question,
                      BigDecimal lat, BigDecimal lng, String history) {
+        // 처리 과정 기록(trace). 저장은 맨 끝에서 비동기로 맡기고, 기록 때문에 답변이 막히지 않는다.
+        TraceCollector trace = traceRecorder.start(messageId);
         try {
             // 1) 질문 변환 (FAQ용 / 요금제용)
             publishStatus(sessionId, messageId, AssistantStatus.THINKING);
-            QueryTransformResult q = queryTransformer.transform(question, history);
+            TraceCollector.Span transformSpan = trace.begin(SpanType.TRANSFORM);
+            TransformOutcome transformed;
+            try {
+                transformed = queryTransformer.transformWithStatus(question, history);
+            } catch (RuntimeException e) {
+                transformSpan.fail(e, Map.of("question", question));
+                throw e;
+            }
+            transformSpan.end(TransformSpanHistory.of(question, history, transformed));
+            QueryTransformResult q = transformed.result();
             log.info("query transform - original={}, faqQuery={}, planQuery={}, extreme={}, sortKey={}, limit={}, structured={}, priceRange={}, dataRange={}",
                     question, q.faqQuery(), q.planQuery(),
                     q.planIntent().extreme(), q.planIntent().sortKey(), q.planIntent().limit(), q.structured(), q.priceRange(), q.dataRange());
@@ -157,6 +176,9 @@ public class ChatAnswerStreamer {
             }
             registry.publish(sessionId, ChatEvents.ASSISTANT_ERROR,
                     new ChatEvents.Error(sessionId, messageId, "INTERNAL_ERROR", "답변 생성에 실패했습니다."));
+        } finally {
+            // 성공이든 실패든 지금까지 모은 기록을 저장한다. 저장 실패는 이 안에서 삼켜진다.
+            traceRecorder.saveAsync(trace);
         }
     }
     
