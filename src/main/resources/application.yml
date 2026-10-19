@@ -66,6 +66,14 @@ server:
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
 
+# 질문 1건의 처리 과정(Trace/Span)을 그 순간의 원문 그대로 DB에 남기는 기록. 문제가 생기면 TRACE_ENABLED=false로 즉시 끈다.
+trace:
+  enabled: ${TRACE_ENABLED:true}
+  # 이 기록을 만든 앱 버전(배포 시 git 커밋을 넣는다). 비어 있으면 저장하지 않는다.
+  app-version: ${APP_VERSION:}
+  # 한 칸(history·config)에 넣을 JSON의 최대 글자 수. 넘으면 앞부분 미리보기만 남기고 잘렸다고 표시한다.
+  max-history-chars: ${TRACE_MAX_HISTORY_CHARS:200000}
+
 app:
   cookie:
     # 로컬은 http라 Secure를 못 쓴다. 배포(HTTPS)에서는 true + SameSite=None이어야
