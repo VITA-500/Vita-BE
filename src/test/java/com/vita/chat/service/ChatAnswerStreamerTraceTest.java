@@ -5,19 +5,20 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.vita.chat.client.LlmStreamClient;
 import com.vita.chat.dto.QueryTransformResult;
+import com.vita.chat.dto.StreamResult;
 import com.vita.chat.service.ChatContextBuilder.ChatContext;
 import com.vita.chat.service.ChatStoreFinder.StoreLookup;
 import com.vita.chat.service.QueryTransformer.TransformOutcome;
@@ -25,6 +26,7 @@ import com.vita.chat.service.QueryTransformer.TransformTrace;
 import com.vita.search.dto.FaqRetrievalContext;
 import com.vita.search.pipeline.TransformInfo;
 import com.vita.search.service.FaqRetrievalService;
+import com.vita.trace.SpanRecord;
 import com.vita.trace.SpanType;
 import com.vita.trace.TraceRecord;
 import com.vita.trace.TraceRecorder;
@@ -57,9 +59,20 @@ class ChatAnswerStreamerTraceTest {
                 chatStoreFinder, llmStreamClient, persistence, recorder, DIRECT);
     }
 
+    @SuppressWarnings("unchecked")
+    private void streamsTwoChunksThenReturns(StreamResult result) {
+        when(llmStreamClient.stream(anyString(), anyString(), any(), any())).thenAnswer(invocation -> {
+            Consumer<String> onDelta = invocation.getArgument(3);
+            onDelta.accept("안녕");
+            onDelta.accept("하세요");
+            return result;
+        });
+    }
+
     @Test
-    void savesTheTransformSpanOnceTheAnswerIsCompleted() {
+    void savesTransformAndGenerationSpansOnceTheAnswerIsCompleted() {
         ChatAnswerStreamer streamer = streamer();
+        streamsTwoChunksThenReturns(new StreamResult("조립된 프롬프트", "model-x", 100L, 20L, 120L));
 
         streamer.startAsync(1L, 99L, "로밍 요금 알려줘", null, null, null);
 
@@ -67,25 +80,56 @@ class ChatAnswerStreamerTraceTest {
         verify(traceRepository).save(captor.capture());
         TraceRecord record = captor.getValue();
         assertThat(record.messageId()).isEqualTo(99L);
-        assertThat(record.spans()).hasSize(1);
-        assertThat(record.spans().get(0).type()).isEqualTo(SpanType.TRANSFORM);
+        assertThat(record.spans()).extracting(SpanRecord::type)
+                .containsExactly(SpanType.TRANSFORM, SpanType.GENERATION);
         assertThat(record.spans().get(0).history())
                 .containsEntry("question", "로밍 요금 알려줘")
                 .containsEntry("raw_response", "{\"faq_query\":\"로밍\"}")
                 .containsEntry("total_tokens", 15L);
+        assertThat(record.spans().get(1).history())
+                .containsEntry("answer", "안녕하세요")
+                .containsEntry("delta_count", 2)
+                .containsEntry("user_prompt", "조립된 프롬프트")
+                .containsEntry("model", "model-x")
+                .containsEntry("total_tokens", 120L)
+                .doesNotContainKey("error");
+    }
+
+    @Test
+    void savesTheGenerationSpanWithoutCallRecordWhenTheClientGivesNone() {
+        ChatAnswerStreamer streamer = streamer();
+        streamsTwoChunksThenReturns(null);
+
+        streamer.startAsync(1L, 99L, "로밍 요금 알려줘", null, null, null);
+
+        ArgumentCaptor<TraceRecord> captor = ArgumentCaptor.forClass(TraceRecord.class);
+        verify(traceRepository).save(captor.capture());
+        assertThat(captor.getValue().spans().get(1).history())
+                .containsEntry("answer", "안녕하세요")
+                .containsKey("context")
+                .doesNotContainKeys("user_prompt", "total_tokens");
     }
 
     @Test
     void stillSavesTheTraceWhenLaterStepsFailAndMarksTheMessageFailed() {
         ChatAnswerStreamer streamer = streamer();
-        doThrow(new IllegalStateException("LLM 오류")).when(llmStreamClient).stream(anyString(), anyString(), any(), any());
+        when(llmStreamClient.stream(anyString(), anyString(), any(), any())).thenAnswer(invocation -> {
+            Consumer<String> onDelta = invocation.getArgument(3);
+            onDelta.accept("안녕");
+            throw new IllegalStateException("LLM 오류");
+        });
 
         streamer.startAsync(1L, 99L, "로밍 요금 알려줘", null, null, null);
 
         verify(persistence).markFailed(99L, "LLM 오류");
         ArgumentCaptor<TraceRecord> captor = ArgumentCaptor.forClass(TraceRecord.class);
         verify(traceRepository).save(captor.capture());
-        assertThat(captor.getValue().spans()).extracting(s -> s.type()).containsExactly(SpanType.TRANSFORM);
+        assertThat(captor.getValue().spans()).extracting(SpanRecord::type)
+                .containsExactly(SpanType.TRANSFORM, SpanType.GENERATION);
+        // 끊기기 전까지 받은 답변 조각이 남고, 오류가 기록된다
+        assertThat(captor.getValue().spans().get(1).history())
+                .containsEntry("answer", "안녕")
+                .containsKey("error");
     }
 
     @Test

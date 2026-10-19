@@ -4,7 +4,9 @@ import java.util.function.Consumer;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
- 
+
+import com.vita.chat.dto.StreamResult;
+
  
 import lombok.RequiredArgsConstructor;
  
@@ -17,8 +19,8 @@ public class BedrockLlmStreamClient implements LlmStreamClient {
     private final BedrockChatClient bedrockChatClient;
  
     @Override
-    public void stream(String question, String context, String conversationHistory, Consumer<String> onDelta) {
-        bedrockChatClient.askStream(question, context, conversationHistory, onDelta);
+    public StreamResult stream(String question, String context, String conversationHistory, Consumer<String> onDelta) {
+        return bedrockChatClient.askStream(question, context, conversationHistory, onDelta);
     }
 }
  

@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import com.vita.chat.UnresolvedReason;
 import com.vita.chat.client.LlmStreamClient;
 import com.vita.chat.dto.QueryTransformResult;
+import com.vita.chat.dto.StreamResult;
 import com.vita.chat.entity.ChatEvents;
 import com.vita.chat.entity.ChatEvents.AssistantStatus;
 import com.vita.chat.service.ChatContextBuilder.ChatContext;
@@ -141,11 +142,22 @@ public class ChatAnswerStreamer {
             // 4) 답변 생성 (원문 질문으로 호출)
             publishStatus(sessionId, messageId, AssistantStatus.GENERATING);
             StringBuilder full = new StringBuilder();
-            llmStreamClient.stream(question, contextText, history, delta -> {
-                full.append(delta);
-                registry.publish(sessionId, ChatEvents.ASSISTANT_DELTA,
-                        new ChatEvents.Delta(sessionId, messageId, delta));
-            });
+            GenerationSpanHistory.Progress progress = new GenerationSpanHistory.Progress();
+            TraceCollector.Span generationSpan = trace.begin(SpanType.GENERATION);
+            StreamResult streamed;
+            try {
+                streamed = llmStreamClient.stream(question, contextText, history, delta -> {
+                    progress.onDelta();
+                    full.append(delta);
+                    registry.publish(sessionId, ChatEvents.ASSISTANT_DELTA,
+                            new ChatEvents.Delta(sessionId, messageId, delta));
+                });
+            } catch (RuntimeException e) {
+                // 중간에 끊겨도 그때까지 받은 답변 조각과 보낸 context는 남긴다.
+                generationSpan.fail(e, GenerationSpanHistory.of(question, contextText, history, full.toString(), progress, null));
+                throw e;
+            }
+            generationSpan.end(GenerationSpanHistory.of(question, contextText, history, full.toString(), progress, streamed));
 
             List<Long> faqIds = context.faqs().stream().map(FaqReference::faqId).toList();
 
