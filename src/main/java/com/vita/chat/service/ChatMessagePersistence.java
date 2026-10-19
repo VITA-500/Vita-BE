@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.vita.chat.UnresolvedReason;
 import com.vita.chat.dto.ChatAction;
+import com.vita.chat.dto.ChatPlanCard;
 import com.vita.chat.dto.ChatStoreMap;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -67,16 +68,17 @@ class ChatMessagePersistence {
 	@Transactional
 	public void markCompleted(Long messageId, String answer, List<Long> faqIds,
 	                          ChatStoreMap storeMap, List<ChatAction> actions) {
-		markCompleted(messageId, answer, faqIds, storeMap, actions, null, null);
+		markCompleted(messageId, answer, faqIds, storeMap, List.of(), actions, null, null);
 	}
 
-	/** 미해결 이유·검색 최고 유사도까지 함께 저장 */
+	/** 요금제 카드·미해결 이유·검색 최고 유사도까지 함께 저장 */
 	@Transactional
 	public void markCompleted(Long messageId, String answer, List<Long> faqIds, ChatStoreMap storeMap,
-	                          List<ChatAction> actions, UnresolvedReason unresolvedReason, Double topSimilarity) {
+	                          List<ChatPlanCard> plans, List<ChatAction> actions,
+	                          UnresolvedReason unresolvedReason, Double topSimilarity) {
 		ChatMessage message = chatMessageRepository.findById(messageId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "메시지를 찾을 수 없습니다."));
-		message.markCompleted(answer, storeMap, actions, unresolvedReason, topSimilarity);
+		message.markCompleted(answer, storeMap, plans, actions, unresolvedReason, topSimilarity);
         message.getSession().update();
         
         List<ChatMessageFaqRef> refs = faqIds.stream()

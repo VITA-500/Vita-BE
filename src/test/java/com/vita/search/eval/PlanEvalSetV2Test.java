@@ -167,4 +167,23 @@ class PlanEvalSetV2Test {
 		}
 		assertThat(demoted).isEqualTo(INTENDED_DEMOTIONS);
 	}
+	@Test
+	void wholeListQuestionsExpectEveryPlanAndHideDeviceOnlyPlansUnlessTheQuestionMentionsThem() {
+		List<PlanEvalQuestion> lists = v2.stream().filter(q -> "LIST_ALL".equals(q.type())).toList();
+		Set<String> devicePlans = Set.of("VITA-WATCH-1", "VITA-TABLET-20");
+
+		assertThat(lists).hasSize(8);
+		for (PlanEvalQuestion question : lists) {
+			// 정답 요금제는 20종 전부 어느 관련도에든 들어 있다(전체 목록 요청이므로).
+			assertThat(question.relevantCodes(1)).as(question.qid()).isEqualTo(planCodes);
+			boolean mentionsDevice = question.query().contains("워치") || question.query().contains("태블릿");
+			if (mentionsDevice) {
+				assertThat(question.relevantCodes(3)).as(question.qid() + " 기기를 말한 질문").containsAll(devicePlans);
+			} else {
+				// 기기를 말하지 않은 질문은 워치·태블릿이 1점(전달 대상 아님)이고, 나머지 18종이 2점 이상이다.
+				assertThat(question.relevantCodes(2)).as(question.qid()).hasSize(planCodes.size() - devicePlans.size())
+						.doesNotContainAnyElementsOf(devicePlans);
+			}
+		}
+	}
 }

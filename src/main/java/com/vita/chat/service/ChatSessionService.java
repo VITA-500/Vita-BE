@@ -4,14 +4,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import com.vita.chat.dto.*;
 import org.apache.coyote.BadRequestException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.vita.chat.dto.ChatSessionClaimResponse;
-import com.vita.chat.dto.ChatSessionCreateResponse;
-import com.vita.chat.dto.ChatSessionListResponse;
-import com.vita.chat.dto.ChatSessionSummaryResponse;
 import com.vita.chat.entity.ChatSession;
 import com.vita.chat.repository.ChatSessionRepository;
 import com.vita.common.exception.BusinessException;
@@ -25,8 +22,11 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ChatSessionService {
 
+	private static final int TITLE_MAX_LENGTH = 30;
+
 	private final ChatSessionRepository chatSessionRepository;
-	
+	private final ChatMessageService chatMessageService;
+
 	/**
 	 * 새 세션 생성
 	 * @param userId
@@ -57,7 +57,7 @@ public class ChatSessionService {
 		}
 		
 		List<ChatSessionSummaryResponse> sessions = chatSessionRepository
-				.findAllByUserIdOrderByUpdatedAtDesc(userId)
+				.findAllByUserIdAndDeletedAtIsNullOrderByPinnedDescUpdatedAtDesc(userId)
 				.stream()
 				.map(ChatSessionSummaryResponse::from)
 				.toList();
@@ -73,6 +73,7 @@ public class ChatSessionService {
 		}
 		
 		ChatSession session = chatSessionRepository.findById(sessionId)
+				.filter(s -> !s.isDeleted())
 				.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
 		
 		if(session.getUserId() != null) {
@@ -88,5 +89,38 @@ public class ChatSessionService {
 		return ChatSessionClaimResponse.from(session);
 		
 	}
-	
+
+	/** 대화 삭제. 본인 세션만 가능 */
+	@Transactional
+	public void deleteSession(Long sessionId, Long userId){
+		ChatSession session = chatMessageService.getOwnedSession(sessionId, userId, null);
+		session.delete();
+	}
+
+	/** 대화 고정/해제. 본인 세션만 가능 */
+	@Transactional
+	public ChatSessionPinResponse pinSession(Long sessionId, Long userId, boolean pinned) {
+		ChatSession session = chatMessageService.getOwnedSession(sessionId, userId, null);
+		session.pin(pinned);
+		return ChatSessionPinResponse.from(session);
+	}
+
+	/**
+	 * 대화 이름 변경. 본인 세션만 가능
+	 * 앞뒤 공백을 지우고 줄바꿈, 연속 공백은 한 칸으로 바꾼 뒤 1~30자
+	 * 고정과 같이 updatedAt은 바꾸지 않는다.
+	 */
+	@Transactional
+	public ChatSessionTitleResponse renameSession(Long sessionId, Long userId, String title) {
+		String normalized = title == null ? "" : title.strip().replaceAll("\\s+", " ");
+		int length = normalized.codePointCount(0, normalized.length());
+		if (length == 0 || length > TITLE_MAX_LENGTH) {
+			throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+					"대화 이름은 1~" + TITLE_MAX_LENGTH + "자여야 합니다.");
+		}
+		ChatSession session = chatMessageService.getOwnedSession(sessionId, userId, null);
+		session.rename(normalized);
+		return ChatSessionTitleResponse.from(session);
+	}
+
 }

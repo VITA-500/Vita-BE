@@ -27,7 +27,8 @@ public record ChatStoreMap(String type, String category, Long benefitId, List<St
      */
     public record Store(String id, String name, String address, String businessHours,
                         List<String> consultServices, String phone, List<String> providedServices,
-                        double lat, double lng, String distanceText, Boolean openNow) {
+                        double lat, double lng, String distanceText, Boolean openNow,
+                        Long benefitId, String benefitBrand, String benefitCategory, String benefitName) {
     }
 
     /** place가 있으면 그 장소 기준, 없으면 사용자 위치 기준 */
@@ -37,7 +38,8 @@ public record ChatStoreMap(String type, String category, Long benefitId, List<St
                 stores.stream()
                         .map(s -> new Store(String.valueOf(s.storeId()), s.name(), s.address(), s.businessHours(),
                                 s.consultServices(), s.phone() == null ? "" : s.phone(), s.providedServices(),
-                                s.lat().doubleValue(), s.lng().doubleValue(), distanceText(s.distanceKm()), s.openNow()))
+                                s.lat().doubleValue(), s.lng().doubleValue(), distanceText(s.distanceKm()), s.openNow(),
+                                null, null, null, null))
                         .toList());
     }
 
@@ -47,8 +49,9 @@ public record ChatStoreMap(String type, String category, Long benefitId, List<St
         return new ChatStoreMap("PARTNER", category, benefitId, List.of(), origin(lat, lng), originSource(place), place,
                 stores.stream()
                         .map(s -> new Store(String.valueOf(s.storeId()), s.name(), s.address(), s.businessHours(),
-                                List.of(), "", List.of(),
-                                s.lat().doubleValue(), s.lng().doubleValue(), distanceText(s.distanceKm()), s.openNow()))
+                                List.of(), "", List.of(), s.lat().doubleValue(), s.lng().doubleValue(),
+                                distanceText(s.distanceKm()), s.openNow(), s.benefitId(), s.brand(), s.category(),
+                                s.benefitName()))
                         .toList());
     }
 

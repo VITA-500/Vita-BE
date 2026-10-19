@@ -216,6 +216,18 @@ public class PlanEvalRunner implements CommandLineRunner {
 		}
 	}
 
+	/**
+	 * 서비스가 실제로 사용자에게 넘기는 요금제. 변환기가 요금제용 질문을 비워 돌려주면(요금제와 무관한 질문) 서비스
+	 * ({@code ChatAnswerStreamer})는 요금제 검색 결과를 버린다. 평가 러너의 변환기는 빈 질문을 원문으로 채워 검색이 끊기지 않게
+	 * 하므로, 평가에서도 같은 질문의 요금제 결과를 버려야 "요금제 아님" 질문의 누수가 서비스와 같게 센다.
+	 *
+	 * @param info          변환 기록(요금제용 질문이 비어 있었는지 알려 준다)
+	 * @param pipelineCodes 파이프라인이 돌려준 요금제 plan_code
+	 */
+	static List<String> serviceVisiblePlanCodes(TransformInfo info, List<String> pipelineCodes) {
+		return info.planNull() ? List.of() : pipelineCodes;
+	}
+
 	private EvalRow evaluate(PlanEvalQuestion question, RetrievalPipeline pipeline, int topK) {
 		List<String> delivered;
 		boolean conditionMatched = false;
@@ -223,7 +235,11 @@ public class PlanEvalRunner implements CommandLineRunner {
 		TransformedQuery transformed;
 		if (TYPE_EXTREME.equals(question.type())) {
 			// BE4는 최상급 의도를 알아내면 검색 결과 대신 정형 조회 결과를 쓴다.
-			delivered = planLookupService.findExtremeForQuery(PlanSortKey.valueOf(question.sortKey()), extremeLimit, question.query())
+			// 조회 뒤의 마무리도 BE4와 같다: 정렬 기준 값이 같은 요금제는 개수 제한을 넘어도 함께 남긴다(ChatContextBuilder).
+			// BE4가 변환기에서 받는 가격·데이터량 범위 필터는 재현하지 않는다. 같은 조건은 조회 쪽이 질문 원문에서 읽어 이미 적용한다.
+			PlanSortKey sortKey = PlanSortKey.valueOf(question.sortKey());
+			delivered = PlanLookupService.limitWithTies(
+							planLookupService.findExtremeForQuery(sortKey, extremeLimit, question.query()), sortKey, extremeLimit)
 					.stream().map(PlanReference::planCode).toList();
 			path = PlanEvalPath.LOOKUP_NAME;
 			// 정형 조회는 질문 변환을 거치지 않고 원문으로 부른다(BE4의 최상급 분기).
@@ -231,10 +247,11 @@ public class PlanEvalRunner implements CommandLineRunner {
 		} else {
 			RetrievalResult result = pipeline.run(question.query(),
 					RetrievalOptions.forEval(FAQ_TOP_K, FaqCandidateSelector.poolSize(FAQ_TOP_K), true).withPlanTopK(topK));
-			delivered = result.context().planReferences().stream().map(PlanReference::planCode).toList();
-			conditionMatched = result.planOutcome().conditionMatched();
-			path = PlanEvalPath.SEARCH;
 			transformed = result.query();
+			delivered = serviceVisiblePlanCodes(transformed.info(),
+					result.context().planReferences().stream().map(PlanReference::planCode).toList());
+			conditionMatched = !transformed.info().planNull() && result.planOutcome().conditionMatched();
+			path = PlanEvalPath.SEARCH;
 		}
 
 		Set<String> required = question.expectNone() || question.noExactMatch() ? Set.of() : PlanEvalMetrics.requiredCodes(question);
@@ -445,7 +462,7 @@ public class PlanEvalRunner implements CommandLineRunner {
 		long faqNull = searched.stream().filter(row -> row.transformed().info().faqNull()).count();
 		long sameText = searched.stream().filter(this::planQueryTransformed)
 				.filter(row -> row.transformed().planQuery().equals(row.transformed().original())).count();
-		log.info("한쪽만 비어 있음: 요금제용 {}개(요금제 검색은 원문으로 진행), FAQ용 {}개(요금제 질문 평가에서는 정상) | 변환됐지만 요금제용 질문이 원문과 같은 질문: {}개",
+		log.info("한쪽만 비어 있음: 요금제용 {}개(서비스처럼 요금제 결과를 버려 전달 0개로 센다), FAQ용 {}개(요금제 질문 평가에서는 정상) | 변환됐지만 요금제용 질문이 원문과 같은 질문: {}개",
 				planNull, faqNull, sameText);
 
 		long planOriginalCount = searched.stream().filter(row -> !planQueryTransformed(row)).count();

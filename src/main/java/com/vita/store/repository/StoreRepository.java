@@ -74,6 +74,7 @@ public interface StoreRepository extends JpaRepository<Store, Long>, JpaSpecific
     /**
      * 채팅용 주변 통신 매장
      * 요청한 서비스(services, "||"로 연결)를 많이 제공하는 매장 먼저, 같으면 가까운 순
+     * minKm을 주면 그보다 먼 매장만 ("1km 이상")
      */
     @Query(value = """
             SELECT * FROM(
@@ -100,6 +101,7 @@ public interface StoreRepository extends JpaRepository<Store, Long>, JpaSpecific
                                 END)
             ) ranked
             WHERE distance_km <= :radiusKm
+                AND (CAST(:minKm AS DOUBLE PRECISION) IS NULL OR distance_km >= :minKm)
             ORDER BY matched_count DESC, distance_km, id
             LIMIT :limit
             """, nativeQuery = true)
@@ -107,13 +109,14 @@ public interface StoreRepository extends JpaRepository<Store, Long>, JpaSpecific
             @Param("lat") BigDecimal lat,
             @Param("lng") BigDecimal lng,
             @Param("radiusKm") double radiusKm,
+            @Param("minKm") Double minKm,
             @Param("services") String services,
             @Param("openAt") LocalTime openAt,
             @Param("limit") int limit);
 
     /**
      * 제휴 매장 거리순 + 연결된 혜택 정보
-     * category·benefitId·radiusKm·openAt은 선택이라 null이면 조건을 건너뛴다
+     * category·benefitId·radiusKm·minKm·openAt은 선택이라 null이면 조건을 건너뛴다
      */
     @Query(value = """
             SELECT *
@@ -140,7 +143,8 @@ public interface StoreRepository extends JpaRepository<Store, Long>, JpaSpecific
                                      CAST(:openAt AS TIME) < s.close_time 
                                 END)
             ) ranked
-            WHERE CAST(:radiusKm AS DOUBLE PRECISION) IS NULL OR distance_km <= :radiusKm
+            WHERE (CAST(:radiusKm AS DOUBLE PRECISION) IS NULL OR distance_km <= :radiusKm)
+                AND (CAST(:minKm AS DOUBLE PRECISION) IS NULL OR distance_km >= :minKm)
             ORDER BY distance_km, id
             LIMIT :limit
             """, nativeQuery = true)
@@ -150,6 +154,7 @@ public interface StoreRepository extends JpaRepository<Store, Long>, JpaSpecific
             @Param("category") String category,
             @Param("benefitId") Long benefitId,
             @Param("radiusKm") Double radiusKm,
+            @Param("minKm") Double minKm,
             @Param("openAt") LocalTime openAt,
             @Param("limit") int limit);
 

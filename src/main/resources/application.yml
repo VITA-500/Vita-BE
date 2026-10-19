@@ -101,8 +101,14 @@ plan:
     # 요금제는 질문/답변이 아니라 설명 문장(description) 형태라 FAQ와 유사도 분포가 달라
     # threshold를 따로 둔다. 요금제 15종 실측 기준 — 타겟 그룹이 맞는 질문(청년/시니어/키즈/
     # 워치 등)의 top1은 0.8208~0.8767, FAQ성·무관 질문의 top1은 0.7414~0.8008이라
-    # 그 사이인 0.81로 잡음. 20종으로 늘린 뒤 평가셋 v2와 질문 변환(C)으로 다시 점검해 0.81을 유지했다.
-    similarity-threshold: ${PLAN_RETRIEVAL_SIMILARITY_THRESHOLD:0.81}
+    # 그 사이인 0.81로 잡았다. 20종으로 늘린 뒤 평가셋 v2와 질문 변환(C)으로 다시 점검해 0.81을 유지했지만, 서술형 질문
+    # ("통화는 많이 하는데 데이터는 거의 안 써요")이 조건으로 읽히지 않고 유사도도 0.79~0.81이라 빈 응답이 되는 문제가 있어
+    # 0.79로 낮췄다. 요금제 평가셋 v2 158문항(질문 변환 결과 고정)에서 0.81/0.80/0.79/0.78을 비교했다.
+    #   - 빈 응답(정답 있는 질문) 4 → 1 → 0 → 0, 서술형 12문항 Hit@1 66.7 → 75.0 → 83.3 → 83.3%, 전체 nDCG 88.8 → 89.3 → 89.7 → 89.8%
+    #   - 요금제 아님 질문의 누수: 0.81은 0개, 0.80부터 "로밍 요금제 알려줘" 1개(요금제용 질문이 비어서 서비스가 요금제 결과를 버리는
+    #     질문은 제외한 값). 0.77 이하는 "맛집 추천해줘"까지 새서 0.79에서 멈췄다.
+    # 값을 되돌리거나 다시 정할 때는 PLAN_RETRIEVAL_SIMILARITY_THRESHOLD로 바꿀 수 있다.
+    similarity-threshold: ${PLAN_RETRIEVAL_SIMILARITY_THRESHOLD:0.79}
     # 질문 조건(가격·데이터량·대상 등)에 매칭되지 않는 질문에서 벡터 유사도로 돌려줄 요금제 개수. FAQ의 topK와 따로 둔다
     # (BE4가 FAQ topK를 10으로 올려도 요금제에 불필요한 후보가 늘지 않게). 요금제 평가셋(검수 전 초안)으로 3/5/7/10을 비교해 5로 정했다:
     # 3→5에서 Recall(1점 이상) 74.5→75.5%, 대상 그룹 질문 70→76%로 오르고 정밀도는 80.2→78.9%로 소폭 내린다. 10까지 키우면 정답이 1개인
@@ -146,11 +152,11 @@ search:
     # 단계별 응답 시간을 질문마다 몇 번 반복해 잴지(0이면 건너뜀)와, 결과를 버리고 먼저 돌려 둘 예열 횟수. 변환기가 LLM이면 반복 횟수만큼 호출한다.
     timing-repeats: ${SEARCH_PLAN_EVAL_TIMING_REPEATS:3}
     timing-warmup: ${SEARCH_PLAN_EVAL_TIMING_WARMUP:5}
-  # 검색 평가셋(v2.2)으로 Recall·Precision·nDCG·MRR을 재는 수동 도구. 로컬 도커(DB+임베딩 서버)가 떠 있고
+  # 검색 평가셋(v2.3)으로 Recall·Precision·nDCG·MRR을 재는 수동 도구. 로컬 도커(DB+임베딩 서버)가 떠 있고
   # 평가셋의 정답 FAQ가 DB에 적재돼 있을 때만 켠다(데이터가 다르면 바로 중단한다).
   eval:
     enabled: ${SEARCH_EVAL_ENABLED:false}
-    resource: ${SEARCH_EVAL_RESOURCE:classpath:data/regression/eval_v2/retrieval_eval_v2_2.jsonl}
+    resource: ${SEARCH_EVAL_RESOURCE:classpath:data/regression/eval_v2/retrieval_eval_v2_3.jsonl}
     # 평가에 쓸 질문 변환기·FAQ 후보 검색기의 빈 이름. 기본은 변환 없음 + 한국어 벡터 검색(Baseline).
     # 질문 변환(bedrockQueryTransformer)·Hybrid 같은 다른 구현은 해당 빈의 이름을 적는다(팀 노션의 검색 평가 도구 사용 안내 참고).
     query-transformer: ${SEARCH_EVAL_QUERY_TRANSFORMER:identityQueryTransformer}

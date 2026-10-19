@@ -30,6 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ChatMessageService {
 
 	private static final int MAX_HISTORY_TURNS = 5;  // 1턴 = USER + ASSISTANT 2개
+	private static final int COMMENT_MAX_LENGTH = 200;
 	
 	private final ChatAnswerStreamer answerStreamer;
 	private final ChatMessagePersistence persistence;
@@ -104,6 +105,7 @@ public class ChatMessageService {
 	/** 세션 존재 여부와 소유자를 검증한다. 실패 시 BusinessException. */
 	public ChatSession getOwnedSession(Long sessionId, Long userId, UUID guestId) {
 	    ChatSession session = chatSessionRepository.findById(sessionId)
+				.filter(s -> !s.isDeleted())
 	            .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "존재하지 않는 세션입니다."));
 
 	    boolean isOwner = (session.getUserId() != null)
@@ -138,10 +140,21 @@ public class ChatMessageService {
 	/**
 	 * 답변 피드백 저장 (회원만). null이면 취소
 	 * 내 세션의 완료된 답변에만 남길 수 있다
-	 * (싫어요)면 관리자 미해결 목록(unresolved_question_reports)에 올리고 (좋아요)로 바꾸거나 취소하면 내린다
+	 * (아쉬워요)면 관리자 미해결 목록에 올리고 (좋아요)로 바꾸거나 취소하면 내린다
+	 * 이유(comment)는 (아쉬워요)에만 남긴다. null이면 기존 이유 유지, 빈 문자열이면 지움, 앞뒤 공백 제외 200자까지
 	 */
 	@Transactional
-	public ChatFeedbackResponse applyFeedback(Long messageId, Long userId, ChatMessageFeedback feedback){
+	public ChatFeedbackResponse applyFeedback(Long messageId, Long userId, ChatMessageFeedback feedback, String comment){
+		String normalizedComment = comment == null ? null : comment.strip();
+		if(normalizedComment != null && !normalizedComment.isEmpty()){
+			if(feedback != ChatMessageFeedback.DISLIKE){
+				throw new BusinessException(ErrorCode.VALIDATION_ERROR, "아쉬워요를 누를 때만 이유를 남길 수 있습니다.");
+			}
+			if(normalizedComment.codePointCount(0, normalizedComment.length()) > COMMENT_MAX_LENGTH){
+				throw new BusinessException(ErrorCode.VALIDATION_ERROR, "이유는 " + COMMENT_MAX_LENGTH + "자 이하여야 합니다.");
+			}
+		}
+
 		ChatMessage message = chatMessageRepository.findById(messageId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "존재하지 않는 메시지입니다."));
 
@@ -154,10 +167,14 @@ public class ChatMessageService {
 		// feedback 칸은 버튼 상태 표시용, 관리자 목록은 unresolved_question_reports에서 읽는다
 		message.applyFeedback(feedback);
 		if(feedback == ChatMessageFeedback.DISLIKE){
-			chatReportService.report(messageId, userId);
-		} else {
-			chatReportService.cancel(messageId, userId);
+			ReportResponse report = chatReportService.report(messageId, userId);
+			if(normalizedComment != null){
+				report = chatReportService.changeComment(messageId, userId,
+						normalizedComment.isEmpty() ? null : normalizedComment);
+			}
+			return ChatFeedbackResponse.from(message, report.comment());
 		}
-		return ChatFeedbackResponse.from(message);
+		chatReportService.cancel(messageId, userId);
+		return ChatFeedbackResponse.from(message, null);
 	}
 }

@@ -24,7 +24,7 @@ public interface UnresolvedQuestionReportRepository
     List<UnresolvedQuestionReport> findAllByStatus(ReportStatus status);
 
     /**
-     * 👎 저장. 같은 (답변, 회원) 줄이 이미 있으면 아무것도 하지 않는다
+     * (아쉬워요) 저장. 같은 (답변, 회원) 줄이 이미 있으면 아무것도 하지 않는다
      * 연속 클릭으로 두 요청이 동시에 와도 중복 오류(500) 없이 한 줄만 남는다
      */
     @Modifying(flushAutomatically = true)

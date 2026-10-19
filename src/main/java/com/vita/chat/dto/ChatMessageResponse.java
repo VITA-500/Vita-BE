@@ -12,6 +12,7 @@ public record ChatMessageResponse(
 		ChatMessageStatus status,
 		String answer,
 		List<Long> relatedFaqIds,
+		List<ChatPlanCard> plans,
 		LocalDateTime createAt,
 		long latencyMs
 		) {
@@ -23,6 +24,7 @@ public record ChatMessageResponse(
 				message.getFaqRefs().stream()
 				.map(ChatMessageFaqRef :: getFaqId)
 				.toList(),
+				message.getPlans(),
 				message.getCreatedAt(),
 				latencyMs
 				);

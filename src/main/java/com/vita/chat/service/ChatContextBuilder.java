@@ -1,5 +1,6 @@
 package com.vita.chat.service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -25,8 +26,15 @@ public class ChatContextBuilder {
 	/** 가격 범위로 거른 뒤 limit만큼 쓰기 위해 넉넉히 조회한다 (요금제 수가 적어 부담 없음) */
 	private static final int EXTREME_FETCH_LIMIT = 50;
 
-	public record ChatContext(String text, List<FaqReference> faqs) {
-		public static ChatContext empty() { return new ChatContext("", List.of()); }
+	/** @param plans LLM에 넘긴 요금제. 답변에 나온 것만 골라 요금제 카드로 쓴다 */
+	public record ChatContext(String text, List<FaqReference> faqs, List<PlanReference> plans) {
+		public ChatContext(String text, List<FaqReference> faqs) {
+			this(text, faqs, List.of());
+		}
+
+		public static ChatContext empty() {
+			return new ChatContext("", List.of());
+		}
 	}
 
 	/**
@@ -42,16 +50,26 @@ public class ChatContextBuilder {
 
 	public ChatContext build(String question, List<FaqReference> faqs, List<PlanReference> plans,
 	        PlanIntent intent, PriceRange priceRange, DataRange dataRange) {
+	    return build(question, faqs, plans, intent, priceRange, dataRange, null);
+	}
+
+	/**
+	 * @param planNotice 요금제 전체 목록을 물은 질문에서 검색(BE3)이 붙인 안내 한 줄(전체 목록이라는 점, 기기 전용 요금제가
+	 *                   빠졌다는 점). 일반 질문이면 null이다. 일반 요금제 목록 바로 앞에 {@code <plan_notice>}로 넣는다.
+	 */
+	public ChatContext build(String question, List<FaqReference> faqs, List<PlanReference> plans,
+	        PlanIntent intent, PriceRange priceRange, DataRange dataRange, String planNotice) {
 
 		List<PlanReference> extremePlans = List.of();
 		if (intent.extreme()) {
 		    boolean hasRange = !priceRange.isEmpty() || !dataRange.isEmpty();
 		    int fetch = hasRange ? EXTREME_FETCH_LIMIT : intent.limit();
-		    extremePlans = planLookupService.findExtremeForQuery(intent.sortKey(), fetch, question).stream()
+		    List<PlanReference> inRange = planLookupService.findExtremeForQuery(intent.sortKey(), fetch, question).stream()
 		            .filter(p -> priceRange.contains(p.monthlyFee()))
 		            .filter(p -> dataRange.contains(isUnlimited(p), p.baseDataMb()))
-		            .limit(intent.limit())
 		            .toList();
+		    // 정렬 기준 값이 같은 요금제(무제한이 둘일 때 등)는 limit을 넘어도 함께 안내한다.
+		    extremePlans = PlanLookupService.limitWithTies(inRange, intent.sortKey(), intent.limit());
 		}
 
 	 // 범위 조건이 있는 극값 질문인데 조건에 맞는 요금제가 없는 경우
@@ -74,6 +92,9 @@ public class ChatContextBuilder {
 			sb.append("<comparison_result>\n확인 결과: 사용자가 요청한 조건에 해당하는 요금제가 없음. 이 사실을 그대로 안내할 것.\n</comparison_result>\n");
 		}
 
+		if (planNotice != null && !planNotice.isBlank() && !generalPlans.isEmpty()) {
+			sb.append("<plan_notice>\n").append(PromptEscaper.escape(planNotice)).append("\n</plan_notice>\n");
+		}
 		generalPlans.stream().map(this::toPlanXml).forEach(xml -> sb.append(xml).append("\n"));
 		faqs.stream().map(this::toFaqXml).forEach(xml -> sb.append(xml).append("\n"));
 
@@ -82,7 +103,9 @@ public class ChatContextBuilder {
 				extremePlans.stream().map(PlanReference::name).toList(),
 				generalPlans.stream().map(PlanReference::name).toList());
 
-		return new ChatContext(sb.toString(), faqs);
+		List<PlanReference> contextPlans = new ArrayList<>(extremePlans);
+		contextPlans.addAll(generalPlans);
+		return new ChatContext(sb.toString(), faqs, List.copyOf(contextPlans));
 	}
 	
 	private static boolean isUnlimited(PlanReference p) {

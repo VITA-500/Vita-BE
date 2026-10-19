@@ -59,7 +59,7 @@ class StoreServiceTest {
         void joinsServicesAndUsesDefaultLimit() {
             service.findNearbyForChat(LAT, LNG, 5, null, Arrays.asList(" 로밍상담 ", null, "", "로밍상담", "요금제변경"));
 
-            verify(storeRepository).findNearbyForChat(LAT, LNG, 5, "로밍상담||요금제변경", null, 4);
+            verify(storeRepository).findNearbyForChat(LAT, LNG, 5, null, "로밍상담||요금제변경", null, 4);
         }
 
         @Test
@@ -67,7 +67,7 @@ class StoreServiceTest {
         void noServices() {
             service.findNearbyForChat(LAT, LNG, 5, 10, List.of());
 
-            verify(storeRepository).findNearbyForChat(LAT, LNG, 5, null, null, 10);
+            verify(storeRepository).findNearbyForChat(LAT, LNG, 5, null, null, null, 10);
         }
 
         @Test
@@ -79,7 +79,7 @@ class StoreServiceTest {
             when(row.getBusinessHours()).thenReturn(null);
             when(row.getConsultServices()).thenReturn("로밍상담||요금제변경");
             when(row.getProvidedServices()).thenReturn("");
-            when(storeRepository.findNearbyForChat(any(), any(), anyDouble(), any(), any(), anyInt()))
+            when(storeRepository.findNearbyForChat(any(), any(), anyDouble(), any(), any(), any(), anyInt()))
                     .thenReturn(List.of(row));
 
             StoreChatItemResponse store = service.findNearbyForChat(LAT, LNG, 5, null, null).get(0);
@@ -161,7 +161,7 @@ class StoreServiceTest {
         void partnerUsesTrimmedCategoryAndLimit() {
             service.findNearby(LAT, LNG, 1, "partner", " 카페 ", null, null, null);
 
-            verify(storeRepository).findPartnersNearby(eq(LAT), eq(LNG), eq("카페"), isNull(), eq(1.0), isNull(), eq(100));
+            verify(storeRepository).findPartnersNearby(eq(LAT), eq(LNG), eq("카페"), isNull(), eq(1.0), isNull(), isNull(), eq(100));
             verify(storeRepository, never()).findNearBy(any(), any(), anyDouble(), any());
         }
     }

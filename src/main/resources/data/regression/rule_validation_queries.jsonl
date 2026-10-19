@@ -58,3 +58,43 @@
 {"kind":"NORMAL","query":"이번 달 요금이 청구됐는데 납부 기한이 언제까지예요?"}
 {"kind":"NORMAL","query":"제 요금제에서 데이터 얼마나 주는지 확인하는 곳이 어디예요?"}
 {"kind":"NORMAL","query":"타 통신사에서 왔는데 결합할인 받을 수 있나요?"}
+{"kind":"PERSONAL","query":"작년 12월에 요금 얼마 냈는지 알려주세요"}
+{"kind":"PERSONAL","query":"오늘 쓴 통화 시간이 몇 분이에요?"}
+{"kind":"PERSONAL","query":"이번 주 데이터 사용량이 얼마나 되죠?"}
+{"kind":"PERSONAL","query":"방금 결제된 금액이 얼마인지 확인 부탁드려요"}
+{"kind":"PERSONAL","query":"현재 이용하고 있는 부가서비스 목록을 보고 싶어요"}
+{"kind":"PERSONAL","query":"제 명의로 가입된 회선이 총 몇 개죠?"}
+{"kind":"PERSONAL","query":"내 이번 달 청구서에 찍힌 금액이 얼마야?"}
+{"kind":"PERSONAL","query":"저번 달에 로밍으로 나온 요금이 얼마였는지 궁금합니다"}
+{"kind":"PERSONAL","query":"남은 통화 시간이 몇 분인지 알고 싶어요"}
+{"kind":"PERSONAL","query":"우리 집 인터넷 이번 달에 얼마 나왔는지 알려줘"}
+{"kind":"PERSONAL","query":"나 지금 어떤 요금제로 쓰고 있는지 확인해줘"}
+{"kind":"PERSONAL","query":"내 휴대폰 약정 남은 기간이 얼마나 돼?"}
+{"kind":"PERSONAL","query":"어제 문자를 몇 건 보냈는지 조회해줘"}
+{"kind":"PERSONAL","query":"이번 달 로밍 요금이 얼마 청구됐는지 알고 싶어요"}
+{"kind":"COMPETITOR","query":"KT 사용자인데 여기 요금이 더 싼가요?"}
+{"kind":"COMPETITOR","query":"SKT 대비 이 서비스의 장점이 뭐예요?"}
+{"kind":"COMPETITOR","query":"LG U+ 결합 할인이랑 비교해줘"}
+{"kind":"COMPETITOR","query":"알뜰폰 요금제가 더 싼데 굳이 여기로 와야 해요?"}
+{"kind":"COMPETITOR","query":"다른 통신사 프로모션보다 여기가 나은 점이 있나요?"}
+{"kind":"COMPETITOR","query":"통신 3사 요금 비교표 보여줘"}
+{"kind":"COMPETITOR","query":"예전에 쓰던 통신사랑 요금 차이가 얼마나 나요?"}
+{"kind":"COMPETITOR","query":"SK텔레콤 약정 위약금이랑 여기 위약금 중에 뭐가 더 싸요?"}
+{"kind":"NORMAL","query":"이번 달 청구서는 언제 발송되나요?"}
+{"kind":"NORMAL","query":"지난달에 사용한 데이터가 이번 달로 이월되나요?"}
+{"kind":"NORMAL","query":"현재 이용 중인 요금제를 다른 요금제로 바꾸려면 어떻게 하나요?"}
+{"kind":"NORMAL","query":"오늘 가입하면 사은품을 받을 수 있나요?"}
+{"kind":"NORMAL","query":"최근에 출시된 요금제에는 어떤 것들이 있나요?"}
+{"kind":"NORMAL","query":"남은 약정 기간 동안 요금제를 변경해도 되나요?"}
+{"kind":"NORMAL","query":"어제 신청한 부가서비스를 취소하고 싶어요"}
+{"kind":"NORMAL","query":"로밍 요금이 청구되는 시점이 궁금해요"}
+{"kind":"NORMAL","query":"다른 통신사에서 쓰던 번호를 그대로 쓸 수 있나요?"}
+{"kind":"NORMAL","query":"알뜰폰 사용자도 VITA 멤버십을 이용할 수 있나요?"}
+{"kind":"NORMAL","query":"이번 달 말일에 해지하면 요금은 일할 계산되나요?"}
+{"kind":"NORMAL","query":"통화 품질이 지난주부터 갑자기 나빠졌어요"}
+{"kind":"NORMAL","query":"데이터를 다 쓴 뒤에도 문자는 보낼 수 있나요?"}
+{"kind":"NORMAL","query":"KT 망을 쓰는 알뜰폰도 5G가 되나요?"}
+{"kind":"NORMAL","query":"올해 새로 나온 혜택이 뭐가 있어요?"}
+{"kind":"NORMAL","query":"현재 가입 가능한 요금제를 알려주세요"}
+{"kind":"NORMAL","query":"지금 쓰는 통신사에서 번호이동하려면 필요한 서류가 뭐예요?"}
+{"kind":"NORMAL","query":"작년에 가입한 고객도 프로모션 대상인가요?"}

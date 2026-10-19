@@ -2,6 +2,7 @@ package com.vita.chat.entity;
 
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.vita.chat.dto.ChatAction;
+import com.vita.chat.dto.ChatPlanCard;
 import com.vita.chat.dto.ChatStoreMap;
 
 import java.util.List;
@@ -43,8 +44,9 @@ public final class ChatEvents {
     /** delta는 전체 답변이 아니라 "새로 추가된" 텍스트 조각 */
     public record Delta(Long sessionId, Long messageId, String delta) {}
 
-    /** 생성 완료. 최종 content와 구조화 필드(suggestedActions 등)는 여기에 추가 */
-    public record Done(Long sessionId, Long messageId, String content, ChatStoreMap storeMap, List<ChatAction> actions) {}
+    /** 생성 완료. 최종 content와 구조화 필드는 여기에 추가 */
+    public record Done(Long sessionId, Long messageId, String content, ChatStoreMap storeMap,
+                       List<ChatPlanCard> plans, List<ChatAction> actions) {}
 
     public record Error(Long sessionId, Long messageId, String code, String message) {}
 }

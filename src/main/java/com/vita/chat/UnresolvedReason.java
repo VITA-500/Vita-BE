@@ -7,7 +7,7 @@ public enum UnresolvedReason {
     NO_MATCH,           // FAQ 및 요금제 검색 결과 없음
     LOW_SIMILARITY,     // 비슷한 FAQ는 있었지만 기준 유사도 미달
     ANSWER_FAILED,      // 답변 생성 실패
-    DISLIKED;           // 사용자가 싫어요 누름
+    DISLIKED;           // 사용자가 (아쉬워요) 누름
 
     /**
      * 이 이상이면 "비슷한 FAQ가 있었다"(LOW_SIMILARITY)

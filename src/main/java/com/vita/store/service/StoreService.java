@@ -95,7 +95,7 @@ public class StoreService {
         }
 
         List<StoreNearbyItemResponse> stores = storeRepository.findPartnersNearby(
-                lat, lng, targetCategory, benefitId, radiusKm, filterTime, PARTNER_NEARBY_LIMIT).stream()
+                lat, lng, targetCategory, benefitId, radiusKm, null, filterTime, PARTNER_NEARBY_LIMIT).stream()
                 .map(p -> new StoreNearbyItemResponse(p.getId(), p.getName(), StoreType.PARTNER.name(),
                         p.getAddress(), p.getPhone(), p.getLat(), p.getLng(), round2(p.getDistanceKm()), p.getBusinessHours(),
                         BusinessHours.openAt(p.getBusinessHours(), now), List.of(), List.of(), p.getBenefitId(), p.getBrand(),
@@ -116,6 +116,12 @@ public class StoreService {
     /** openAt을 주면 그 시각에 영업 중인 매장만 (지금 영업 중: BusinessHours.nowInKorea()) */
     public List<StoreChatItemResponse> findNearbyForChat(BigDecimal lat, BigDecimal lng, double radiusKm, Integer limit,
                                                          List<String> services, LocalTime openAt){
+        return findNearbyForChat(lat, lng, radiusKm, null, limit, services, openAt);
+    }
+
+    /** minKm을 주면 그보다 먼 매장만 ("1km 이상") */
+    public List<StoreChatItemResponse> findNearbyForChat(BigDecimal lat, BigDecimal lng, double radiusKm, Double minKm,
+                                                         Integer limit, List<String> services, LocalTime openAt){
         if(lat == null || lng == null){
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
                     "위치(lat, lng)는 필수입니다.");
@@ -135,7 +141,7 @@ public class StoreService {
                 .distinct().reduce((a, b) -> a + "||" + b).orElse(null);
 
         LocalTime now = BusinessHours.nowInKorea();
-        return storeRepository.findNearbyForChat(lat, lng, radiusKm, joinedServices, openAt, size).stream()
+        return storeRepository.findNearbyForChat(lat, lng, radiusKm, minKm, joinedServices, openAt, size).stream()
                 .map(p -> new StoreChatItemResponse(p.getId(), p.getName(), p.getAddress(),
                         p.getPhone(), p.getLat(), p.getLng(), round2(p.getDistanceKm()), p.getBusinessHours(),
                         BusinessHours.openAt(p.getBusinessHours(), now),

@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.concurrent.Executor;
 
 import com.vita.chat.dto.ChatAction;
+import com.vita.chat.dto.ChatPlanCard;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
@@ -23,7 +24,7 @@ import com.vita.search.service.FaqRetrievalService;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 답변 생성 파이프라인을 별도 스레드에서 실행하며 SSE 이벤트를 발행한다.
+ * 답변 생성 파이프라인을 별도 스레드에서 실행하며 SSE 이벤트를 발행.
  * thinking(질문 변환) -> retrieving_faq(검색) -> generating -> (delta 반복) -> done / error
  */
 @Slf4j
@@ -102,14 +103,16 @@ public class ChatAnswerStreamer {
 
             // 3) context 조립 (극값 분기는 원문 질문 기준)
             ChatContext context = chatContextBuilder.build(
-                    question, retrieved.faqs(), retrieved.plans(), q.planIntent(), q.priceRange(), q.dataRange());
+                    question, retrieved.faqs(), retrieved.plans(), q.planIntent(), q.priceRange(), q.dataRange(),
+                    retrieved.planNotice());
 
             // DB 결과가 비면(해당 대상의 요금제가 없는 경우 등) 일반 검색으로 폴백
             if (dbOnly && context.text().isBlank()) {
                 log.info("정형(극값) 질문이지만 DB 결과 없음, 일반 검색으로 폴백 - question={}", question);
                 retrieved = retrieve(question, q.faqQuery(), q.planQuery());
                 context = chatContextBuilder.build(
-                        question, retrieved.faqs(), retrieved.plans(), q.planIntent(), q.priceRange(), q.dataRange());
+                        question, retrieved.faqs(), retrieved.plans(), q.planIntent(), q.priceRange(), q.dataRange(),
+                        retrieved.planNotice());
             }
 
             // 매장 질문이면 BE5 매장 조회 결과를 context 뒤에 붙인다 (실패해도 답변은 계속)
@@ -136,10 +139,12 @@ public class ChatAnswerStreamer {
             if (unresolved != null) {
                 log.info("미해결 질문 - question={}, reason={}, topSimilarity={}", question, unresolved, retrieved.topSimilarity());
             }
-            chatMessagePersistence.markCompleted(messageId, full.toString(), faqIds, stores.storeMap(), actions,
+            // 요금제 카드: LLM에 넘긴 요금제 중 답변에 이름이 나온 것만 (글과 카드가 어긋나지 않게)
+            List<ChatPlanCard> plans = ChatPlanCard.mentionedIn(full.toString(), context.plans());
+            chatMessagePersistence.markCompleted(messageId, full.toString(), faqIds, stores.storeMap(), plans, actions,
                     unresolved, retrieved.topSimilarity());
             registry.publish(sessionId, ChatEvents.ASSISTANT_DONE,
-                    new ChatEvents.Done(sessionId, messageId, full.toString(), stores.storeMap(), actions));
+                    new ChatEvents.Done(sessionId, messageId, full.toString(), stores.storeMap(), plans, actions));
 
         } catch (Exception e) {
             log.error("답변 생성 실패. sessionId={}, messageId={}", sessionId, messageId, e);
@@ -155,8 +160,9 @@ public class ChatAnswerStreamer {
         }
     }
     
-    private record Retrieved(List<FaqReference> faqs, List<PlanReference> plans, Double topSimilarity) {
-        static final Retrieved EMPTY = new Retrieved(List.of(), List.of(), null);
+    /** @param planNotice 요금제 전체 목록 질문에서 검색(BE3)이 붙인 안내 한 줄. 일반 질문이면 null */
+    private record Retrieved(List<FaqReference> faqs, List<PlanReference> plans, Double topSimilarity, String planNotice) {
+        static final Retrieved EMPTY = new Retrieved(List.of(), List.of(), null, null);
     }
 
     /**
@@ -169,7 +175,8 @@ public class ChatAnswerStreamer {
         FaqRetrievalContext c = faqRetrievalService.search(question, faqQuery, planQuery, TOP_K);
         List<FaqReference> faqs = (faqQuery != null && c.hasRelevantFaq()) ? c.references() : List.of();
         List<PlanReference> plans = (planQuery != null) ? c.planReferences() : List.of();
-        return new Retrieved(faqs, plans, c.topSimilarity());
+        String planNotice = (planQuery != null) ? c.planNotice() : null;
+        return new Retrieved(faqs, plans, c.topSimilarity(), planNotice);
     }
 
     private void publishStatus(Long sessionId, Long messageId, AssistantStatus status) {
