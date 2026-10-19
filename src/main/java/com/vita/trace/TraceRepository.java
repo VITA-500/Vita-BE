@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -66,5 +67,20 @@ public class TraceRepository {
 					statement.setString(5, TraceJson.toJson(objectMapper, span.history(), maxJsonChars));
 				});
 		return traceId;
+	}
+
+	/**
+	 * 기준 시각보다 오래된 trace를 최대 {@code limit}건 지운다. spans는 FK의 {@code ON DELETE CASCADE}로 함께 지워진다.
+	 * 한 번에 많이 지우면 테이블을 오래 잡고 있으므로, 부르는 쪽이 건수가 limit 미만일 때까지 나눠서 반복한다.
+	 *
+	 * @param cutoff 이 시각보다 먼저 만들어진 trace가 대상
+	 * @param limit  한 번에 지울 최대 건수
+	 * @return 지운 trace 건수
+	 */
+	@Transactional
+	public int deleteCreatedBefore(LocalDateTime cutoff, int limit) {
+		return jdbcTemplate.update(
+				"DELETE FROM traces WHERE id IN (SELECT id FROM traces WHERE created_at < ? ORDER BY id LIMIT ?)",
+				Timestamp.valueOf(cutoff), limit);
 	}
 }
