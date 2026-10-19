@@ -3,6 +3,7 @@ package com.vita.trace;
 import java.time.Clock;
 import java.time.LocalDateTime;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -30,6 +31,7 @@ public class TraceRetentionJob {
 	private final int retentionDays;
 	private final Clock clock;
 
+	@Autowired
 	public TraceRetentionJob(TraceRepository repository, @Value("${trace.retention-days:90}") int retentionDays) {
 		this(repository, retentionDays, Clock.systemDefaultZone());
 	}

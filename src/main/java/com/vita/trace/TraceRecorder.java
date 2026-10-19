@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.util.concurrent.Executor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -24,6 +25,7 @@ public class TraceRecorder {
 	private final String appVersion;
 	private final Clock clock;
 
+	@Autowired
 	public TraceRecorder(TraceRepository repository, @Qualifier("traceExecutor") Executor executor,
 			@Value("${trace.enabled:true}") boolean enabled, @Value("${trace.app-version:}") String appVersion) {
 		this(repository, executor, enabled, appVersion, Clock.systemDefaultZone());
