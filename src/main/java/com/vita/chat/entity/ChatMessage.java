@@ -66,6 +66,10 @@ public class ChatMessage {
 	@Column(columnDefinition = "feedback_type")
 	private ChatMessageFeedback feedback;
 
+	// 피드백을 누른 시각 (취소하면 비움)
+	@Column(name = "feedback_at")
+	private LocalDateTime feedbackAt;
+
 	// 답변과 함께 보낸 매장 지도
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(name = "store_map", columnDefinition = "jsonb")
@@ -163,6 +167,10 @@ public class ChatMessage {
 	 * @param feedback
 	 */
 	public void applyFeedback(ChatMessageFeedback feedback) {
+		// 같은 피드백을 다시 보내면(이유만 바꿀 때) 누른 시각은 그대로 둔다
+		if(this.feedback != feedback) {
+			this.feedbackAt = feedback == null ? null : LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+		}
         this.feedback = feedback;
     }
 
