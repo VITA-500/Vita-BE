@@ -58,7 +58,15 @@ final class TransformSpanHistory {
         return map;
     }
 
-    private static Map<String, Object> storeIntent(StoreIntent s) {
+    /** 매장 조회가 실패했을 때 남길 최소 history(매장 의도만). */
+    static Map<String, Object> storeIntentOnly(StoreIntent s) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("store_intent", storeIntent(s));
+        return map;
+    }
+
+    /** 매장 의도를 history용 Map으로 바꾼다. 변환 단계와 매장 조회 단계가 같은 모양을 쓴다. */
+    static Map<String, Object> storeIntent(StoreIntent s) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("type", s.type().name());
         map.put("category", s.category());

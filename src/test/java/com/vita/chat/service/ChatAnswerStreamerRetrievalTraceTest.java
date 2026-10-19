@@ -11,6 +11,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -18,6 +19,7 @@ import java.util.concurrent.Executor;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vita.chat.client.LlmStreamClient;
 import com.vita.chat.dto.DataRange;
 import com.vita.chat.dto.PlanIntent;
@@ -25,6 +27,7 @@ import com.vita.chat.dto.PriceRange;
 import com.vita.chat.dto.QueryTransformResult;
 import com.vita.chat.dto.StoreIntent;
 import com.vita.chat.service.ChatContextBuilder.ChatContext;
+import com.vita.chat.service.ChatContextBuilder.ExtremeLookup;
 import com.vita.chat.service.ChatStoreFinder.StoreLookup;
 import com.vita.chat.service.QueryTransformer.TransformOutcome;
 import com.vita.search.pipeline.TransformInfo;
@@ -104,17 +107,42 @@ class ChatAnswerStreamerRetrievalTraceTest {
         QueryTransformResult extreme = new QueryTransformResult("FAQ용", "요금제용",
                 new PlanIntent(true, PlanSortKey.CHEAPEST, 1), true);
         ChatAnswerStreamer streamer = streamerFor(extreme);
+        ExtremeLookup noResult = new ExtremeLookup(PlanSortKey.CHEAPEST, 1, "GENERAL", null, PriceRange.none(),
+                DataRange.none(), false, 0, 0, List.of(), false);
+        when(chatContextBuilder.build(anyString(), anyList(), anyList(), any(), any(), any(), any()))
+                .thenReturn(new ChatContext("", List.of(), List.of(), noResult));
 
         streamer.startAsync(1L, 99L, QUESTION, null, null, null);
 
         List<SpanRecord> spans = savedSpans();
         assertThat(types(spans)).containsExactly(SpanType.TRANSFORM, SpanType.FAQ_RETRIEVE, SpanType.PLAN_RETRIEVE,
-                SpanType.FAQ_RETRIEVE, SpanType.PLAN_RETRIEVE, SpanType.GENERATION);
+                SpanType.PLAN_LOOKUP, SpanType.FAQ_RETRIEVE, SpanType.PLAN_RETRIEVE, SpanType.PLAN_LOOKUP, SpanType.GENERATION);
         assertThat(spans.get(1).history()).containsOnly(Map.entry("skipped", "DB_ONLY"));
         assertThat(spans.get(2).history()).containsOnly(Map.entry("skipped", "DB_ONLY"));
+        // 첫 조회는 비어서 일반 검색으로 넘어갔다고 표시한다
+        assertThat(spans.get(3).history()).containsEntry("sort_key", "CHEAPEST").containsEntry("fallback_to_search", true);
         // 폴백으로 실제 검색한 span에는 처음 시도한 경로가 남는다
-        assertThat(spans.get(3).history()).containsEntry("fallback_of", "dbOnly").containsEntry("type", "FAQ");
-        assertThat(spans.get(4).history()).containsEntry("fallback_of", "dbOnly").containsEntry("type", "PLAN");
+        assertThat(spans.get(4).history()).containsEntry("fallback_of", "dbOnly").containsEntry("type", "FAQ");
+        assertThat(spans.get(5).history()).containsEntry("fallback_of", "dbOnly").containsEntry("type", "PLAN");
+        assertThat(spans.get(6).history()).containsEntry("fallback_of", "dbOnly").containsEntry("fallback_to_search", false);
+    }
+
+    @Test
+    void recordsThePlanLookupBetweenSearchAndGenerationForAnExtremeQuestionThatFound() {
+        QueryTransformResult extreme = new QueryTransformResult("FAQ용", "요금제용",
+                new PlanIntent(true, PlanSortKey.MOST_DATA, 1), false);
+        ChatAnswerStreamer streamer = streamerFor(extreme);
+        ExtremeLookup found = new ExtremeLookup(PlanSortKey.MOST_DATA, 1, "GENERAL", null, PriceRange.none(),
+                DataRange.none(), false, 2, 2, List.of(), false);
+        when(chatContextBuilder.build(anyString(), anyList(), anyList(), any(), any(), any(), any()))
+                .thenReturn(new ChatContext("<comparison_result/>", List.of(), List.of(), found));
+
+        streamer.startAsync(1L, 99L, QUESTION, null, null, null);
+
+        List<SpanRecord> spans = savedSpans();
+        assertThat(types(spans)).containsExactly(SpanType.TRANSFORM, SpanType.FAQ_RETRIEVE, SpanType.PLAN_RETRIEVE,
+                SpanType.PLAN_LOOKUP, SpanType.GENERATION);
+        assertThat(spans.get(3).history()).containsEntry("fetched", 2).containsEntry("fallback_to_search", false);
     }
 
     @Test
@@ -128,10 +156,34 @@ class ChatAnswerStreamerRetrievalTraceTest {
 
         List<SpanRecord> spans = savedSpans();
         assertThat(types(spans)).containsExactly(SpanType.TRANSFORM, SpanType.FAQ_RETRIEVE, SpanType.PLAN_RETRIEVE,
-                SpanType.GENERATION);
+                SpanType.STORE_LOOKUP, SpanType.GENERATION);
         assertThat(spans.get(1).history()).containsOnly(Map.entry("skipped", "STORE_ONLY"));
         assertThat(spans.get(2).history()).containsOnly(Map.entry("skipped", "STORE_ONLY"));
+        assertThat(spans.get(3).history()).containsEntry("location_provided", false).containsEntry("found", 0);
         verify(faqRetrievalService, never()).searchWithDetails(anyString(), any(), any(), anyInt());
+    }
+
+    @Test
+    void storeLookupSpanOnlySaysWhetherALocationWasGivenNeverTheCoordinates() throws Exception {
+        StoreIntent store = new StoreIntent(StoreIntent.Type.PHONE, null, null, List.of(), false, null, null, null);
+        ChatAnswerStreamer streamer = streamerFor(new QueryTransformResult(null, null, PlanIntent.none(), false,
+                PriceRange.none(), DataRange.none(), store));
+
+        streamer.startAsync(1L, 99L, "가까운 매장", new BigDecimal("37.123456"), new BigDecimal("127.654321"), null);
+
+        SpanRecord storeSpan = savedSpans().stream().filter(s -> s.type() == SpanType.STORE_LOOKUP).findFirst().orElseThrow();
+        assertThat(storeSpan.history()).containsEntry("location_provided", true);
+        assertThat(new ObjectMapper().writeValueAsString(storeSpan.history())).doesNotContain("37.123456")
+                .doesNotContain("127.654321");
+    }
+
+    @Test
+    void doesNotRecordAStoreSpanForAQuestionWithoutStoreIntent() {
+        ChatAnswerStreamer streamer = streamerFor(new QueryTransformResult("FAQ용", "요금제용", PlanIntent.none(), false));
+
+        streamer.startAsync(1L, 99L, QUESTION, null, null, null);
+
+        assertThat(types(savedSpans())).doesNotContain(SpanType.STORE_LOOKUP, SpanType.PLAN_LOOKUP);
     }
 
     @Test

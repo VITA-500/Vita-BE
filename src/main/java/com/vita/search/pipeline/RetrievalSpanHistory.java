@@ -219,7 +219,7 @@ public final class RetrievalSpanHistory {
 	}
 
 	/** 읽은 조건 중 값이 있는 것만 담는다. 조건이 없으면 빈 Map. */
-	static Map<String, Object> conditions(PlanQueryConditions c) {
+	public static Map<String, Object> conditions(PlanQueryConditions c) {
 		Map<String, Object> map = new LinkedHashMap<>();
 		if (c == null) {
 			return map;

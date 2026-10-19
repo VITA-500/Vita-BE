@@ -127,21 +127,17 @@ public class ChatAnswerStreamer {
             }
 
             // 3) context 조립 (극값 분기는 원문 질문 기준)
-            ChatContext context = chatContextBuilder.build(
-                    question, retrieved.faqs(), retrieved.plans(), q.planIntent(), q.priceRange(), q.dataRange(),
-                    retrieved.planNotice());
+            ChatContext context = buildContext(trace, question, retrieved, q, dbOnly, false);
 
             // DB 결과가 비면(해당 대상의 요금제가 없는 경우 등) 일반 검색으로 폴백
             if (dbOnly && context.text().isBlank()) {
                 log.info("정형(극값) 질문이지만 DB 결과 없음, 일반 검색으로 폴백 - question={}", question);
                 retrieved = retrieve(trace, question, q.faqQuery(), q.planQuery(), null, "dbOnly");
-                context = chatContextBuilder.build(
-                        question, retrieved.faqs(), retrieved.plans(), q.planIntent(), q.priceRange(), q.dataRange(),
-                        retrieved.planNotice());
+                context = buildContext(trace, question, retrieved, q, dbOnly, true);
             }
 
             // 매장 질문이면 BE5 매장 조회 결과를 context 뒤에 붙인다 (실패해도 답변은 계속)
-            StoreLookup stores = chatStoreFinder.find(q.storeIntent(), lat, lng);
+            StoreLookup stores = findStores(trace, q, lat, lng);
             String contextText = context.text() + stores.text();
 
             // 4) 답변 생성 (원문 질문으로 호출)
@@ -251,6 +247,54 @@ public class ChatAnswerStreamer {
         List<PlanReference> plans = (planQuery != null) ? c.planReferences() : List.of();
         String planNotice = (planQuery != null) ? c.planNotice() : null;
         return new Retrieved(faqs, plans, c.topSimilarity(), planNotice);
+    }
+
+    /**
+     * context를 조립한다. 극값 질문이면 이 안에서 DB 조회가 일어나므로 그 조회를 plan_lookup span으로 기록한다.
+     *
+     * @param dbOnly        극값 질문이라 검색을 건너뛰고 조회 결과만 쓰는 경로인지
+     * @param afterFallback 조회 결과가 비어 일반 검색을 한 뒤 다시 조립하는 것인지
+     */
+    private ChatContext buildContext(TraceCollector trace, String question, Retrieved retrieved, QueryTransformResult q,
+                                     boolean dbOnly, boolean afterFallback) {
+        TraceCollector.Span lookupSpan = q.planIntent().extreme() ? trace.begin(SpanType.PLAN_LOOKUP) : null;
+        ChatContext context;
+        try {
+            context = chatContextBuilder.build(
+                    question, retrieved.faqs(), retrieved.plans(), q.planIntent(), q.priceRange(), q.dataRange(),
+                    retrieved.planNotice());
+        } catch (RuntimeException e) {
+            if (lookupSpan != null) {
+                lookupSpan.fail(e, Map.of("sort_key", String.valueOf(q.planIntent().sortKey())));
+            }
+            throw e;
+        }
+        if (lookupSpan != null) {
+            // 처음 조립에서 조회 결과가 비면 곧바로 일반 검색으로 넘어간다
+            boolean fallbackToSearch = dbOnly && !afterFallback && context.text().isBlank();
+            lookupSpan.end(context.extremeLookup() == null
+                    ? RetrievalSpanHistory.skipped("NO_DETAILS")
+                    : PlanLookupSpanHistory.of(context.extremeLookup(), fallbackToSearch, afterFallback));
+        }
+        return context;
+    }
+
+    /** 매장 질문이면 매장을 조회하고 store_lookup span으로 기록한다. 위치 좌표는 기록하지 않고 위치를 받았는지만 남긴다. */
+    private StoreLookup findStores(TraceCollector trace, QueryTransformResult q, BigDecimal lat, BigDecimal lng) {
+        TraceCollector.Span storeSpan = q.storeIntent().isNone() ? null : trace.begin(SpanType.STORE_LOOKUP);
+        StoreLookup stores;
+        try {
+            stores = chatStoreFinder.find(q.storeIntent(), lat, lng);
+        } catch (RuntimeException e) {
+            if (storeSpan != null) {
+                storeSpan.fail(e, TransformSpanHistory.storeIntentOnly(q.storeIntent()));
+            }
+            throw e;
+        }
+        if (storeSpan != null) {
+            storeSpan.end(StoreLookupSpanHistory.of(q.storeIntent(), lat != null && lng != null, stores));
+        }
+        return stores;
     }
 
     /** 검색을 이쪽에서 건너뛴 경로(극값 조회만 / 매장 조회만)를 FAQ·요금제 span에 사유와 함께 남긴다. */
