@@ -40,15 +40,25 @@ public class TraceRepository {
 	 */
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public long save(TraceRecord trace) {
+		TraceSummary summary = TraceSummary.of(trace);
 		KeyHolder keys = new GeneratedKeyHolder();
 		jdbcTemplate.update(connection -> {
 			PreparedStatement statement = connection.prepareStatement(
-					"INSERT INTO traces (message_id, app_version, config, created_at) VALUES (?, ?, ?::jsonb, ?)",
+					"INSERT INTO traces (message_id, app_version, config, created_at, question, unresolved_reason, total_ms, has_error)"
+								+ " VALUES (?, ?, ?::jsonb, ?, ?, ?, ?, ?)",
 					Statement.RETURN_GENERATED_KEYS);
 			statement.setLong(1, trace.messageId());
 			statement.setString(2, trace.appVersion());
 			statement.setString(3, TraceJson.toJson(objectMapper, trace.config(), maxJsonChars));
 			statement.setTimestamp(4, Timestamp.valueOf(trace.startedAt()));
+			statement.setString(5, summary.question());
+			statement.setString(6, summary.unresolvedReason());
+			if (summary.totalMs() == null) {
+				statement.setNull(7, java.sql.Types.INTEGER);
+			} else {
+				statement.setInt(7, summary.totalMs());
+			}
+			statement.setBoolean(8, summary.hasError());
 			return statement;
 		}, keys);
 		Number key = keys.getKeys() == null ? null : (Number) keys.getKeys().get("id");

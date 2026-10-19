@@ -32,7 +32,7 @@ public class AdminTraceController {
 	 * @param messageId        특정 답변의 기록만(답변 피드백 화면에서 넘어올 때). 같은 답변에 기록이 여러 개면 id가 큰 쪽이 최신이다
 	 * @param from             이 시각 이후(포함). 예: 2026-10-19T00:00:00
 	 * @param to               이 시각 이전(미포함)
-	 * @param unresolvedReason NO_MATCH / LOW_SIMILARITY / ANSWER_FAILED 등 미해결 사유
+	 * @param unresolvedReason NO_MATCH / LOW_SIMILARITY / ANSWER_FAILED 미해결 사유(답변이 실패한 기록은 ANSWER_FAILED)
 	 * @param keyword          질문에 포함된 글자
 	 * @param sortBy           createdAt, totalMs, id 중 하나와 방향(예: totalMs,desc)
 	 */

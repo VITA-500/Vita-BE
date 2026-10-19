@@ -40,18 +40,9 @@ public class TraceQueryRepository {
 	private static final java.util.Map<String, String> SORT_COLUMNS = java.util.Map.of(
 			"id", "x.id", "createdAt", "x.created_at", "totalMs", "x.total_ms");
 
-	/** 목록 한 줄을 만드는 조회. 질문·미해결 사유·총 시간·오류 여부는 단계 기록에서 뽑는다. */
-	private static final String ITEM_SELECT = """
-			SELECT t.id, t.message_id, t.app_version, t.created_at,
-			  (SELECT s.history->>'question' FROM spans s
-			     WHERE s.trace_id = t.id AND s.type = 'transform' ORDER BY s.id LIMIT 1) AS question,
-			  (SELECT s.history->>'unresolved_reason' FROM spans s
-			     WHERE s.trace_id = t.id AND s.type = 'generation' ORDER BY s.id DESC LIMIT 1) AS unresolved_reason,
-			  (SELECT round(extract(epoch FROM (max(s.ended_at) - min(s.started_at))) * 1000) FROM spans s
-			     WHERE s.trace_id = t.id) AS total_ms,
-			  EXISTS (SELECT 1 FROM spans s WHERE s.trace_id = t.id AND jsonb_exists(s.history, 'error')) AS has_error
-			FROM traces t
-			""";
+	/** 목록 한 줄. 질문·미해결 사유·총 시간·오류 여부는 저장할 때 {@code traces}에 요약해 둔 컬럼이라 단계 history를 읽지 않는다. */
+	private static final String ITEM_SELECT =
+			"SELECT x.id, x.message_id, x.app_version, x.created_at, x.question, x.unresolved_reason, x.total_ms, x.has_error";
 
 	private final JdbcTemplate jdbcTemplate;
 
@@ -63,14 +54,14 @@ public class TraceQueryRepository {
 	public Page<TraceViews.Item> findPage(Filter filter, Pageable pageable) {
 		List<Object> params = new ArrayList<>();
 		String where = where(filter, params);
-		String base = "FROM (" + ITEM_SELECT + ") x" + where;
+		String base = "FROM traces x" + where;
 
 		Long total = jdbcTemplate.queryForObject("SELECT count(*) " + base, Long.class, params.toArray());
 		List<Object> pageParams = new ArrayList<>(params);
 		pageParams.add(pageable.getPageSize());
 		pageParams.add(pageable.getOffset());
 		List<TraceViews.Item> items = jdbcTemplate.query(
-				"SELECT x.* " + base + orderBy(pageable.getSort()) + " LIMIT ? OFFSET ?",
+				ITEM_SELECT + " " + base + orderBy(pageable.getSort()) + " LIMIT ? OFFSET ?",
 				(rs, rowNum) -> toItem(rs), pageParams.toArray());
 		return new PageImpl<>(items, pageable, total == null ? 0 : total);
 	}
