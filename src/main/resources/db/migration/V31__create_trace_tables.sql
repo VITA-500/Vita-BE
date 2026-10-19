@@ -7,11 +7,17 @@ CREATE TABLE traces (
     message_id   BIGINT      NOT NULL,                 -- 답변 메시지 id (FK 없음, 찾기용)
     app_version  VARCHAR(40),                          -- 이 trace를 만든 앱 버전(git 커밋)
     config       JSONB       NOT NULL DEFAULT '{}'::jsonb,  -- 그 시점의 설정 스냅샷(임계값·모델·프롬프트 해시 등)
-    created_at   TIMESTAMP   NOT NULL DEFAULT now()
+    created_at   TIMESTAMP   NOT NULL DEFAULT now(),
+    -- 목록 조회용 요약. 저장할 때 단계 기록에서 뽑아 함께 넣는다(목록·정렬·검색마다 단계 history를 풀어 보지 않으려고).
+    question          TEXT,                              -- 사용자 질문 원문(조회 응답에서 마스킹)
+    unresolved_reason VARCHAR(30),                       -- 미해결 사유. 답변이 실패했으면 ANSWER_FAILED
+    total_ms          INTEGER,                           -- 첫 단계 시작부터 마지막 단계 종료까지(밀리초)
+    has_error         BOOLEAN     NOT NULL DEFAULT FALSE -- 오류가 기록된 단계가 있는지
 );
 
 CREATE INDEX idx_traces_message ON traces (message_id);
 CREATE INDEX idx_traces_created ON traces (created_at);
+CREATE INDEX idx_traces_unresolved ON traces (unresolved_reason, created_at);
 
 CREATE TABLE spans (
     id          BIGSERIAL PRIMARY KEY,
