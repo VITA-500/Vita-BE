@@ -77,7 +77,7 @@ public final class RetrievalSpanHistory {
 		map.put("category_boost", boost);
 
 		putRules(map, result.irrelevantRules());
-		map.put("candidates", faqCandidates(faq.candidates(), settings.faqThreshold()));
+		map.put("candidates", faqCandidates(faq, settings.faqThreshold()));
 		map.put("pool_rest", poolRest(faq));
 		return map;
 	}
@@ -156,12 +156,19 @@ public final class RetrievalSpanHistory {
 		return list;
 	}
 
-	private static List<Map<String, Object>> faqCandidates(List<FaqSimilarityResult> candidates, double threshold) {
+	/**
+	 * 상위 후보. {@code rank}는 이 목록(같은 답변을 합친 뒤)의 순서이고, {@code pool_rank}는 가산점 재정렬 직후 후보 풀 전체에서의
+	 * 순위다. 같은 답변의 변형이 합쳐지면 둘이 달라진다.
+	 */
+	private static List<Map<String, Object>> faqCandidates(FaqSelection faq, double threshold) {
+		Map<Long, Integer> poolRank = poolRanks(faq);
+		List<FaqSimilarityResult> candidates = faq.candidates();
 		List<Map<String, Object>> list = new ArrayList<>();
 		for (int i = 0; i < candidates.size(); i++) {
 			FaqSimilarityResult c = candidates.get(i);
 			Map<String, Object> item = new LinkedHashMap<>();
 			item.put("rank", i + 1);
+			item.put("pool_rank", poolRank.get(c.id()));
 			item.put("faq_id", c.id());
 			item.put("category", c.category());
 			item.put("subcategory", c.subcategory());
@@ -175,19 +182,40 @@ public final class RetrievalSpanHistory {
 		return list;
 	}
 
-	/** 가산점 재정렬 순위(ranked)에서 상위 후보(candidates)에 들지 못한 항목을 제목과 유사도만 담는다. rank는 재정렬 순위다. */
+	/** 가산점 재정렬 직후 후보 풀에서의 순위(1부터). faq id로 찾는다. */
+	private static Map<Long, Integer> poolRanks(FaqSelection faq) {
+		Map<Long, Integer> ranks = new java.util.HashMap<>();
+		List<FaqSimilarityResult> ranked = faq.ranked();
+		for (int i = 0; i < ranked.size(); i++) {
+			ranks.putIfAbsent(ranked.get(i).id(), i + 1);
+		}
+		return ranks;
+	}
+
+	/**
+	 * 상위 후보(candidates)에 들지 못한 풀의 나머지를 제목과 유사도만 담는다. {@code pool_rank}는 가산점 재정렬 직후 풀에서의 순위다.
+	 * 상위 후보보다 순위가 앞서는데도 여기에 있으면 같은 답변의 변형이라 합쳐져서 빠진 것이므로 {@code removed_as_duplicate}로 표시한다
+	 * ("검색이 못 찾았다"가 아니라 "이미 같은 답변이 후보에 있다"는 뜻이다).
+	 */
 	private static List<Map<String, Object>> poolRest(FaqSelection faq) {
 		Set<Long> inCandidates = new LinkedHashSet<>();
 		faq.candidates().forEach(c -> inCandidates.add(c.id()));
-		List<Map<String, Object>> list = new ArrayList<>();
 		List<FaqSimilarityResult> ranked = faq.ranked();
+		int lastCandidateIndex = -1;
+		for (int i = 0; i < ranked.size(); i++) {
+			if (inCandidates.contains(ranked.get(i).id())) {
+				lastCandidateIndex = i;
+			}
+		}
+		List<Map<String, Object>> list = new ArrayList<>();
 		for (int i = 0; i < ranked.size() && list.size() < POOL_REST_LIMIT; i++) {
 			FaqSimilarityResult c = ranked.get(i);
 			if (inCandidates.contains(c.id())) {
 				continue;
 			}
 			Map<String, Object> item = new LinkedHashMap<>();
-			item.put("rank", i + 1);
+			item.put("pool_rank", i + 1);
+			item.put("removed_as_duplicate", i < lastCandidateIndex);
 			item.put("faq_id", c.id());
 			item.put("question", c.question());
 			item.put("similarity", c.similarity());

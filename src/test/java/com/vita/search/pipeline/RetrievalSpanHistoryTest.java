@@ -75,8 +75,9 @@ class RetrievalSpanHistoryTest {
 
 		List<Map<String, Object>> rest = (List<Map<String, Object>>) history.get("pool_rest");
 		assertThat(rest).hasSize(1);
-		assertThat(rest.get(0)).containsEntry("rank", 3).containsEntry("faq_id", 3L).containsEntry("question", "질문3")
-				.doesNotContainKey("answer");
+		assertThat(rest.get(0)).containsEntry("pool_rank", 3).containsEntry("removed_as_duplicate", false)
+				.containsEntry("faq_id", 3L).containsEntry("question", "질문3").doesNotContainKey("answer").doesNotContainKey("rank");
+		assertThat(candidates.get(1)).containsEntry("pool_rank", 2);
 		assertThat((Map<String, Object>) history.get("took_ms")).containsEntry("embedding", 3.0)
 				.containsEntry("faq_search", 4.0).containsEntry("context", 1.0);
 		assertThat(new ObjectMapper().writeValueAsString(history)).contains("\"candidates\"");
@@ -162,5 +163,27 @@ class RetrievalSpanHistoryTest {
 
 		assertThat(RetrievalSpanHistory.faq(result)).isNull();
 		assertThat(RetrievalSpanHistory.plan(result)).isNull();
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void marksPoolItemsThatWereMergedAsDuplicatesOfABetterCandidate() {
+		// 풀 순위 1,2,3 중 2번은 1번과 같은 답변이라 합쳐져 빠졌고, 4번은 상위 후보 수(2개) 밖이라 빠졌다.
+		FaqSimilarityResult first = faq(1, "해외로밍", "서비스안내", 0.90);
+		FaqSimilarityResult variant = faq(2, "해외로밍", "서비스안내", 0.89);
+		FaqSimilarityResult third = faq(3, "요금", "요금조회", 0.85);
+		FaqSimilarityResult beyond = faq(4, "기타", "기타", 0.80);
+		List<FaqSimilarityResult> pool = List.of(first, variant, third, beyond);
+		FaqSelection selection = new FaqSelection(pool, pool, List.of(first, third), List.of(first, third), 0.90);
+
+		Map<String, Object> history = RetrievalSpanHistory.faq(result(selection, new PlanSearchOutcome(List.of(), false), Set.of(),
+				trace(new float[] {0.1f}, null, true, false, false), new TransformedQuery("로밍", "로밍", null)));
+
+		List<Map<String, Object>> candidates = (List<Map<String, Object>>) history.get("candidates");
+		assertThat(candidates.get(1)).containsEntry("rank", 2).containsEntry("pool_rank", 3);
+		List<Map<String, Object>> rest = (List<Map<String, Object>>) history.get("pool_rest");
+		assertThat(rest).hasSize(2);
+		assertThat(rest.get(0)).containsEntry("faq_id", 2L).containsEntry("pool_rank", 2).containsEntry("removed_as_duplicate", true);
+		assertThat(rest.get(1)).containsEntry("faq_id", 4L).containsEntry("pool_rank", 4).containsEntry("removed_as_duplicate", false);
 	}
 }
