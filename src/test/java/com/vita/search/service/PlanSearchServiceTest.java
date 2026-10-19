@@ -117,6 +117,9 @@ class PlanSearchServiceTest {
 		assertThat(codes(outcome)).containsExactly(
 				"VITA-LITE-10", "VITA-SENIOR-20", "VITA-YOUTH-30", "VITA-BALANCE-20");
 		assertThat(outcome.conditionMatched()).isTrue();
+		// 질문에서 읽은 조건도 결과에 실려 나온다(Trace/Span 기록용).
+		assertThat(outcome.conditions().feeMin()).isEqualTo(30_000);
+		assertThat(outcome.conditions().feeMax()).isEqualTo(39_999);
 	}
 
 	@Test

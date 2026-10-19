@@ -1,6 +1,7 @@
 package com.vita.search.service;
 
 import com.vita.search.dto.FaqRetrievalContext;
+import com.vita.search.pipeline.RetrievalResult;
 
 /**
  * BE4(Chat/LLM)가 호출하는 RAG 검색 진입점. BE4는 이 인터페이스만 알면 되고,
@@ -31,4 +32,11 @@ public interface FaqRetrievalService {
 	 * @return 둘 다 null이면 빈 컨텍스트
 	 */
 	FaqRetrievalContext search(String originalQuery, String faqQuery, String planQuery, int topK);
+
+	/**
+	 * {@link #search(String, String, String, int)}과 같은 검색을 하되, BE4에 전달하는 컨텍스트뿐 아니라 그 결과가 만들어진 과정
+	 * (후보 풀, 중간 결과, threshold 판정, 질문 벡터, 걸린 규칙, 단계별 시간)까지 돌려준다. 처리 과정을 기록(Trace/Span)하는
+	 * 호출자가 쓰며, 검색 동작은 위 메서드와 같다. 컨텍스트는 {@code result.context()}다.
+	 */
+	RetrievalResult searchWithDetails(String originalQuery, String faqQuery, String planQuery, int topK);
 }
