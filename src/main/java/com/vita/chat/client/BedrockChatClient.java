@@ -218,6 +218,12 @@ public class BedrockChatClient {
 	    return new StreamResult(userPrompt, model.get(),
 	            usage == null ? null : toLong(usage.getPromptTokens()),
 	            usage == null ? null : toLong(usage.getCompletionTokens()),
-	            usage == null ? null : toLong(usage.getTotalTokens()));
+	            usage == null ? null : toLong(usage.getTotalTokens()),
+	            SYSTEM_PROMPT);
+	}
+
+	/** 답변 생성에 쓰는 시스템 프롬프트 원문. 어떤 프롬프트로 답했는지 기록(trace)하는 데 쓴다. */
+	public static String answerSystemPrompt() {
+	    return SYSTEM_PROMPT;
 	}
 }

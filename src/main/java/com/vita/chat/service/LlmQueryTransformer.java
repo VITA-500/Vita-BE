@@ -44,6 +44,11 @@ public class LlmQueryTransformer implements QueryTransformer {
     @Value("${vita.experiment.query-transform:true}")
     private boolean enabled;
 
+    /** 질문 변환에 쓰는 시스템 프롬프트 원문. 어떤 프롬프트로 변환했는지 기록(trace)하는 데 쓴다. */
+    public String systemPrompt() {
+        return systemPrompt;
+    }
+
     /** 변환 결과만 필요한 호출자(서비스)용. 폴백 동작은 {@link #transformWithStatus}와 같다. */
     public QueryTransformResult transform(String question, String conversationHistory) {
         return transformWithStatus(question, conversationHistory).result();

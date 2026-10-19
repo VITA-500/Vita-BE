@@ -50,6 +50,7 @@ public class ChatAnswerStreamer {
     private final LlmStreamClient llmStreamClient;
     private final ChatMessagePersistence chatMessagePersistence;
     private final TraceRecorder traceRecorder;
+    private final TraceConfigProvider traceConfigProvider;
     private final Executor executor;
 
     public ChatAnswerStreamer(
@@ -61,6 +62,7 @@ public class ChatAnswerStreamer {
             LlmStreamClient llmStreamClient,
             ChatMessagePersistence chatMessagePersistence,
             TraceRecorder traceRecorder,
+            TraceConfigProvider traceConfigProvider,
             @Qualifier("chatStreamExecutor") Executor executor) {
         this.registry = registry;
         this.faqRetrievalService = faqRetrievalService;
@@ -70,6 +72,7 @@ public class ChatAnswerStreamer {
         this.llmStreamClient = llmStreamClient;
         this.chatMessagePersistence = chatMessagePersistence;
         this.traceRecorder = traceRecorder;
+        this.traceConfigProvider = traceConfigProvider;
         this.executor = executor;
     }
 
@@ -83,6 +86,8 @@ public class ChatAnswerStreamer {
                      BigDecimal lat, BigDecimal lng, String history) {
         // 처리 과정 기록(trace). 저장은 맨 끝에서 비동기로 맡기고, 기록 때문에 답변이 막히지 않는다.
         TraceCollector trace = traceRecorder.start(messageId);
+        // 이 질문을 처리할 때의 설정(임계값, 모델, 프롬프트 해시)도 함께 남겨 시기별 결과를 비교할 수 있게 한다.
+        traceConfigProvider.snapshot(TOP_K).forEach(trace::putConfig);
         try {
             // 1) 질문 변환 (FAQ용 / 요금제용)
             publishStatus(sessionId, messageId, AssistantStatus.THINKING);
@@ -140,6 +145,11 @@ public class ChatAnswerStreamer {
             StoreLookup stores = findStores(trace, q, lat, lng);
             String contextText = context.text() + stores.text();
 
+            // 미해결 질문 자동 감지. 판정에 쓰는 값은 모두 답변 생성 전에 정해져 있어서, 생성 span에도 남기려고 먼저 계산한다.
+            UnresolvedReason unresolved = UnresolvedReason.judge(
+                    !q.storeIntent().isNone(), !context.text().isBlank(), retrieved.topSimilarity());
+            String unresolvedName = unresolved == null ? null : unresolved.name();
+
             // 4) 답변 생성 (원문 질문으로 호출)
             publishStatus(sessionId, messageId, AssistantStatus.GENERATING);
             StringBuilder full = new StringBuilder();
@@ -155,19 +165,18 @@ public class ChatAnswerStreamer {
                 });
             } catch (RuntimeException e) {
                 // 중간에 끊겨도 그때까지 받은 답변 조각과 보낸 context는 남긴다.
-                generationSpan.fail(e, GenerationSpanHistory.of(question, contextText, history, full.toString(), progress, null));
+                generationSpan.fail(e, GenerationSpanHistory.of(question, contextText, history, full.toString(), progress, null,
+                        unresolvedName, retrieved.topSimilarity()));
                 throw e;
             }
-            generationSpan.end(GenerationSpanHistory.of(question, contextText, history, full.toString(), progress, streamed));
+            generationSpan.end(GenerationSpanHistory.of(question, contextText, history, full.toString(), progress, streamed,
+                    unresolvedName, retrieved.topSimilarity()));
 
             List<Long> faqIds = context.faqs().stream().map(FaqReference::faqId).toList();
 
             // DB 저장을 먼저 하고 done 발행: FE가 done 직후 재조회해도 COMPLETED로 보이게
             // 매장 지도가 있으면 지도 화면으로 가는 버튼을 함께 보낸다
             List<ChatAction> actions = stores.storeMap() != null ? List.of(ChatAction.storeMap()) : List.of();
-            // 미해결 질문 자동 감지
-            UnresolvedReason unresolved = UnresolvedReason.judge(
-                    !q.storeIntent().isNone(), !context.text().isBlank(), retrieved.topSimilarity());
             if (unresolved != null) {
                 log.info("미해결 질문 - question={}, reason={}, topSimilarity={}", question, unresolved, retrieved.topSimilarity());
             }

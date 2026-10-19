@@ -37,9 +37,11 @@ final class GenerationSpanHistory {
      * @param answer      지금까지 받은 답변(오류로 끊겼으면 일부만)
      * @param progress    첫 조각까지 걸린 시간과 조각 수
      * @param streamed    스트림 호출 기록. 오류로 끊겼거나 구현체가 기록을 주지 않으면 null
+     * @param unresolvedReason 미해결 질문으로 판정된 사유 이름. 해결된 질문이면 null
+     * @param topSimilarity    FAQ·요금제 후보를 통틀어 가장 높았던 유사도. 알 수 없으면 null
      */
     static Map<String, Object> of(String question, String context, String history, String answer, Progress progress,
-            StreamResult streamed) {
+            StreamResult streamed, String unresolvedReason, Double topSimilarity) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("question", question);
         map.put("conversation_history", history);
@@ -50,9 +52,12 @@ final class GenerationSpanHistory {
             map.put("context", context);
         }
         map.put("answer", answer);
+        map.put("unresolved_reason", unresolvedReason);
+        map.put("top_similarity", topSimilarity);
         map.put("delta_count", progress.deltaCount);
         map.put("first_delta_ms", progress.firstDeltaMillis);
         if (streamed != null) {
+            map.put("system_prompt", streamed.systemPrompt());
             map.put("model", streamed.model());
             map.put("prompt_tokens", streamed.promptTokens());
             map.put("completion_tokens", streamed.completionTokens());

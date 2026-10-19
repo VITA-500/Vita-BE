@@ -62,7 +62,13 @@ class ChatAnswerStreamerRetrievalTraceTest {
                 .thenReturn(ChatContext.empty());
         when(chatStoreFinder.find(any(), any(), any())).thenReturn(StoreLookup.empty());
         return new ChatAnswerStreamer(mock(ChatSseRegistry.class), faqRetrievalService, queryTransformer, chatContextBuilder,
-                chatStoreFinder, mock(LlmStreamClient.class), persistence, recorder, DIRECT);
+                chatStoreFinder, mock(LlmStreamClient.class), persistence, recorder, configProvider(), DIRECT);
+    }
+
+    private static TraceConfigProvider configProvider() {
+        TraceConfigProvider provider = mock(TraceConfigProvider.class);
+        when(provider.snapshot(anyInt())).thenReturn(Map.of("faq_threshold", 0.83, "llm_model_id", "model-x"));
+        return provider;
     }
 
     private List<SpanRecord> savedSpans() {

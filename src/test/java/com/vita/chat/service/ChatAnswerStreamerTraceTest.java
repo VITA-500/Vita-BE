@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
@@ -56,7 +57,13 @@ class ChatAnswerStreamerTraceTest {
                 .thenReturn(ChatContext.empty());
         when(chatStoreFinder.find(any(), any(), any())).thenReturn(StoreLookup.empty());
         return new ChatAnswerStreamer(registry, faqRetrievalService, queryTransformer, chatContextBuilder,
-                chatStoreFinder, llmStreamClient, persistence, recorder, DIRECT);
+                chatStoreFinder, llmStreamClient, persistence, recorder, configProvider(), DIRECT);
+    }
+
+    private static TraceConfigProvider configProvider() {
+        TraceConfigProvider provider = mock(TraceConfigProvider.class);
+        when(provider.snapshot(anyInt())).thenReturn(Map.of("faq_threshold", 0.83, "llm_model_id", "model-x"));
+        return provider;
     }
 
     @SuppressWarnings("unchecked")
@@ -72,7 +79,7 @@ class ChatAnswerStreamerTraceTest {
     @Test
     void savesAllStepSpansInOrderOnceTheAnswerIsCompleted() {
         ChatAnswerStreamer streamer = streamer();
-        streamsTwoChunksThenReturns(new StreamResult("조립된 프롬프트", "model-x", 100L, 20L, 120L));
+        streamsTwoChunksThenReturns(new StreamResult("조립된 프롬프트", "model-x", 100L, 20L, 120L, "시스템 프롬프트"));
 
         streamer.startAsync(1L, 99L, "로밍 요금 알려줘", null, null, null);
 
@@ -90,9 +97,14 @@ class ChatAnswerStreamerTraceTest {
                 .containsEntry("answer", "안녕하세요")
                 .containsEntry("delta_count", 2)
                 .containsEntry("user_prompt", "조립된 프롬프트")
+                .containsEntry("system_prompt", "시스템 프롬프트")
                 .containsEntry("model", "model-x")
                 .containsEntry("total_tokens", 120L)
+                .containsEntry("top_similarity", 0.0)
+                .containsKey("unresolved_reason")
                 .doesNotContainKey("error");
+        // 이 질문을 처리할 때의 설정 스냅샷도 trace에 함께 실린다
+        assertThat(record.config()).containsEntry("faq_threshold", 0.83).containsEntry("llm_model_id", "model-x");
     }
 
     @Test
