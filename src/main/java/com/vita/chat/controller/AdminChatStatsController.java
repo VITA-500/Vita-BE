@@ -19,8 +19,9 @@ public class AdminChatStatsController {
     private final ChatStatsService chatStatsService;
 
     @GetMapping("/chat")
-    public ChatStatsResponse chat(@RequestParam(required = false) Integer limit) {
-        return chatStatsService.getUnresolvedStats(limit);
+    public ChatStatsResponse chat(@RequestParam(required = false) Integer limit,
+                                  @RequestParam(required = false) String reason) {
+        return chatStatsService.getUnresolvedStats(limit, reason);
     }
 
     /** 목록의 한 항목에 들어 있는 자동 감지와 (아쉬워요)를 모두 무시 처리 */

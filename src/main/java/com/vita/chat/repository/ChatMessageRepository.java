@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import com.vita.chat.ChatMessageStatus;
 import com.vita.chat.entity.ChatMessage;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface ChatMessageRepository  extends JpaRepository<ChatMessage, Long> {
 
@@ -54,4 +55,18 @@ public interface ChatMessageRepository  extends JpaRepository<ChatMessage, Long>
 			WHERE a.feedback IS NOT NULL
 			""", nativeQuery = true)
 	List<FeedbackRow> findFeedbackWithQuestion();
+
+	/** 기간 안에 누른 피드백 수 (LIKE, DISLIKE별) */
+	interface FeedbackCountRow {
+		String getFeedback();
+		long getCount();
+	}
+
+	@Query(value = """
+			SELECT a.feedback::text AS feedback, COUNT(*) AS count
+			FROM chat_messages a
+			WHERE a.feedback_at >= :from AND a.feedback_at < :to
+			GROUP BY a.feedback
+			""", nativeQuery = true)
+	List<FeedbackCountRow> countFeedbackBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 }
