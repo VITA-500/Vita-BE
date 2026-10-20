@@ -13,7 +13,7 @@ import java.util.List;
  * @param faqQuery  FAQ 검색(임베딩·후보 검색)에 쓸 질문. null이면 "FAQ와 무관한 질문"으로 보고 FAQ 검색을 건너뛴다.
  * @param planQuery 요금제 검색에 쓸 질문. null이면 "요금제와 무관한 질문"으로 보고 요금제 검색을 건너뛴다.
  *                  (요금제 조건은 원문에서도 함께 읽으므로 planQuery가 라벨 형태여도 된다.)
- * @param faqSubQueries 질문에 서로 다른 FAQ 의도가 둘 이상일 때 의도마다 하나씩 만든 FAQ 검색용 질문(실험). 비어 있으면 {@code faqQuery}만 쓴다.
+ * @param faqSubQueries 질문에 서로 다른 FAQ 의도가 둘 이상일 때 의도마다 하나씩 만든 FAQ 검색용 질문. 비어 있으면 {@code faqQuery}만 쓴다.
  *                  있으면 파이프라인이 {@code faqQuery}와 각 질문으로 따로 검색한 뒤 후보를 합친다.
  * @param info      변환이 어떻게 이뤄졌는지의 기록(변환됨/한쪽만 변환/원문으로 폴백). 검색 동작에는 쓰지 않고 평가 기록에만 쓴다.
  */

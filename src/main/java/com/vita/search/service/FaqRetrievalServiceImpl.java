@@ -3,6 +3,7 @@ package com.vita.search.service;
 import com.vita.search.dto.FaqRetrievalContext;
 import com.vita.search.pipeline.RetrievalOptions;
 import com.vita.search.pipeline.RetrievalPipeline;
+import com.vita.search.pipeline.RetrievalResult;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
@@ -27,11 +28,17 @@ public class FaqRetrievalServiceImpl implements FaqRetrievalService {
 
 	@Override
 	public FaqRetrievalContext search(String originalQuery, String faqQuery, String planQuery, int topK) {
-		return retrievalPipeline.run(originalQuery, faqQuery, planQuery, RetrievalOptions.forService(topK)).context();
+		return searchWithDetails(originalQuery, faqQuery, planQuery, topK).context();
 	}
 
 	@Override
-	public FaqRetrievalContext search(String originalQuery, String faqQuery, List<String> faqSubQueries, String planQuery, int topK) {
-		return retrievalPipeline.run(originalQuery, faqQuery, faqSubQueries, planQuery, RetrievalOptions.forService(topK)).context();
+	public RetrievalResult searchWithDetails(String originalQuery, String faqQuery, String planQuery, int topK) {
+		return retrievalPipeline.run(originalQuery, faqQuery, planQuery, RetrievalOptions.forService(topK));
+	}
+
+	@Override
+	public RetrievalResult searchWithDetails(String originalQuery, String faqQuery, List<String> faqSubQueries, String planQuery,
+			int topK) {
+		return retrievalPipeline.run(originalQuery, faqQuery, faqSubQueries, planQuery, RetrievalOptions.forService(topK));
 	}
 }

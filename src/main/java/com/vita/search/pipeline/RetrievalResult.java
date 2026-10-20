@@ -20,6 +20,7 @@ import java.util.Set;
  * @param irrelevantRules 걸린 무관 질문 규칙. 비어 있지 않으면 {@code context}의 FAQ·요금제는 비워진다.
  * @param timings         단계별 소요 시간
  * @param context         BE4에 전달하는 최종 응답
+ * @param trace           검색에 쓴 질문 벡터, 요금제 가드 적용 여부, 설정(Trace/Span 기록용). 기록 정보가 없는 결과는 null
  */
 public record RetrievalResult(
 		TransformedQuery query,
@@ -30,5 +31,13 @@ public record RetrievalResult(
 		double topSimilarity,
 		Set<IrrelevantQueryDetector.Rule> irrelevantRules,
 		StageTimings timings,
-		FaqRetrievalContext context) {
+		FaqRetrievalContext context,
+		RetrievalTrace trace) {
+
+	/** 기록용 정보({@link RetrievalTrace}) 없이 만든다. 기록을 쓰지 않는 호출(평가 러너, 테스트)이 기존 방식 그대로 쓴다. */
+	public RetrievalResult(TransformedQuery query, FaqSelection faq, PlanSearchService.PlanSearchOutcome planOutcome,
+			List<PlanSimilarityResult> planResults, double planTopSimilarity, double topSimilarity,
+			Set<IrrelevantQueryDetector.Rule> irrelevantRules, StageTimings timings, FaqRetrievalContext context) {
+		this(query, faq, planOutcome, planResults, planTopSimilarity, topSimilarity, irrelevantRules, timings, context, null);
+	}
 }

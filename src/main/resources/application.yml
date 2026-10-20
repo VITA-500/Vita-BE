@@ -66,6 +66,18 @@ server:
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
 
+# 질문 1건의 처리 과정(Trace/Span)을 그 순간의 원문 그대로 DB에 남기는 기록. 문제가 생기면 TRACE_ENABLED=false로 즉시 끈다.
+trace:
+  enabled: ${TRACE_ENABLED:true}
+  # 이 기록을 만든 앱 버전(배포 시 git 커밋을 넣는다). 비어 있으면 저장하지 않는다.
+  app-version: ${APP_VERSION:}
+  # 한 칸(history·config)에 넣을 JSON의 최대 글자 수. 넘으면 앞부분 미리보기만 남기고 잘렸다고 표시한다.
+  max-history-chars: ${TRACE_MAX_HISTORY_CHARS:200000}
+  # 질문 원문·프롬프트가 들어 있어 이 기간이 지난 기록은 매일 지운다. 0 이하로 두면 지우지 않는다.
+  retention-days: ${TRACE_RETENTION_DAYS:90}
+  # 정리 작업이 도는 시각(Spring cron: 초 분 시 일 월 요일). 기본은 매일 03:30.
+  retention-cron: ${TRACE_RETENTION_CRON:0 30 3 * * *}
+
 app:
   cookie:
     # 로컬은 http라 Secure를 못 쓴다. 배포(HTTPS)에서는 true + SameSite=None이어야
@@ -133,6 +145,9 @@ search:
   pipeline:
     query-transformer: ${SEARCH_PIPELINE_QUERY_TRANSFORMER:identityQueryTransformer}
     faq-retriever: ${SEARCH_PIPELINE_FAQ_RETRIEVER:vectorFaqRetriever}
+    # 질문에 FAQ 의도가 여럿일 때 질문 변환이 만든 의도별 질의(faq_sub_queries)로 따로 검색해 후보를 합칠지. false면 faqQuery 하나로만 검색한다.
+    # 복합 질문에서 변환이 의도 일부를 빠뜨려 원문 검색보다 낮아지던 문제를 줄이려고 켠다(검색 평가: 복합 질문 500문항 nDCG@10 91.7% -> 94.3%).
+    faq-decompose-enabled: ${SEARCH_PIPELINE_FAQ_DECOMPOSE_ENABLED:true}
     # 요금제 후보 검색기의 빈 이름. 기본은 벡터 검색이고, Hybrid 같은 구현은 그 빈 이름을 적는다.
     plan-retriever: ${SEARCH_PIPELINE_PLAN_RETRIEVER:vectorPlanRetriever}
   # 요금제 평가셋(plan_eval_v2)으로 BE4에 전달되는 요금제 목록의 품질을 재는 수동 도구. 로컬 도커(DB+임베딩 서버)가 떠 있고

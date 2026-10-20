@@ -46,6 +46,11 @@ public class LlmQueryTransformer implements QueryTransformer {
     @Value("${vita.experiment.query-transform:true}")
     private boolean enabled;
 
+    /** 질문 변환에 쓰는 시스템 프롬프트 원문. 어떤 프롬프트로 변환했는지 기록(trace)하는 데 쓴다. */
+    public String systemPrompt() {
+        return systemPrompt;
+    }
+
     /** 변환 결과만 필요한 호출자(서비스)용. 폴백 동작은 {@link #transformWithStatus}와 같다. */
     public QueryTransformResult transform(String question, String conversationHistory) {
         return transformWithStatus(question, conversationHistory).result();
@@ -63,35 +68,40 @@ public class LlmQueryTransformer implements QueryTransformer {
             return fallback(question, TransformInfo.REASON_DISABLED);
         }
 
-        String raw;
-        try {
-            String history = (conversationHistory == null || conversationHistory.isBlank())
-                    ? "(없음)" : conversationHistory;
-            String userPrompt = """
-                    <history>
-                    %s
-                    </history>
-                    <user_question>
-                    %s
-                    </user_question>
-                    """.formatted(history, PromptEscaper.escape(question));
+        String history = (conversationHistory == null || conversationHistory.isBlank())
+                ? "(없음)" : conversationHistory;
+        String userPrompt = """
+                <history>
+                %s
+                </history>
+                <user_question>
+                %s
+                </user_question>
+                """.formatted(history, PromptEscaper.escape(question));
 
-            raw = bedrockChatClient.complete(systemPrompt, userPrompt);
+        // 토큰 사용량도 함께 받는다(trace 기록용). 응답 텍스트는 기존 complete()와 같다.
+        CompletionResult completion;
+        try {
+            completion = bedrockChatClient.completeWithUsage(systemPrompt, userPrompt);
         } catch (Exception e) {
             log.warn("질문 변환 호출 실패, 원문 사용 - question={}", question, e);
-            return fallback(question, TransformInfo.REASON_CALL_FAILED);
+            return fallback(question, TransformInfo.REASON_CALL_FAILED,
+                    new TransformTrace(userPrompt, null, null, null, null));
         }
 
+        String raw = completion.text();
+        TransformTrace trace = new TransformTrace(userPrompt, raw, completion.promptTokens(),
+                completion.completionTokens(), completion.totalTokens());
         if (raw == null) {
             log.warn("질문 변환 응답이 비어 있어 원문 사용 - question={}", question);
-            return fallback(question, TransformInfo.REASON_NO_JSON);
+            return fallback(question, TransformInfo.REASON_NO_JSON, trace);
         }
 
         int start = raw.indexOf('{');
         int end = raw.lastIndexOf('}');
         if (start < 0 || end < start) {
             log.warn("질문 변환 응답에 JSON 없음, 원문 사용 - raw={}", raw);
-            return fallback(question, TransformInfo.REASON_NO_JSON);
+            return fallback(question, TransformInfo.REASON_NO_JSON, trace);
         }
 
         JsonNode node;
@@ -99,7 +109,7 @@ public class LlmQueryTransformer implements QueryTransformer {
             node = MAPPER.readTree(raw.substring(start, end + 1));
         } catch (Exception e) {
             log.warn("질문 변환 응답 파싱 실패, 원문 사용 - question={}", question, e);
-            return fallback(question, TransformInfo.REASON_PARSE_FAILED);
+            return fallback(question, TransformInfo.REASON_PARSE_FAILED, trace);
         }
 
         String faqQuery = blankToNull(textOrNull(node, "faq_query"));
@@ -113,17 +123,18 @@ public class LlmQueryTransformer implements QueryTransformer {
 
         // 둘 다 null이면 "무관"이 아니라 변환 실패일 수 있으니 원문으로 검색 (단, 극값 질문·매장 질문이면 그대로 진행)
         if (faqQuery == null && planQuery == null && !intent.extreme() && storeIntent.isNone()) {
-            return fallback(question, TransformInfo.REASON_BOTH_NULL);
+            return fallback(question, TransformInfo.REASON_BOTH_NULL, trace);
         }
         TransformInfo info = (faqQuery == null || planQuery == null)
                 ? TransformInfo.partialNull(faqQuery == null, planQuery == null)
                 : TransformInfo.changed();
         return new TransformOutcome(
-                new QueryTransformResult(faqQuery, planQuery, intent, structured, priceRange, dataRange, storeIntent, faqSubQueries), info);
+                new QueryTransformResult(faqQuery, planQuery, intent, structured, priceRange, dataRange, storeIntent, faqSubQueries),
+                info, trace);
     }
 
     /**
-     * 의도별 FAQ 질문 파싱(실험). faq_query가 없으면 쓰지 않는다. 비어 있는 항목과 중복, faq_query와 같은 항목은 버리고 최대
+     * 의도별 FAQ 질문 파싱. faq_query가 없으면 쓰지 않는다. 비어 있는 항목과 중복, faq_query와 같은 항목은 버리고 최대
      * {@value #MAX_FAQ_SUB_QUERIES}개만 쓴다. 남은 것이 2개 미만이면 "의도가 여러 개"가 아니므로 빈 목록으로 본다.
      */
     private static List<String> parseFaqSubQueries(JsonNode node, String faqQuery) {
@@ -217,8 +228,13 @@ public class LlmQueryTransformer implements QueryTransformer {
         return node.hasNonNull(field) ? node.get(field).asText() : null;
     }
 
+    /** @param trace 모델 호출 기록. 모델을 부르기 전에 폴백한 경우(비활성)는 null */
+    private static TransformOutcome fallback(String question, String reason, TransformTrace trace) {
+        return new TransformOutcome(QueryTransformResult.original(question), TransformInfo.fallback(reason), trace);
+    }
+
     private static TransformOutcome fallback(String question, String reason) {
-        return new TransformOutcome(QueryTransformResult.original(question), TransformInfo.fallback(reason));
+        return fallback(question, reason, null);
     }
 
     /** 극값 정보 파싱. 잘못된 sort_key여도 쿼리 변환 결과는 살리고 "극값 아님"으로만 처리한다. */

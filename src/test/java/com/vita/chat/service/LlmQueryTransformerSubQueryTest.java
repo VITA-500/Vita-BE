@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.vita.chat.client.BedrockChatClient;
+import com.vita.chat.dto.CompletionResult;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -14,7 +15,7 @@ class LlmQueryTransformerSubQueryTest {
 
 	private LlmQueryTransformer.TransformOutcome transform(String json) {
 		BedrockChatClient client = mock(BedrockChatClient.class);
-		when(client.complete(anyString(), anyString())).thenReturn(json);
+		when(client.completeWithUsage(anyString(), anyString())).thenReturn(new CompletionResult(json, null, null, null));
 		LlmQueryTransformer transformer = new LlmQueryTransformer(client);
 		ReflectionTestUtils.setField(transformer, "enabled", true);
 		return transformer.transformWithStatus("질문", null);
