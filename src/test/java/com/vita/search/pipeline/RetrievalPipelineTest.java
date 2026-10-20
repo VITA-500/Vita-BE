@@ -3,6 +3,7 @@ package com.vita.search.pipeline;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -510,5 +511,40 @@ class RetrievalPipelineTest {
 		FaqRetrievalContext context = searchContext("자동이체 계좌를 변경하고 싶어요", 3);
 
 		assertThat(context.planNotice()).isNull();
+	}
+
+	// ---- 의도별 FAQ 질문(질문 분해 실험) ----
+
+	@Test
+	void mergesThePoolsOfTheMainQueryAndEachSubQueryKeepingTheHighestSimilarityPerFaq() {
+		FaqRetriever retriever = mock(FaqRetriever.class);
+		when(retriever.retrieve(argThat(q -> q != null && "전체 질문".equals(q.text())), anyInt()))
+				.thenReturn(List.of(faqOf(1, "가", "나", 0.86), faqOf(3, "가", "나", 0.84)));
+		when(retriever.retrieve(argThat(q -> q != null && "의도 하나".equals(q.text())), anyInt()))
+				.thenReturn(List.of(faqOf(2, "가", "나", 0.91), faqOf(1, "가", "나", 0.85)));
+		when(retriever.retrieve(argThat(q -> q != null && "의도 둘".equals(q.text())), anyInt()))
+				.thenReturn(List.of(faqOf(4, "가", "나", 0.89)));
+		when(embeddingProvider.embedQuery(any())).thenReturn(new float[] {0.1f});
+		pipeline = new RetrievalPipeline(embeddingProvider, new IdentityQueryTransformer(), retriever, planSearchService,
+				new RetrievalSettings(0.83, 0.81, true, 0.0, 3, 20));
+
+		RetrievalResult result = pipeline.run("원문", "전체 질문", List.of("의도 하나", "의도 둘"), null,
+				RetrievalOptions.forEval(10, 30, false));
+
+		assertThat(result.faq().pool()).extracting(FaqSimilarityResult::id).containsExactly(2L, 4L, 1L, 3L);
+		assertThat(result.faq().pool().get(2).similarity()).isEqualTo(0.86);
+	}
+
+	@Test
+	void ignoresSubQueriesWhenDecompositionIsDisabled() {
+		FaqRetriever retriever = mock(FaqRetriever.class);
+		when(retriever.retrieve(any(), anyInt())).thenReturn(List.of(faqOf(1, "가", "나", 0.9)));
+		when(embeddingProvider.embedQuery(any())).thenReturn(new float[] {0.1f});
+		pipeline = new RetrievalPipeline(embeddingProvider, new IdentityQueryTransformer(), retriever, planSearchService,
+				new RetrievalSettings(0.83, 0.81, true, 0.0, 3, 20), false);
+
+		pipeline.run("원문", "전체 질문", List.of("의도 하나", "의도 둘"), null, RetrievalOptions.forEval(10, 30, false));
+
+		verify(retriever, times(1)).retrieve(any(), anyInt());
 	}
 }

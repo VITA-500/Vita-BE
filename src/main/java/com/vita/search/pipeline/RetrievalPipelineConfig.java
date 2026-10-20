@@ -52,13 +52,15 @@ public class RetrievalPipelineConfig {
 			PlanSearchService planSearchService,
 			RetrievalSettings settings,
 			@Value("${search.pipeline.query-transformer:" + IdentityQueryTransformer.BEAN_NAME + "}") String queryTransformerName,
-			@Value("${search.pipeline.faq-retriever:" + VectorFaqRetriever.BEAN_NAME + "}") String faqRetrieverName) {
+			@Value("${search.pipeline.faq-retriever:" + VectorFaqRetriever.BEAN_NAME + "}") String faqRetrieverName,
+			@Value("${search.pipeline.faq-decompose-enabled:true}") boolean faqDecomposeEnabled) {
 		return new RetrievalPipeline(
 				embeddingProvider,
 				pick(queryTransformers, queryTransformerName, "search.pipeline.query-transformer"),
 				pick(faqRetrievers, faqRetrieverName, "search.pipeline.faq-retriever"),
 				planSearchService,
-				settings);
+				settings,
+				faqDecomposeEnabled);
 	}
 
 	/**

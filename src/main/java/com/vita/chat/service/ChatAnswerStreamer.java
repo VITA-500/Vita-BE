@@ -138,7 +138,7 @@ public class ChatAnswerStreamer {
                 log.info("정형(조건) 질문: FAQ 검색 생략, 요금제만 검색 - question={}", question);
                 retrieved = retrieve(trace, question, null, q.planQuery(), "PLAN_ONLY", null);
             } else {
-                retrieved = retrieve(trace, question, q.faqQuery(), q.planQuery(), null, null);
+                retrieved = retrieve(trace, question, q.faqQuery(), q.faqSubQueries(), q.planQuery(), null, null);
             }
 
             // 3) context 조립 (극값 분기는 원문 질문 기준)
@@ -230,14 +230,21 @@ public class ChatAnswerStreamer {
      */
     private Retrieved retrieve(TraceCollector trace, String question, String faqQuery, String planQuery,
                                String faqSkipReason, String fallbackOf) {
-        log.info("검색 질의 - original={}, faqQuery={}, planQuery={}", question, faqQuery, planQuery);
+        return retrieve(trace, question, faqQuery, List.of(), planQuery, faqSkipReason, fallbackOf);
+    }
+
+    private Retrieved retrieve(TraceCollector trace, String question, String faqQuery, List<String> faqSubQueries,
+                               String planQuery, String faqSkipReason, String fallbackOf) {
+        log.info("검색 질의 - original={}, faqQuery={}, faqSubQueries={}, planQuery={}", question, faqQuery, faqSubQueries, planQuery);
 
         TraceCollector.Span faqSpan = trace.begin(SpanType.FAQ_RETRIEVE);
         TraceCollector.Span planSpan = trace.begin(SpanType.PLAN_RETRIEVE);
         LocalDateTime searchStart = trace.now();
         RetrievalResult result;
         try {
-            result = faqRetrievalService.searchWithDetails(question, faqQuery, planQuery, TOP_K);
+            result = faqSubQueries.isEmpty()
+                    ? faqRetrievalService.searchWithDetails(question, faqQuery, planQuery, TOP_K)
+                    : faqRetrievalService.searchWithDetails(question, faqQuery, faqSubQueries, planQuery, TOP_K);
         } catch (RuntimeException e) {
             Map<String, Object> partial = new LinkedHashMap<>();
             partial.put("query", faqQuery);

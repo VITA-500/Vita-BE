@@ -45,6 +45,7 @@ final class TransformSpanHistory {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("faq_query", r.faqQuery());
         result.put("plan_query", r.planQuery());
+        result.put("faq_sub_queries", r.faqSubQueries());
         result.put("is_extreme", r.planIntent().extreme());
         result.put("sort_key", r.planIntent().sortKey() == null ? null : r.planIntent().sortKey().name());
         result.put("limit", r.planIntent().limit());

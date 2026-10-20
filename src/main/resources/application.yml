@@ -145,6 +145,9 @@ search:
   pipeline:
     query-transformer: ${SEARCH_PIPELINE_QUERY_TRANSFORMER:identityQueryTransformer}
     faq-retriever: ${SEARCH_PIPELINE_FAQ_RETRIEVER:vectorFaqRetriever}
+    # 질문에 FAQ 의도가 여럿일 때 질문 변환이 만든 의도별 질의(faq_sub_queries)로 따로 검색해 후보를 합칠지. false면 faqQuery 하나로만 검색한다.
+    # 복합 질문에서 변환이 의도 일부를 빠뜨려 원문 검색보다 낮아지던 문제를 줄이려고 켠다(검색 평가: 복합 질문 500문항 nDCG@10 91.7% -> 94.3%).
+    faq-decompose-enabled: ${SEARCH_PIPELINE_FAQ_DECOMPOSE_ENABLED:true}
     # 요금제 후보 검색기의 빈 이름. 기본은 벡터 검색이고, Hybrid 같은 구현은 그 빈 이름을 적는다.
     plan-retriever: ${SEARCH_PIPELINE_PLAN_RETRIEVER:vectorPlanRetriever}
   # 요금제 평가셋(plan_eval_v2)으로 BE4에 전달되는 요금제 목록의 품질을 재는 수동 도구. 로컬 도커(DB+임베딩 서버)가 떠 있고
