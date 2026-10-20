@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.regex.Pattern;
@@ -105,6 +106,13 @@ public class ChatStoreFinder {
 
     // "근처 다른 매장", "주변", "1호점 말고"처럼 그 매장 주변을 묻는 말
     private static final Pattern NEARBY_WORDS = Pattern.compile("근처|주변|가까운|가까이|인근|부근|다른|말고");
+    // 사용자 주변을 묻는 말 (제휴 혜택 목록을 줄지, 근처 제휴 매장을 찾을지 나눌 때)
+    private static final Pattern NEAR_ME_WORDS = Pattern.compile("근처|주변|가까운|가까이|인근|부근");
+
+    // 제휴 혜택 목록만 줄 때 (매장 위치는 조회하지 않음)
+    private static final String BENEFIT_LIST_ONLY =
+            "안내: 위는 제휴 혜택 목록이며 매장 위치는 조회하지 않았음. 매장 목록이나 거리처럼 말하지 말 것. " +
+                    "마지막에 근처 제휴 매장이 궁금하면 '근처 제휴 매장 알려줘'처럼 물어보면 찾아 준다고 한 줄 안내할 것.\n";
 
     public StoreLookup find(StoreIntent intent, BigDecimal lat, BigDecimal lng) {
         return find(intent, lat, lng, null);
@@ -351,6 +359,18 @@ public class ChatStoreFinder {
         return question == null || NEARBY_WORDS.matcher(question).find();
     }
 
+    // 업종·브랜드 없는 제휴 질문이 위치를 묻는지 ("근처 제휴 매장", "1km 안 제휴 매장", "지금 영업 중인 제휴 매장")
+    // "다른 제휴 혜택 뭐 있어"처럼 위치와 무관한 "다른"은 위치를 묻는 말로 보지 않는다
+    static boolean wantsNearbyPartner(StoreIntent intent, String question) {
+        return (question != null && NEAR_ME_WORDS.matcher(question).find())
+                || intent.minKm() != null || intent.maxKm() != null || intent.openNow() || intent.openAt() != null;
+    }
+
+    private static int categoryOrder(String category) {
+        int index = Benefit.CATEGORIES.indexOf(category);
+        return index < 0 ? Benefit.CATEGORIES.size() : index;
+    }
+
     // 사용자 위치에서 매장까지 직선거리(km). 위치가 없으면 null
     private static Double distanceFromUser(SingleStore single, BigDecimal lat, BigDecimal lng) {
         if (!single.userLocated()) {
@@ -377,23 +397,29 @@ public class ChatStoreFinder {
         Optional<BenefitResponse> brand = Optional.ofNullable(intent.brand()).flatMap(benefitService::findByBrand);
         String category = brand.map(BenefitResponse::category).orElse(validCategory(intent.category()));
 
+        // 업종 순서대로 넘겨 답변에서 업종별로 묶기 쉽게 한다
         List<BenefitResponse> benefits = brand.map(List::of)
-                .orElseGet(() -> benefitService.findAll(category).benefits());
+                .orElseGet(() -> benefitService.findAll(category).benefits().stream()
+                        .sorted(Comparator.comparingInt(b -> categoryOrder(b.category())))
+                        .toList());
         StringBuilder xml = new StringBuilder();
         benefits.forEach(benefit -> xml.append(toBenefitXml(benefit)));
-        if (intent.brand() != null && brand.isEmpty()) {
-            xml.append("안내: 사용자가 말한 \"").append(PromptEscaper.escape(intent.brand()))
-                    .append("\"는 제휴 브랜드가 아님. 이 사실을 먼저 안내할 것.\n");
-        }
+        String notPartner = intent.brand() != null && brand.isEmpty()
+                ? "안내: 사용자가 말한 \"" + PromptEscaper.escape(intent.brand()) + "\"는 제휴 브랜드가 아님. 이 사실을 먼저 안내할 것.\n"
+                : "";
+        xml.append(notPartner);
 
-        // 업종·브랜드·장소를 모두 모르면("제휴 혜택 뭐 있어") 혜택 목록만 안내
-        if (category == null && intent.place() == null && intent.storeName() == null) {
-            return new StoreLookup(result(xml.toString()), null);
+        // 업종, 브랜드, 장소를 모르고 위치도 묻지 않으면 혜택 목록만 안내
+        // "근처 제휴 매장"처럼 위치를 물으면 아래에서 모든 업종의 가까운 매장을 찾는다
+        boolean anyBenefit = category == null && intent.place() == null && intent.storeName() == null;
+        if (anyBenefit && !wantsNearbyPartner(intent, question)) {
+            return new StoreLookup(result(xml + BENEFIT_LIST_ONLY), null);
         }
         // 장소를 말했으면 업종을 몰라도 그 장소 기준으로 모든 업종에서 찾는다 ("강남역 제휴 매장")
         SearchPoint point = searchPoint(intent, lat, lng, question);
         if (!point.located()) {
-            return new StoreLookup(result(xml + noLocation(point)), null);
+            // 업종, 브랜드 없이 위치를 물었는데 위치를 모르면 전체 혜택 목록 대신 위치 안내만
+            return new StoreLookup(result((category == null ? notPartner : xml.toString()) + noLocation(point)), null);
         }
 
         // 제휴 매장은 거리 조건이 없으면 거리 제한 없이 가까운 순이라 5km 밖이어도 나온다
