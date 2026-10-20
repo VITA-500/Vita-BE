@@ -55,7 +55,7 @@ class ChatAnswerStreamerTraceTest {
                 .thenReturn(TestRetrievalResults.searchedBoth("로밍 요금 알려줘", "로밍 요금 알려줘", "로밍 요금 알려줘"));
         when(chatContextBuilder.build(anyString(), anyList(), anyList(), any(), any(), any(), any()))
                 .thenReturn(ChatContext.empty());
-        when(chatStoreFinder.find(any(), any(), any())).thenReturn(StoreLookup.empty());
+        when(chatStoreFinder.find(any(), any(), any(), any())).thenReturn(StoreLookup.empty());
         return new ChatAnswerStreamer(registry, faqRetrievalService, queryTransformer, chatContextBuilder,
                 chatStoreFinder, llmStreamClient, persistence, recorder, configProvider(), DIRECT);
     }

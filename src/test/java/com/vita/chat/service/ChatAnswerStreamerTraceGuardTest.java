@@ -61,7 +61,7 @@ class ChatAnswerStreamerTraceGuardTest {
         when(configProvider.snapshot(anyInt())).thenReturn(Map.of("faq_threshold", 0.83));
         when(chatContextBuilder.build(anyString(), anyList(), anyList(), any(), any(), any(), any()))
                 .thenReturn(ChatContext.empty());
-        when(chatStoreFinder.find(any(), any(), any())).thenReturn(StoreLookup.empty());
+        when(chatStoreFinder.find(any(), any(), any(), any())).thenReturn(StoreLookup.empty());
         return new ChatAnswerStreamer(mock(ChatSseRegistry.class), faqRetrievalService, queryTransformer, chatContextBuilder,
                 chatStoreFinder, mock(LlmStreamClient.class), persistence, recorder, configProvider, DIRECT);
     }

@@ -152,7 +152,7 @@ public class ChatAnswerStreamer {
             }
 
             // 매장 질문이면 BE5 매장 조회 결과를 context 뒤에 붙인다 (실패해도 답변은 계속)
-            StoreLookup stores = findStores(trace, q, lat, lng);
+            StoreLookup stores = findStores(trace, q, lat, lng, question);
             String contextText = context.text() + stores.text();
 
             // 미해결 질문 자동 감지. 판정에 쓰는 값은 모두 답변 생성 전에 정해져 있어서, 생성 span에도 남기려고 먼저 계산한다.
@@ -312,11 +312,11 @@ public class ChatAnswerStreamer {
     }
 
     /** 매장 질문이면 매장을 조회하고 store_lookup span으로 기록한다. 위치 좌표는 기록하지 않고 위치를 받았는지만 남긴다. */
-    private StoreLookup findStores(TraceCollector trace, QueryTransformResult q, BigDecimal lat, BigDecimal lng) {
+    private StoreLookup findStores(TraceCollector trace, QueryTransformResult q, BigDecimal lat, BigDecimal lng, String question) {
         TraceCollector.Span storeSpan = q.storeIntent().isNone() ? null : trace.begin(SpanType.STORE_LOOKUP);
         StoreLookup stores;
         try {
-            stores = chatStoreFinder.find(q.storeIntent(), lat, lng);
+            stores = chatStoreFinder.find(q.storeIntent(), lat, lng, question);
         } catch (RuntimeException e) {
             if (storeSpan != null) {
                 storeSpan.fail(e, TransformSpanHistory.storeIntentOnly(q.storeIntent()));
