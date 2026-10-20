@@ -99,4 +99,13 @@ class FaqCategoryTermBoosterTest {
 
 		assertThat(reranked).extracting(FaqSimilarityResult::similarity).containsExactly(0.80, 0.82);
 	}
+
+	@Test
+	void reportsTheQueryWordsThatEarnedABonusInOrderWithoutCountingTheSameLettersTwice() {
+		// "인터넷전화"를 찾은 뒤에는 같은 글자를 "인터넷"으로 다시 세지 않는다. 질문에 적힌 글자 그대로 돌려준다.
+		assertThat(FaqCategoryTermBooster.matchedTerms("소상공인 인터넷전화 되나요")).containsExactly("인터넷전화", "소상공인");
+		assertThat(FaqCategoryTermBooster.matchedTerms("해외 로밍 요금")).containsExactly("로밍");
+		assertThat(FaqCategoryTermBooster.matchedTerms("안녕하세요")).isEmpty();
+		assertThat(FaqCategoryTermBooster.matchedTerms(null)).isEmpty();
+	}
 }

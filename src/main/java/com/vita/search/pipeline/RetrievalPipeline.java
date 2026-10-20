@@ -125,7 +125,7 @@ public class RetrievalPipeline {
 		}
 		boolean searchPlans = options.includePlans() && transformed.planQuery() != null && !nonMobilePlanQuestion;
 		if (!searchFaq && !searchPlans) {
-			return emptyResult(transformed, transformNanos);
+			return emptyResult(transformed, transformNanos, nonMobilePlanQuestion, options);
 		}
 
 		// 2. 임베딩. FAQ와 요금제는 같은 임베딩 모델·차원이라, 두 질문이 같으면 벡터 변환을 한 번만 한다. null인 쪽은 건너뛴다.
@@ -137,6 +137,8 @@ public class RetrievalPipeline {
 					: embeddingProvider.embedQuery(transformed.planQuery());
 		}
 		long embeddingNanos = clock.lap();
+		RetrievalTrace trace = new RetrievalTrace(faqVector, planVector, searchFaq, searchPlans, nonMobilePlanQuestion,
+				settings, options);
 
 		// 3. FAQ 후보 검색. threshold 미달 후보의 최고 점수도 topSimilarity로 알려야 해서, 검색기는 threshold 없이 후보를
 		// 가까운 순으로 가져오고 threshold는 후처리에서 적용한다(정렬이 유사도 순이라 결과 집합은 동일).
@@ -189,7 +191,7 @@ public class RetrievalPipeline {
 			FaqRetrievalContext blocked = new FaqRetrievalContext(List.of(), List.of(), blockedTop);
 			StageTimings blockedTimings = new StageTimings(transformNanos, embeddingNanos, faqSearchNanos, planSearchNanos, clock.lap());
 			return finish(transformed, faq, planOutcome, List.of(), planTopSimilarity, blockedTop, irrelevantRules,
-					blockedTimings, blocked, options);
+					blockedTimings, blocked, trace, options);
 		}
 
 		// 조건으로 좁혀진 결과는 "3만1천원"처럼 임베딩 유사도가 낮게 나오는 질문도 포함하므로 threshold를 적용하지 않는다.
@@ -226,14 +228,16 @@ public class RetrievalPipeline {
 
 		StageTimings timings = new StageTimings(transformNanos, embeddingNanos, faqSearchNanos, planSearchNanos, clock.lap());
 		return finish(transformed, faq, planOutcome, planResults, planTopSimilarity, topSimilarity, irrelevantRules,
-				timings, context, options);
+				timings, context, trace, options);
 	}
 
 	/** FAQ도 요금제도 검색하지 않는 경우(두 질문이 모두 null)의 빈 결과. */
-	private RetrievalResult emptyResult(TransformedQuery transformed, long transformNanos) {
+	private RetrievalResult emptyResult(TransformedQuery transformed, long transformNanos, boolean nonMobileGuard,
+			RetrievalOptions options) {
 		FaqSelection emptySelection = new FaqSelection(List.of(), List.of(), List.of(), List.of(), 0.0);
 		return new RetrievalResult(transformed, emptySelection, new PlanSearchService.PlanSearchOutcome(List.of(), false),
-				List.of(), 0.0, 0.0, Set.of(), new StageTimings(transformNanos, 0L, 0L, 0L, 0L), FaqRetrievalContext.empty());
+				List.of(), 0.0, 0.0, Set.of(), new StageTimings(transformNanos, 0L, 0L, 0L, 0L), FaqRetrievalContext.empty(),
+				new RetrievalTrace(null, null, false, false, nonMobileGuard, settings, options));
 	}
 
 	/**
@@ -261,12 +265,12 @@ public class RetrievalPipeline {
 	private RetrievalResult finish(TransformedQuery transformed, FaqSelection faq,
 			PlanSearchService.PlanSearchOutcome planOutcome, List<PlanSimilarityResult> planResults,
 			double planTopSimilarity, double topSimilarity, Set<IrrelevantQueryDetector.Rule> irrelevantRules,
-			StageTimings timings, FaqRetrievalContext context, RetrievalOptions options) {
+			StageTimings timings, FaqRetrievalContext context, RetrievalTrace trace, RetrievalOptions options) {
 		if (options.logDetails()) {
 			log.info("검색 단계별 시간: {}", timings.summary());
 		}
 		return new RetrievalResult(transformed, faq, planOutcome, planResults, planTopSimilarity, topSimilarity,
-				irrelevantRules, timings, context);
+				irrelevantRules, timings, context, trace);
 	}
 
 	/**

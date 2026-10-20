@@ -68,12 +68,20 @@ public class PlanSearchService {
 	 *                         전체 목록 요청("전체 요금제 알려줘")도 안내할 요금제를 확정한 결과라 true다.
 	 * @param listNotice       전체 목록 요청일 때 LLM에게 줄 안내 한 줄(전체 목록이라는 점, 기기 전용 요금제가 빠졌다는 점).
 	 *                         전체 목록 요청이 아니면 null.
+	 * @param conditions       질문에서 읽은 요금제 조건(원문과 요금제용 질문을 합친 것). 기록(trace)용이며 읽은 조건이 없거나
+	 *                         검색 전이면 null
 	 */
-	public record PlanSearchOutcome(List<PlanSimilarityResult> results, boolean conditionMatched, String listNotice) {
+	public record PlanSearchOutcome(List<PlanSimilarityResult> results, boolean conditionMatched, String listNotice,
+			PlanQueryConditions conditions) {
+
+		/** 읽은 조건 정보 없이 만든다. */
+		public PlanSearchOutcome(List<PlanSimilarityResult> results, boolean conditionMatched, String listNotice) {
+			this(results, conditionMatched, listNotice, null);
+		}
 
 		/** 전체 목록 요청이 아닌 일반 결과. */
 		public PlanSearchOutcome(List<PlanSimilarityResult> results, boolean conditionMatched) {
-			this(results, conditionMatched, null);
+			this(results, conditionMatched, null, null);
 		}
 	}
 
@@ -116,7 +124,7 @@ public class PlanSearchService {
 		boolean onlyDeviceTarget = conditions.hasOnlyTargetGroup() && DEVICE_ONLY_GROUPS.contains(conditions.targetGroup());
 		if ((conditions.isEmpty() || onlyDeviceTarget)
 				&& (PlanListRequestDetector.matches(originalQuery) || PlanListRequestDetector.matches(planQuery))) {
-			PlanSearchOutcome listed = listAllPlans(pool, deviceOnlyCodes, Math.max(topK, matchedLimit));
+			PlanSearchOutcome listed = listAllPlans(pool, deviceOnlyCodes, Math.max(topK, matchedLimit), conditions);
 			if (!listed.results().isEmpty()) {
 				return listed;
 			}
@@ -146,7 +154,7 @@ public class PlanSearchService {
 						.sorted(order)
 						.limit(Math.max(topK, matchedLimit))
 						.toList();
-				return new PlanSearchOutcome(narrowed, true);
+				return new PlanSearchOutcome(narrowed, true, null, conditions);
 			}
 		}
 
@@ -161,7 +169,7 @@ public class PlanSearchService {
 				.filter(candidate -> !deviceOnlyCodes.contains(candidate.planCode()))
 				.toList();
 		List<PlanSimilarityResult> base = scopedPool.isEmpty() ? allowedPool : scopedPool;
-		return new PlanSearchOutcome(base.stream().limit(topK).toList(), false);
+		return new PlanSearchOutcome(base.stream().limit(topK).toList(), false, null, conditions);
 	}
 
 	/**
@@ -172,8 +180,10 @@ public class PlanSearchService {
 	 * @param pool            후보 풀(요금제 전체가 들어오는 크기)
 	 * @param deviceOnlyCodes 이번 질문에서 뺄 기기 전용 요금제의 plan_code. 질문이 기기를 말했으면 비어 있다.
 	 * @param limit           돌려줄 최대 개수
+	 * @param conditions      질문에서 읽은 조건(기록용으로 결과에 실어 보낸다)
 	 */
-	private PlanSearchOutcome listAllPlans(List<PlanSimilarityResult> pool, Set<String> deviceOnlyCodes, int limit) {
+	private PlanSearchOutcome listAllPlans(List<PlanSimilarityResult> pool, Set<String> deviceOnlyCodes, int limit,
+			PlanQueryConditions conditions) {
 		List<PlanSimilarityResult> visible = pool.stream()
 				.filter(candidate -> !deviceOnlyCodes.contains(candidate.planCode()))
 				.sorted(Comparator.comparingInt(PlanSimilarityResult::monthlyFee).thenComparing(PlanSimilarityResult::name))
@@ -183,7 +193,7 @@ public class PlanSearchService {
 				.filter(candidate -> deviceOnlyCodes.contains(candidate.planCode()))
 				.map(PlanSimilarityResult::name)
 				.toList();
-		return new PlanSearchOutcome(visible, true, listNotice(visible.size(), hiddenNames));
+		return new PlanSearchOutcome(visible, true, listNotice(visible.size(), hiddenNames), conditions);
 	}
 
 	/** LLM에게 줄 전체 목록 안내 한 줄. 컨텍스트의 다른 안내처럼 "~할 것" 형태로 쓴다. */
