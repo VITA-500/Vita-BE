@@ -153,6 +153,11 @@ public class ChatMessage {
 		return plans == null ? List.of() : plans;
 	}
 	
+	/** 답변 생성이 실패해 한 번 더 시도하는 중 */
+	public void markRetrying() {
+		this.status = ChatMessageStatus.RETRYING;
+	}
+
 	/**
 	 * 실패 시
 	 */

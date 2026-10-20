@@ -25,7 +25,8 @@ public final class ChatEvents {
     public enum AssistantStatus {
         THINKING("thinking"),
         RETRIEVING_FAQ("retrieving_faq"),
-        GENERATING("generating");
+        GENERATING("generating"),
+        RETRYING("retrying");       // 답변 생성이 실패해 한 번 더 시도하는 중
 
         private final String value;
 

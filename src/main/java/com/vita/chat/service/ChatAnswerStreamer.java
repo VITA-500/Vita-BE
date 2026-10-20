@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 import com.vita.chat.dto.ChatAction;
@@ -44,6 +45,8 @@ import lombok.extern.slf4j.Slf4j;
 public class ChatAnswerStreamer {
 
     private static final int TOP_K = 10;
+    private static final int GENERATION_ATTEMPTS = 2;           // 답변 생성 최대 시도 횟수 (처음 + 재시도 1번)
+    private static final long RETRY_DELAY_MILLIS = 1500;
 
     private final ChatSseRegistry registry;
     private final FaqRetrievalService faqRetrievalService;
@@ -55,6 +58,8 @@ public class ChatAnswerStreamer {
     private final TraceRecorder traceRecorder;
     private final TraceConfigProvider traceConfigProvider;
     private final Executor executor;
+    // 다시 시도하기 전 대기 (호출 제한이 풀릴 시간). 테스트에서 0으로 바꾼다
+    long retryDelayMillis = RETRY_DELAY_MILLIS;
 
     public ChatAnswerStreamer(
             ChatSseRegistry registry,
@@ -164,24 +169,7 @@ public class ChatAnswerStreamer {
             // 4) 답변 생성 (원문 질문으로 호출)
             publishStatus(sessionId, messageId, AssistantStatus.GENERATING);
             StringBuilder full = new StringBuilder();
-            GenerationSpanHistory.Progress progress = new GenerationSpanHistory.Progress();
-            TraceCollector.Span generationSpan = trace.begin(SpanType.GENERATION);
-            StreamResult streamed;
-            try {
-                streamed = llmStreamClient.stream(question, contextText, history, delta -> {
-                    progress.onDelta();
-                    full.append(delta);
-                    registry.publish(sessionId, ChatEvents.ASSISTANT_DELTA,
-                            new ChatEvents.Delta(sessionId, messageId, delta));
-                });
-            } catch (RuntimeException e) {
-                // 중간에 끊겨도 그때까지 받은 답변 조각과 보낸 context는 남긴다.
-                generationSpan.fail(e, safeHistory(() -> GenerationSpanHistory.of(question, contextText, history,
-                        full.toString(), progress, null, unresolvedName, topSimilarity)));
-                throw e;
-            }
-            generationSpan.end(safeHistory(() -> GenerationSpanHistory.of(question, contextText, history, full.toString(),
-                    progress, streamed, unresolvedName, topSimilarity)));
+            generate(trace, sessionId, messageId, question, contextText, history, full, unresolvedName, topSimilarity);
 
             List<Long> faqIds = context.faqs().stream().map(FaqReference::faqId).toList();
 
@@ -369,6 +357,64 @@ public class ChatAnswerStreamer {
         copy.put("fallback_of", fallbackOf);
         copy.putAll(history);
         return copy;
+    }
+
+    /**
+     * 답변 생성. 실패하면 한 번 더 시도한다 (Bedrock 호출 제한(429) 같은 일시적인 실패 대비).
+     * 답변 조각을 이미 보냈으면 다시 하지 않는다.
+     * 시간 초과도 다시 하지 않는다.
+     * 시도마다 generation span을 하나씩 남긴다.
+     */
+    private void generate(TraceCollector trace, Long sessionId, Long messageId, String question, String contextText,
+                          String history, StringBuilder full, String unresolvedName, Double topSimilarity) {
+        for (int attempt = 1; ; attempt++) {
+            GenerationSpanHistory.Progress progress = new GenerationSpanHistory.Progress();
+            TraceCollector.Span generationSpan = trace.begin(SpanType.GENERATION);
+            StreamResult streamed;
+            try {
+                streamed = llmStreamClient.stream(question, contextText, history, delta -> {
+                    progress.onDelta();
+                    full.append(delta);
+                    registry.publish(sessionId, ChatEvents.ASSISTANT_DELTA,
+                            new ChatEvents.Delta(sessionId, messageId, delta));
+                });
+            } catch (RuntimeException e) {
+                // 중간에 끊겨도 그때까지 받은 답변 조각과 보낸 context는 남긴다.
+                generationSpan.fail(e, safeHistory(() -> GenerationSpanHistory.of(question, contextText, history,
+                        full.toString(), progress, null, unresolvedName, topSimilarity)));
+                if (attempt >= GENERATION_ATTEMPTS || !full.isEmpty() || isTimeout(e)) {
+                    throw e;
+                }
+                log.warn("답변 생성 실패, 한 번 더 시도 - messageId={}, 원인={}", messageId, e.getClass().getSimpleName());
+                chatMessagePersistence.markRetrying(messageId);
+                publishStatus(sessionId, messageId, AssistantStatus.RETRYING);
+                waitBeforeRetry(e);
+                continue;
+            }
+            generationSpan.end(safeHistory(() -> GenerationSpanHistory.of(question, contextText, history,
+                    full.toString(), progress, streamed, unresolvedName, topSimilarity)));
+            return;
+        }
+    }
+
+    // 원인 중에 시간 초과가 있는지 (blockLast 시간 초과, Bedrock 응답 시간 초과)
+    private static boolean isTimeout(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof TimeoutException
+                    || (t.getMessage() != null && t.getMessage().contains("Timeout"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void waitBeforeRetry(RuntimeException cause) {
+        try {
+            Thread.sleep(retryDelayMillis);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw cause;
+        }
     }
 
     private void publishStatus(Long sessionId, Long messageId, AssistantStatus status) {
