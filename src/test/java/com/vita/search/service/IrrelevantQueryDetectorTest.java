@@ -247,4 +247,45 @@ class IrrelevantQueryDetectorTest {
 		assertThat(detect("  ")).isEmpty();
 		assertThat(detect("자동이체 계좌를 변경하고 싶어요")).isEmpty();
 	}
+
+	@Test
+	void doesNotTreatASelfIntroductionBeforeARequestAsPersonalLookup() {
+		// 사용자가 실제로 겪은 질문: "나는"이 1인칭으로, "궁금"이 조회 표현으로 잡혀 검색 결과가 전부 비워졌다.
+		assertThat(detect("어떤 요금제가 있는지 궁금해. 나는 대학생이고, 데이터를 많이 사용해")).isEmpty();
+		assertThat(detect("나는 대학생이고, 데이터를 많이 사용해 어떤 요금제가 있는지 궁금해.")).isEmpty();
+		assertThat(detect("나는 대학생이고 데이터를 많이 사용하는데 어떤 요금제가 있어?")).isEmpty();
+		assertThat(detect("나는 대학생이야. 요금제 알려줘")).isEmpty();
+		assertThat(detect("저는 군인인데 할인되는 요금제 알려주세요")).isEmpty();
+		assertThat(detect("저는 60대인데 시니어 요금제 알려주세요")).isEmpty();
+		assertThat(detect("제가 가족이 4명인데 결합 할인 알려주세요")).isEmpty();
+		assertThat(detect("저는 해외여행을 자주 가는데 로밍 요금 알려주세요")).isEmpty();
+	}
+
+	@Test
+	void doesNotTreatPriceOrTimingWordsAfterASelfIntroductionAsPersonalLookup() {
+		// "얼마", "언제"는 가격·가입 시점을 묻는 말에도 쓰인다.
+		assertThat(detect("저는 영상을 많이 보는데 월 얼마짜리 요금제가 좋아요?")).isEmpty();
+		assertThat(detect("나는 대학생인데 제일 싼 요금제는 얼마야?")).isEmpty();
+		assertThat(detect("저는 대학생인데 언제 가입하면 할인돼?")).doesNotContain(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("나는 직장인인데 요금제 추천해줘")).isEmpty();
+	}
+
+	@Test
+	void stillDetectsPersonalLookupWrittenWithASubjectFirstPerson() {
+		assertThat(detect("제가 쓰는 요금제 알려주세요")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("제가 가입한 부가서비스 알려주세요")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("저는 이번 달에 얼마 냈나요?")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("나는 지금 데이터 얼마 남았어?")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("저는 언제 가입했는지 궁금해요")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("내가 지난달에 쓴 통화량 알려줘")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("내가 마지막으로 결제한 날짜가 언제였지?")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("내가 예전에 문의한 내역 보여줘")).contains(Rule.PERSONAL_LOOKUP);
+	}
+
+	@Test
+	void stillDetectsPossessiveFirstPersonWithOnlyAGenericRequestWord() {
+		// "내/제 + 대상"은 본인 소유를 직접 가리키므로 "알려줘"만 있어도 본인 기록 조회다.
+		assertThat(detect("내 요금 알려줘")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("제 데이터 사용 현황이 궁금해요")).contains(Rule.PERSONAL_LOOKUP);
+	}
 }

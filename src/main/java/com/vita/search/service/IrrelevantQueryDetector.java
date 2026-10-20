@@ -43,6 +43,38 @@ public final class IrrelevantQueryDetector {
 					+ "|만료|현황|알려줘|알려 ?주세요|궁금|확인해 ?줘|확인해 ?주세요|조회해 ?(?:줘|주세요)|잔액");
 
 	/**
+	 * 소유형 1인칭("내 요금", "제 데이터"). 뒤에 한글이 붙지 않는 "내/제"만 해당하고, "내가/제가"는 주어형이라 포함하지 않는다.
+	 * 소유형은 "내 ○○"이라고 본인 소유를 직접 가리키므로 조회 표현만 있어도 본인 기록을 묻는 것으로 본다.
+	 */
+	private static final Pattern POSSESSIVE = Pattern.compile("(?<![가-힣])(?:내|제)(?![가-힣])");
+
+	/**
+	 * 주어형 1인칭("나는/저는/내가/제가", 문두의 "나/저")이 쓰였을 때, 본인 기록을 묻는다고 볼 수 있는 근거. 주어형은
+	 * "나는 대학생이고 데이터를 많이 써요. 요금제 알려줘"처럼 자기소개로도 쓰이므로, 조회 표현("궁금", "알려줘")만으로는
+	 * 본인 기록을 묻는다고 보지 않고 기록·상태를 직접 가리키는 말이 함께 있어야 한다. "얼마", "몇"은 "월 얼마짜리가 좋아요?"처럼
+	 * 가격을 묻는 말에도 쓰여서 여기에 넣지 않고, 이미 쓴 양이나 시점과 함께 있을 때만 {@link #asksOwnRecord}가 근거로 쓴다.
+	 * "언제"도 "언제였지", "언제 가입했는지"처럼 지난 일을 묻는 모양일 때만 근거로 본다("언제 가입하면 할인돼?"는 아니다).
+	 */
+	private static final Pattern RECORD_EVIDENCE = Pattern.compile(
+		"남았|나왔|썼|쓰고 ?있|받고 ?있|가입(?:된|한|돼|되어)|등록(?:된|돼|되)|상태|만료|현황|잔액|조회해|내역|이력|기록"
+		+ "|언제(?: ?[가-힣]{1,6})?(?:였|했|썼|냈|됐)");
+
+	/**
+	 * 주어형 1인칭이 바로 앞에 붙어 본인이 쓰는 대상을 가리키는 표현("제가 쓰는 요금제", "내가 이용 중인 서비스").
+	 * "학생들이 쓰는 요금제"처럼 다른 사람 이야기와 구분하려고 1인칭이 바로 앞에 있을 때만 잡는다.
+	 */
+	private static final Pattern OWN_HOLDING = Pattern.compile(
+		"(?:내가|제가|나는|저는) ?(?:지금|현재)? ?(?:쓰는|쓰고 ?있는|이용하는|사용하는|(?:이용|사용|가입) ?중인|가입한|가입된)"
+		+ " ?(?:요금제|부가 ?서비스|서비스|회선|번호|플랜|상품)");
+
+	/** 값을 묻는 말. 가격을 묻는 질문에도 쓰여서 시점·이미 쓴 양과 함께 있을 때만 근거가 된다. */
+	private static final Pattern VALUE_ASK = Pattern.compile("얼마|몇|언제");
+
+	/** 어떤 질문에나 붙는 일반 요청어. 주어형 1인칭과 함께 쓰이면 자기소개 뒤의 요청일 수 있어서 이것만으로는 본인 기록 조회로 보지 않는다. */
+	private static final Pattern GENERIC_REQUEST = Pattern.compile(
+		"궁금|알려줘|알려 ?주세요|보여줘|확인해 ?줘|확인해 ?주세요|뭐야|뭐예요|뭔가요|뭔지|뭐지|뭐죠|뭐로");
+
+	/**
 	 * 시점 표현. "지난달 요금이 얼마 나왔는지"처럼 1인칭 없이도 본인의 사용·청구 기록을 묻는 문장에서 쓰인다.
 	 * 일반 제도 설명("이번 달 요금제 가격")에도 나오므로 아래 {@link #USAGE_TOPIC}, {@link #CONSUMED}와 함께 있을 때만 쓴다.
 	 */
@@ -177,7 +209,7 @@ public final class IrrelevantQueryDetector {
 	 * 본인 계정의 실제 값·상태·기록을 묻는 질문인지 본다. 방법·절차를 묻거나 제도의 시점·정책을 묻는 질문은 FAQ가 답하므로 제외한다.
 	 * 다음 중 하나에 해당하면 본인 정보 조회로 본다.
 	 * <ol>
-	 *   <li>1인칭 + 조회 표현("제 남은 데이터 알려주세요")</li>
+	 *   <li>1인칭 + 조회 표현("제 남은 데이터 알려주세요"). 주어형 1인칭("나는", "저는")은 자기소개로도 쓰여서 {@link #asksOwnRecord}로 한 번 더 가른다</li>
 	 *   <li>시점 + 사용·청구 대상 + 이미 쓴 양·청구된 금액("지난달 요금이 얼마 나왔는지")</li>
 	 *   <li>남은 잔여량 + 묻는 말("남은 데이터가 얼마야?")</li>
 	 *   <li>지금 가입·이용 중인 대상 + 묻는 말("지금 이용 중인 요금제가 뭐예요?")</li>
@@ -191,7 +223,7 @@ public final class IrrelevantQueryDetector {
 		if (POLICY_TIMING.matcher(query).find() || POLICY_TERM.matcher(query).find() || HOW_TO.matcher(query).find()) {
 			return false;
 		}
-		if (FIRST_PERSON.matcher(query).find() && LOOKUP.matcher(query).find()) {
+		if (FIRST_PERSON.matcher(query).find() && LOOKUP.matcher(query).find() && asksOwnRecord(query)) {
 			return true;
 		}
 		if (ACTION_OR_CAPABILITY.matcher(query).find()) {
@@ -207,6 +239,30 @@ public final class IrrelevantQueryDetector {
 		}
 		return CURRENT_HOLDING.matcher(query).find() && HOLDING_NOUN.matcher(query).find()
 				&& HOLDING_ASK.matcher(query).find();
+	}
+
+	/**
+	 * 1인칭과 조회 표현이 함께 있을 때, 실제로 본인 계정의 기록·상태를 묻는지 가른다.
+	 * <ul>
+	 *   <li>소유형("내 요금 알려줘", "제 남은 데이터")은 조회 표현만 있어도 본인 기록 조회다.</li>
+	 *   <li>주어형("나는/저는/내가/제가")은 "나는 대학생이야. 요금제 알려줘"처럼 자기소개 뒤의 요청일 수 있다. 가입하거나 바꾸려는
+	 *       의도(추천, 가입하면, 바꾸고 등)가 보이면 조회가 아니고, 값·상태·내역을 묻는 말({@link #RECORD_EVIDENCE})이나 본인이 쓰는
+	 *       대상({@link #OWN_HOLDING})이 있거나, 일반 요청어에 이미 쓴 양·시점·현재 이용 중이라는 표현이 함께 있어야 조회로 본다.</li>
+	 * </ul>
+	 */
+	private static boolean asksOwnRecord(String query) {
+		if (POSSESSIVE.matcher(query).find()) {
+			return true;
+		}
+		if (ACTION_OR_CAPABILITY.matcher(query).find()) {
+			return false;
+		}
+		if (RECORD_EVIDENCE.matcher(query).find() || OWN_HOLDING.matcher(query).find()) {
+			return true;
+		}
+		// "얼마", "몇", "궁금", "알려줘" 같은 말은 이미 쓴 양·시점·현재 이용 중이라는 표현과 함께 있을 때만 본인 기록을 묻는 것으로 본다.
+		return (GENERIC_REQUEST.matcher(query).find() || VALUE_ASK.matcher(query).find())
+			&& (CONSUMED.matcher(query).find() || PERIOD.matcher(query).find() || CURRENT_HOLDING.matcher(query).find());
 	}
 
 	/**
