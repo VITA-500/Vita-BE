@@ -98,7 +98,7 @@ public class ChatAnswerStreamer {
                 log.info("정형(조건) 질문: FAQ 검색 생략, 요금제만 검색 - question={}", question);
                 retrieved = retrieve(question, null, q.planQuery());
             } else {
-                retrieved = retrieve(question, q.faqQuery(), q.planQuery());
+                retrieved = retrieve(question, q.faqQuery(), q.faqSubQueries(), q.planQuery());
             }
 
             // 3) context 조립 (극값 분기는 원문 질문 기준)
@@ -170,9 +170,13 @@ public class ChatAnswerStreamer {
      * 원문(question)은 그대로 넘기므로 무관 질문 규칙과 요금제 조건 추출은 영향받지 않는다.
      */
     private Retrieved retrieve(String question, String faqQuery, String planQuery) {
-        log.info("검색 질의 - original={}, faqQuery={}, planQuery={}", question, faqQuery, planQuery);
+        return retrieve(question, faqQuery, List.of(), planQuery);
+    }
 
-        FaqRetrievalContext c = faqRetrievalService.search(question, faqQuery, planQuery, TOP_K);
+    private Retrieved retrieve(String question, String faqQuery, List<String> faqSubQueries, String planQuery) {
+        log.info("검색 질의 - original={}, faqQuery={}, faqSubQueries={}, planQuery={}", question, faqQuery, faqSubQueries, planQuery);
+
+        FaqRetrievalContext c = faqRetrievalService.search(question, faqQuery, faqSubQueries, planQuery, TOP_K);
         List<FaqReference> faqs = (faqQuery != null && c.hasRelevantFaq()) ? c.references() : List.of();
         List<PlanReference> plans = (planQuery != null) ? c.planReferences() : List.of();
         String planNotice = (planQuery != null) ? c.planNotice() : null;

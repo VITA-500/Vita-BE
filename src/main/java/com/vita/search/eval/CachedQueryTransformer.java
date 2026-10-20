@@ -11,6 +11,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -33,18 +34,18 @@ public class CachedQueryTransformer implements QueryTransformer {
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 
 	/** 파일 한 줄의 형식. 변환 결과와 변환 기록(어떻게 나온 결과인지)을 함께 저장한다. */
-	record Entry(String original, String faqQuery, String planQuery,
+	record Entry(String original, String faqQuery, String planQuery, List<String> faqSubQueries,
 			String kind, String reason, boolean faqNull, boolean planNull) {
 
 		static Entry of(TransformedQuery transformed) {
 			TransformInfo info = transformed.info();
-			return new Entry(transformed.original(), transformed.faqQuery(), transformed.planQuery(),
+			return new Entry(transformed.original(), transformed.faqQuery(), transformed.planQuery(), transformed.faqSubQueries(),
 					info.kind().name(), info.reason(), info.faqNull(), info.planNull());
 		}
 
 		TransformedQuery toTransformedQuery() {
 			TransformInfo info = new TransformInfo(TransformInfo.Kind.valueOf(kind), reason, faqNull, planNull);
-			return new TransformedQuery(original, faqQuery, planQuery, info);
+			return new TransformedQuery(original, faqQuery, planQuery, faqSubQueries, info);
 		}
 	}
 

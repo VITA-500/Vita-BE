@@ -1,6 +1,7 @@
 package com.vita.search.service;
 
 import com.vita.search.dto.FaqRetrievalContext;
+import java.util.List;
 
 /**
  * BE4(Chat/LLM)가 호출하는 RAG 검색 진입점. BE4는 이 인터페이스만 알면 되고,
@@ -31,4 +32,12 @@ public interface FaqRetrievalService {
 	 * @return 둘 다 null이면 빈 컨텍스트
 	 */
 	FaqRetrievalContext search(String originalQuery, String faqQuery, String planQuery, int topK);
+
+	/**
+	 * {@link #search(String, String, String, int)}에 의도별 FAQ 질문을 더한 진입점(실험). 질문에 서로 다른 FAQ 의도가 여럿일 때
+	 * 의도마다 하나씩 만든 질문을 faqSubQueries로 넘기면 faqQuery와 함께 따로 검색해 합친다. 기본 구현은 의도별 질문을 무시한다.
+	 */
+	default FaqRetrievalContext search(String originalQuery, String faqQuery, List<String> faqSubQueries, String planQuery, int topK) {
+		return search(originalQuery, faqQuery, planQuery, topK);
+	}
 }

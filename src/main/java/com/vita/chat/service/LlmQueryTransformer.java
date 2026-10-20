@@ -29,6 +29,7 @@ public class LlmQueryTransformer implements QueryTransformer {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     
     private static final int MAX_LIMIT = 3;
+    private static final int MAX_FAQ_SUB_QUERIES = 3;
     
     /** GB -> MB 환산. BE3가 DB에 저장한 값과 같은 기준이어야 한다 (아래 "확인할 것" 참고) */
     private static final int MB_PER_GB = 1024;
@@ -108,6 +109,7 @@ public class LlmQueryTransformer implements QueryTransformer {
         PriceRange priceRange = parsePriceRange(node);
         DataRange dataRange = parseDataRange(node);
         StoreIntent storeIntent = parseStoreIntent(node);
+        List<String> faqSubQueries = parseFaqSubQueries(node, faqQuery);
 
         // 둘 다 null이면 "무관"이 아니라 변환 실패일 수 있으니 원문으로 검색 (단, 극값 질문·매장 질문이면 그대로 진행)
         if (faqQuery == null && planQuery == null && !intent.extreme() && storeIntent.isNone()) {
@@ -117,7 +119,27 @@ public class LlmQueryTransformer implements QueryTransformer {
                 ? TransformInfo.partialNull(faqQuery == null, planQuery == null)
                 : TransformInfo.changed();
         return new TransformOutcome(
-                new QueryTransformResult(faqQuery, planQuery, intent, structured, priceRange, dataRange, storeIntent), info);
+                new QueryTransformResult(faqQuery, planQuery, intent, structured, priceRange, dataRange, storeIntent, faqSubQueries), info);
+    }
+
+    /**
+     * 의도별 FAQ 질문 파싱(실험). faq_query가 없으면 쓰지 않는다. 비어 있는 항목과 중복, faq_query와 같은 항목은 버리고 최대
+     * {@value #MAX_FAQ_SUB_QUERIES}개만 쓴다. 남은 것이 2개 미만이면 "의도가 여러 개"가 아니므로 빈 목록으로 본다.
+     */
+    private static List<String> parseFaqSubQueries(JsonNode node, String faqQuery) {
+        if (faqQuery == null) {
+            return List.of();
+        }
+        List<String> queries = new ArrayList<>();
+        node.path("faq_sub_queries").forEach(item -> {
+            if (item.isTextual() && !item.asText().isBlank()) {
+                String text = item.asText().trim();
+                if (!text.equals(faqQuery) && !queries.contains(text) && queries.size() < MAX_FAQ_SUB_QUERIES) {
+                    queries.add(text);
+                }
+            }
+        });
+        return queries.size() >= 2 ? List.copyOf(queries) : List.of();
     }
 
     /** 매장 질문 정보 파싱. 잘못된 값이어도 쿼리 변환 결과는 살리고 "매장 질문 아님"으로만 처리한다. */
