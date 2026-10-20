@@ -111,8 +111,7 @@ public class ChatStoreFinder {
 
     // 제휴 혜택 목록만 줄 때 (매장 위치는 조회하지 않음)
     private static final String BENEFIT_LIST_ONLY =
-            "안내: 위는 제휴 혜택 목록이며 매장 위치는 조회하지 않았음. 매장 목록이나 거리처럼 말하지 말 것. " +
-                    "마지막에 근처 제휴 매장이 궁금하면 '근처 제휴 매장 알려줘'처럼 물어보면 찾아 준다고 한 줄 안내할 것.\n";
+            "안내: 위는 제휴 혜택 목록이며 매장 위치는 조회하지 않았음. 매장 목록이나 거리처럼 말하지 말 것.\n";
 
     public StoreLookup find(StoreIntent intent, BigDecimal lat, BigDecimal lng) {
         return find(intent, lat, lng, null);
