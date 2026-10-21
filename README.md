@@ -19,9 +19,9 @@
 5. [ERD](#5-erd)
 6. [기능 목록](#6-기능-목록)
 7. [핵심 설계 포인트](#7-핵심-설계-포인트)
-   - [매장 검색과 길찾기](#매장-검색과-길찾기)
    - [임베딩](#임베딩)
    - [RAG 검색](#rag-검색)
+   - [질문 처리 기록(Trace/Span)](#질문-처리-기록tracespan)
    - [검색 품질 평가와 방식 선택](#검색-품질-평가와-방식-선택)
    - [LLM 연동](#llm-연동)
    - [Temperature 비교 (환각 평가)](#temperature-비교-환각-평가)
@@ -46,10 +46,10 @@
 | 항목 | 내용 |
 |---|---|
 | 데이터 | FAQ 1,084건, 요금제 20종, 제휴 혜택 7개 업종·11개 브랜드 |
-| RAG 구성 | 질문 변환(LLM) → 벡터 검색(FAQ·요금제) → 요금제 조건 매칭 → 후처리·threshold → 답변 생성(SSE 스트리밍) |
-| 검색 방식 | 질문 변환 + 벡터 검색으로 확정. 영어 번역·BM25 Hybrid는 실험 후 도입하지 않음 |
+| RAG 구성 | 질문 변환(LLM, 복합 질문은 의도별 질의로 분해) → 벡터 검색(FAQ·요금제) → 요금제 조건 매칭 → 후처리·threshold → 답변 생성(SSE 스트리밍) |
+| 검색 방식 | 질문 변환 + 질문 분해 + 벡터 검색으로 확정. 영어 번역·BM25 Hybrid는 실험 후 도입하지 않음 |
 | LLM | Claude Sonnet 4.6 (AWS Bedrock) |
-| 평가 | FAQ 224문항(정답지 v2.3)·요금제 158문항 정답지로 방식별 Recall·nDCG·MRR 비교, 환각 평가(60문항 + 30문항×3회, 사람 판정) |
+| 평가 | FAQ 224문항(정답지 v2.3)·요금제 158문항 정답지로 방식별 Recall·nDCG·MRR 비교, 질문 분해 검증(복합 질문 500문항, 재검증 FAQ 190·요금제 136문항, 원문 대비), 환각 평가(60문항 + 30문항×3회, 사람 판정) |
 
 ---
 
@@ -61,19 +61,19 @@
 |---|---|---|
 | BE1 | 김재우 | 아키텍처/공통/인증 (회원가입, 로그인, JWT, 마이페이지) |
 | BE2 | 김현정 | FAQ 데이터 생성/CRUD, 임베딩 변환 및 pgvector 저장 |
-| BE3 | 이진희 | RAG 검색 (pgvector 유사도 검색, threshold, Context 구성) |
+| BE3 | 이진희 | RAG 검색 (pgvector 유사도 검색, threshold, Context 구성), 질문 처리 기록(Trace/Span) |
 | BE4 | 정민주 | LLM/Chat API (Bedrock 연동, Prompt, 응답 상태관리) |
 | BE5 | 안제홍 | 매장/위치 서비스 (매장 CRUD, 거리 계산, 지도 데이터) |
-| BE6 (조장) | 김어진 | 통합테스트, DevOps |
-| FE1 | 박해준 | 인증/AI Chat (로그인, 채팅, Streaming, 대화 기록) |
-| FE2 | 정승민 | 지도/관리자/랜딩 UI |
+| BE6 (팀장) | 김어진 | 통합테스트, DevOps, FAQ 데이터셋 관리, 검색 품질 평가 체계와 검색 방식 테스트 및 선택 |
+| FE1 | 박해준 | 로그인 (OAuth, 인증), 랜딩 UI |
+| FE2 | 정승민 | 지도, 관리자, 채팅 |
 
 **일정** (2026-09-09 \~ 2026-10-28, 약 7주)
 
 | 기간 | 내용 |
 |---|---|
 | 9/9 \~ 9/15 | 주제 선정, 기획안 작성, 역할 분담, 공통 작업(패키지 구조, API 규격, DB 스키마 설계) |
-| **9/16 \~ 9/29** | **Phase 1 (MVP)** — 인증, FAQ 생성/적재, RAG 검색, Chat API, 매장 CRUD, Docker 환경 구성 |
+| 9/16 \~ 9/29 | **Phase 1 (MVP)** — 인증, FAQ 생성/적재, RAG 검색, Chat API, 매장 CRUD, Docker 환경 구성 |
 | 9/30 \~ 10/13 | Phase 2 (Core) — 통합 테스트, 임베딩 동기화, 관리자 API, CI/CD 파이프라인 구성 |
 | 10/14 \~ 10/24 | Phase 3 (Hardening) — 예외 처리, 성능 점검, 배포 안정화 |
 | 10/25 \~ 10/28 | 발표 준비 및 최종 점검 |
@@ -88,9 +88,9 @@
 |---|---|
 | 언어 / 프레임워크 | ![Java](https://img.shields.io/badge/Java-21-007396?style=for-the-badge&logo=openjdk&logoColor=white) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?style=for-the-badge&logo=springboot&logoColor=white) ![Gradle](https://img.shields.io/badge/Gradle-02303A?style=for-the-badge&logo=gradle&logoColor=white) |
 | 인증 | ![Spring Security](https://img.shields.io/badge/Spring%20Security-6DB33F?style=for-the-badge&logo=springsecurity&logoColor=white) ![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white) |
-| LLM | ![AWS Bedrock](https://img.shields.io/badge/AWS%20Bedrock-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white) Claude Sonnet 4.6 (기본값, `BEDROCK_MODEL_ID`로 교체 가능) |
+| LLM | ![AWS Bedrock](https://img.shields.io/badge/AWS%20Bedrock-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white) Claude Sonnet 4.6 |
 | 임베딩 | ![Hugging Face](https://img.shields.io/badge/Hugging%20Face%20TEI-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black) intfloat/multilingual-e5-base (768차원) |
-| DB | ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white) ![pgvector](https://img.shields.io/badge/pgvector-4169E1?style=for-the-badge&logoColor=white) RDB와 Vector DB를 하나로 통합 |
+| DB | ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white) ![pgvector](https://img.shields.io/badge/pgvector-4169E1?style=for-the-badge&logoColor=white) |
 | 테스트·문서 | ![JUnit5](https://img.shields.io/badge/JUnit5-25A162?style=for-the-badge&logo=junit5&logoColor=white) ![Swagger](https://img.shields.io/badge/Swagger-85EA2D?style=for-the-badge&logo=swagger&logoColor=black) |
 
 ### Infra
@@ -100,8 +100,6 @@
 | 배포 | ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white) ![AWS EC2](https://img.shields.io/badge/AWS%20EC2-FF9900?style=for-the-badge&logo=amazonec2&logoColor=white) ![AWS RDS](https://img.shields.io/badge/AWS%20RDS-527FFF?style=for-the-badge&logo=amazonrds&logoColor=white) |
 | HTTPS | ![Nginx](https://img.shields.io/badge/Nginx-009639?style=for-the-badge&logo=nginx&logoColor=white) ![Let's Encrypt](https://img.shields.io/badge/Let's%20Encrypt-003A70?style=for-the-badge&logo=letsencrypt&logoColor=white) |
 | CI/CD | ![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white) |
-
-**왜 pgvector인가**: 별도 Vector DB(Chroma 등)를 구축하지 않고 PostgreSQL의 pgvector 확장으로 RDB와 Vector DB를 하나로 통합 — 인프라를 단순화하고 팀 규모/예산(7주, 약 48만원)에 맞춘 선택
 
 ---
 
@@ -119,7 +117,7 @@
 - 사용자 질문 → 질문 변환(LLM) → 백엔드가 pgvector로 유사 FAQ·요금제 검색(RAG) → 검색 결과를 근거로 Bedrock 호출 → 자연어 답변을 SSE로 스트리밍하면서 채팅 세션에 저장
 - 채팅은 요청과 응답이 분리돼 있다. 메시지 전송(`POST /chat/sessions/{id}/messages`)은 `PENDING` 답변 자리를 만들고 바로 돌아오고, 진행 단계(`thinking` → `retrieving_faq` → `generating`)와 답변 조각(delta)은 SSE(`GET /chat/sessions/{id}/events`)로 내려간다. SSE 연결 목록은 서버 메모리에 있어 인스턴스 1대를 전제로 한다(여러 대로 늘리면 연결을 공유하는 방식이 별도로 필요하다)
 - 위치 질의 시 매장 좌표 기반 거리 계산 → 지도 표시용 데이터 반환, 길찾기는 백엔드가 Kakao 길찾기 API를 호출해 응답 (지도 SDK 자체는 프론트엔드에서 직접 사용)
-- 인프라는 AWS EC2 단일 인스턴스(dev/prod 포트 분리, 임베딩 서버는 메모리 때문에 dev 컨테이너를 prod가 네트워크로 함께 사용) + RDS + Nginx/Let's Encrypt HTTPS, GitHub Actions로 배포 자동화
+- 인프라는 AWS EC2 단일 인스턴스(dev/prod 포트 분리) + RDS + Nginx/Let's Encrypt HTTPS, GitHub Actions로 배포 자동화
 
 ---
 
@@ -139,8 +137,9 @@
 | `benefits` / `store_benefits` | 제휴 혜택과 매장-혜택 매핑(N:M). 혜택은 브랜드(`brand`, UNIQUE)당 1개이며 업종(`category`)은 혜택에만 두고 매장의 업종은 `store_benefits`를 따라가 구한다. 제휴 매장은 이름이 브랜드명과 같거나 "브랜드명 + 공백"으로 시작하면 해당 혜택에 연결되고(11개 브랜드), 매장의 혜택 보유 여부는 컬럼이 아니라 `store_benefits` 행 존재로 판단. 조회 API(`GET /benefits/list`, `GET /benefits/{category}/stores`)와 관리자 API(`/admin/benefits`)가 있다. 업종은 카페·아이스크림·영화·외식·자동차·쇼핑·여가 7종 |
 | `chat_sessions` / `chat_messages` | 대화 세션과 메시지. 세션은 회원(`user_id`) 또는 비회원 게스트(`guest_id`, UUID) 중 **정확히 하나**에 속하며(CHECK 제약), 게스트 세션은 로그인하면 해당 회원 계정으로 이어지며(프론트가 로그인 직후 세션별 claim API를 호출해 `user_id`로 이전, 이전 후 `guest_id`는 비움). `chat_messages.status`로 생성중/완료/실패/재시도 상태 관리, 응답 시간은 컬럼으로 저장하지 않고 요청마다 DTO에서 계산해 반환. 답변에는 `feedback`(LIKE/DISLIKE), 매장 질문의 지도·버튼(`store_map`, `actions`: JSONB), 미해결 질문 자동 감지 결과(`unresolved_reason`)와 검색 최고 유사도(`top_similarity`)도 함께 저장한다. 세션에는 사용자가 지운 시각(`deleted_at`, 행은 남기는 소프트 삭제)과 고정 여부(`pinned`)가 있다 |
 | `chat_message_faq_refs` | assistant 메시지가 답변 근거로 사용한 FAQ 매핑(N:M, JSON 배열 대신 정규화) |
-| `unresolved_question_reports` | 사용자가 "관리자에게 보내기"로 신고한 미해결 질문. (메시지, 사용자) 쌍이 유일하고 `status`(기본 `OPEN`)로 처리 상태 관리, 신고 시점의 질문 원문을 함께 저장. 회원 세션의 메시지만 신고 가능 |
+| `unresolved_question_reports` | 사용자가 아쉬워요를 누르면 자동으로 생기는 신고. (메시지, 사용자) 쌍이 유일하고 `status`(기본 `OPEN`)로 처리 상태 관리, 신고 시점의 질문 원문을 함께 저장. 회원 세션의 메시지만 신고 가능 |
 | `store_reservations` | 매장 방문 예약(목업). `POST /stores/{storeId}/reservations`가 회원·통신 매장·영업시간(마감 30분 전까지) 조건을 확인하고 즉시 `CONFIRMED`로 저장한다. 조회·취소 API는 없다 |
+| `traces` / `spans` | 질문 1건의 처리 과정(trace)과 그 안의 단계(span: `transform` / `faq_retrieve` / `plan_retrieve` / `plan_lookup` / `store_lookup` / `generation`)를 그 순간의 원문 그대로 남기는 로그 테이블. FAQ·요금제는 수정될 수 있어 id가 아니라 원문을 `history`(JSONB)에 복사하고, `faqs`·`plans`·`chat_messages`에는 FK를 걸지 않는다(`spans`만 `traces`에 FK). trace에는 그 시점의 설정 스냅샷(`config`)과 앱 버전, 목록 조회용 요약(질문·미해결 사유·총 소요 시간·오류 여부)을 함께 저장한다. 저장은 답변 흐름과 분리된 실행기에서 하고 실패해도 답변에 영향을 주지 않는다 |
 
 **설계 원칙**
 - Vector DB를 따로 두지 않고 `faqs.embedding`/`plans.embedding` 컬럼(pgvector)으로 RDB와 통합
@@ -148,7 +147,7 @@
 - PII 컬럼(email/name/phone)은 로그·API 응답 양쪽에서 마스킹 처리 원칙
 - 테이블명은 전부 복수형(`users`만 PostgreSQL 예약어 회피 목적으로 원래도 복수형)
 
-> 미해결 질문은 자동 감지(`chat_messages.unresolved_reason`), 사용자 신고(`unresolved_question_reports`), 답변 피드백(아쉬워요)을 합쳐 관리자 대시보드(`GET /admin/stats/chat`)에서 같은 질문끼리 묶어 보여준다.
+> 미해결 질문은 자동 감지(`chat_messages.unresolved_reason`)와 아쉬워요 신고(`unresolved_question_reports`)를 합쳐 관리자 대시보드(`GET /admin/stats/chat`)에서 같은 질문끼리 묶어 보여준다.
 
 ---
 
@@ -156,71 +155,38 @@
 
 **인증**
 
-- 회원가입 / 로그인 / 마이페이지 조회·수정 `필수`
+- 회원가입 / 로그인 / 로그아웃 / 마이페이지 조회·수정 (`/auth/signup`, `/auth/login`, `/auth/logout`, `/users/me`)
+- 소셜 로그인(Google·Kakao·Naver) — 한 사용자가 여러 소셜 계정을 연결할 수 있다
+- CSRF 토큰 발급(`GET /auth/csrf`)
 
 **채팅**
 
-- AI 질문-답변(RAG) — 질문 변환 → 검색 → 답변 생성 / SSE 스트리밍(`GET /chat/sessions/{id}/events`) / 응답 상태 처리 / 세션·히스토리 저장 `필수`
-- 요금제 카드 — 답변에 이름이 나온 요금제를 카드 화면용 데이터(`plans`)로 함께 내려주고, 답변 시점의 값을 메시지에 저장해 요금제가 나중에 바뀌어도 과거 대화는 당시 카드로 보인다 `선택`
-- 대화 고정·삭제(회원 전용) — `PATCH /chat/sessions/{id}/pin`으로 고정하면 목록에서 먼저 보이고, `DELETE /chat/sessions/{id}`는 소프트 삭제(미해결 질문 신고·통계가 메시지를 참조해 행은 남김) `선택`
-- 대화 이름 변경(회원 전용) — `PATCH /chat/sessions/{id}/title`로 대화 이름을 바꾼다. 바꾸기 전에는 첫 질문의 앞 18자가 이름이 된다 `선택`
-- 비회원(게스트) 채팅 — `X-Guest-Id`로 식별, 로그인하면 비회원 때의 채팅이 로그인 계정으로 이어짐(`POST /chat/sessions/{id}/claim`) `필수`
-- 매장·제휴 혜택 질문 — 질문에서 매장 의도를 읽어 주변 통신 매장·제휴 매장과 혜택을 안내하고("방학역 근처" 같은 장소나 매장 이름이 있으면 그 기준으로 찾음), 지도 데이터(`store_map`)와 지도 화면 이동 버튼(`actions`)을 함께 내려줌 `필수`
-- 미해결 질문 관리자 신고 (`POST /chat/messages/{id}/report-to-admin`) `필수`
-- 미해결 질문 자동 감지 — 검색 결과가 없거나 유사도가 기준에 못 미친 답변을 사유(`NO_MATCH`/`LOW_SIMILARITY`/`ANSWER_FAILED`)와 함께 기록 `필수`
-- 답변 피드백(좋아요/아쉬워요) (`POST /chat/messages/{id}/feedback`) — 본인 세션의 완료된 답변에만 `선택`
+- AI 질문-답변(RAG) — 질문 변환 → 검색 → 답변 생성, SSE 스트리밍(`GET /chat/sessions/{id}/events`), 응답 상태 처리, 세션·히스토리 저장
+- 요금제 카드 — 답변에 이름이 나온 요금제를 카드 화면용 데이터(`plans`)로 함께 내려주고, 답변 시점의 값을 메시지에 저장해 요금제가 나중에 바뀌어도 과거 대화는 당시 카드로 보인다
+- 대화 고정·삭제(회원 전용) — `PATCH /chat/sessions/{id}/pin`으로 고정하면 목록에서 먼저 보이고, `DELETE /chat/sessions/{id}`는 소프트 삭제(미해결 질문 신고·통계가 메시지를 참조해 행은 남김)
+- 대화 이름 변경(회원 전용) — `PATCH /chat/sessions/{id}/title`(1~30자). 바꾸기 전에는 첫 질문의 앞 18자가 이름이 된다
+- 비회원(게스트) 채팅 — `X-Guest-Id`로 식별, 로그인하면 비회원 때의 채팅이 로그인 계정으로 이어짐(`POST /chat/sessions/{id}/claim`)
+- 매장·제휴 혜택 질문 — 질문에서 매장 의도를 읽어 주변 통신 매장·제휴 매장과 혜택을 안내하고("방학역 근처" 같은 장소나 매장 이름이 있으면 그 기준으로 찾음), 지도 데이터(`store_map`)와 지도 화면 이동 버튼(`actions`)을 함께 내려줌
+- 답변 피드백(좋아요/아쉬워요, 회원 전용) — `POST /chat/messages/{id}/feedback`. 본인 세션의 완료된 답변에만 남길 수 있고, **아쉬워요를 누르면 미해결 질문으로 관리자에게 자동 신고**된다
+- 미해결 질문 자동 감지 — 검색 결과가 없거나 유사도가 기준에 못 미친 답변을 사유(`NO_MATCH`/`LOW_SIMILARITY`/`ANSWER_FAILED`)와 함께 기록
 
 **매장**
 
-- 가까운 통신 매장 안내 / 주변 통신 매장 목록 조회 / 매장 상세·길찾기(제휴 매장 포함, 구간별 안내와 대중교통 후보 제공) `필수`
-- 제휴 혜택 조회 — 혜택 목록, 업종별 제휴 매장 거리순 (`GET /benefits/list`, `GET /benefits/{category}/stores`) `필수`
-- 매장 방문 예약 목업 (`POST /stores/{storeId}/reservations`) — 회원·통신 매장·영업시간 안에서만, 즉시 확정 `선택`
+- 가까운 통신 매장 안내 / 주변 통신 매장 목록 조회 / 매장 상세 (`GET /stores/nearest`, `/stores/nearby`, `/stores/{storeId}`)
+- 길찾기(제휴 매장 포함) — `GET /stores/{storeId}/directions`가 이동수단(자동차·도보·자전거·대중교통)에 맞는 카카오 API를 호출해 구간별 안내를 하나의 응답 형식으로 돌려준다
+- 제휴 혜택 조회 — 혜택 목록, 업종별 제휴 매장 거리순 (`GET /benefits/list`, `GET /benefits/{category}/stores`)
+- 매장 방문 예약 목업 (`POST /stores/{storeId}/reservations`) — 회원·통신 매장·영업시간(닫기 30분 전까지) 안에서만, 즉시 확정
 
 **관리자**
 
-- FAQ 관리 CRUD (목록은 질문·답변 포함, 정렬 지원) / 요금제 관리 CRUD / 매장 관리 CRUD (통신·제휴 매장 유형 필터·등록 지원) / 제휴 혜택 관리 CRUD(`/admin/benefits`) `필수`
-- 사용자 관리(`/admin/users`) — 목록·상세·생성·수정·권한 변경·상태 변경·삭제, 변경 이력 조회 `선택`
-- 미해결 질문 통계 대시보드(`GET /admin/stats/chat`) — 자동 감지·신고·(아쉬워요)를 같은 질문끼리 묶어 건수 순으로 `선택`
+- FAQ 관리 CRUD / 요금제 관리 CRUD / 매장 관리 CRUD(통신·제휴 매장 유형 지정·필터) / 제휴 혜택 관리 CRUD(`/admin/faqs`, `/admin/plans`, `/admin/stores`, `/admin/benefits`)
+- 사용자 관리(`/admin/users`) — 목록·상세·생성·수정·권한 변경·상태 변경·삭제, 변경 이력 조회
+- 미해결 질문 통계 대시보드(`GET /admin/stats/chat`) — 자동 감지·아쉬워요 신고를 같은 질문끼리 묶어 건수 순으로 보여주고, 처리한 항목은 무시 처리(`PATCH /admin/stats/chat/{id}/dismiss`)
+- 질문 처리 기록 조회(`GET /admin/traces`, `GET /admin/traces/{id}`) — 질문 1건이 어떤 질의로 변환되고 어떤 FAQ·요금제가 후보에 올랐으며 어떤 프롬프트로 답변이 만들어졌는지 단계별로 확인. 질문 원문은 응답에서 마스킹, 90일이 지난 기록은 매일 정리, `TRACE_ENABLED=false`로 즉시 끔
 
 ---
 
 ## 7. 핵심 설계 포인트
-
-### 매장 검색과 길찾기
-
-매장 검색은 DB에서 직접 거리를 계산하고, 길찾기는 카카오 길찾기 API 3종을 백엔드가 호출해 하나의 응답 형식으로 통일한다.
-
-**거리 계산**: PostGIS 없이 매장 좌표(`lat`/`lng`)로 Haversine 공식을 SQL에서 직접 계산한다. 거리 계산·정렬·반경 필터·`LIMIT`을 DB가 한 쿼리로 끝내 필요한 행만 전달하고, 이미 쓰는 pgvector 외에 위치 전용 확장 의존을 늘리지 않으며, "가까운 순서와 대략적인 거리(km)"에는 직선 거리로 충분하다(실제 이동 거리·시간은 길찾기 API가 계산). 별칭(`distance_km`)은 같은 쿼리의 `WHERE`에서 쓸 수 없어, 계산 결과를 서브쿼리로 감싼 뒤 반경을 거른다.
-
-- **가장 가까운 매장**(`/stores/nearest`)은 `ORDER BY distance_km LIMIT 1`, **주변 매장**(`/stores/nearby`)은 반경(`radius`, 0 초과 5km 이하) 안을 가까운 순으로 돌려준다. 둘 다 통신 매장(`PHONE`)만 대상이고 위치가 없으면 `LOCATION_REQUIRED`를 반환한다. 전체 매장 행을 계산하므로 `lat`/`lng` 인덱스로는 가속되지 않는다
-- **제휴 매장**은 `GET /benefits/{category}/stores`가 같은 계산으로 업종별 거리순 목록을 돌려준다(`openNow`/`openAt`으로 영업 중 필터). 영업시간은 `open_time`/`close_time`으로 나눠 저장하고 닫는 시각이 더 이르면 자정을 넘기는 매장으로 본다
-- **챗봇의 장소·매장 이름 기준 검색**: 질문 변환이 장소(`store_place`, "방학역 근처")나 매장 이름(`store_name`)을 읽으면 사용자 위치 대신 그 기준으로 찾는다(우선순위: 매장 이름 > 장소 > 사용자 위치). 장소는 카카오 장소 검색(`PlaceSearchService`, 지하철역 우선)으로 좌표를 구하고, 안내문에 거리의 기준점을 적어 사용자 위치 기준으로 오해하지 않게 한다. 통신 매장이 반경 5km 안에 없으면 100km까지 넓혀 가장 가까운 매장을 안내하며 5km 안에는 없다는 점을 함께 알린다(통신 매장은 반경 5km, 최대 4곳)
-
-**길찾기**: `GET /stores/{storeId}/directions?fromLat&fromLng&mode`로 매장 좌표를 도착지 삼아 이동수단(`mode`)에 맞는 카카오 API를 호출한다. REST API 키는 서버에만 있고(`KAKAO_REST_API_KEY`) 프론트는 지도 SDK만 쓴다.
-
-| 이동수단 | 호출하는 API | 응답에 포함되는 것 |
-|---|---|---|
-| `car` | 카카오모빌리티 Directions | 경로, 구간별 안내, 예상 택시요금, 통행료 |
-| `walk` / `bicycle` | 카카오맵 `routing/walk`, `routing/bicycle` | 경로, 구간별 안내 |
-| `transit` | 카카오맵 `routing/publictraffic` | 후보 경로 최대 3개, 구간별 노선·정차역, 요금, 환승 횟수 |
-
-- **응답 형식 통일**: API마다 다른 좌표 순서·구조를 `RoutePoint(lat, lng)`로 바꾸고, 어떤 이동수단이든 `distanceMeters`/`durationSeconds`/`path`/`segments`/`routes`로 내려줘 프론트가 분기 없이 지도에 그린다
-- **구간과 색상**: 경로를 도보·버스·지하철·자전거·도로 구간으로 쪼개고, 선 색과 모양(도보는 점선)을 서버가 정한다. 카카오는 색을 주지 않아 노선·종류별 색 표(`RouteColors`)를 서버에서 관리한다
-- **호출 안정성**: 카카오 API는 연결 3초·응답 5초 타임아웃을 두고, 실패와 경로 없음(`RouteNotFoundException`)을 구분해 응답한다
-- **대중교통 후보 선별**: 추천·최단시간·최소환승을 골라 최대 3개를 내려주고(겹치면 태그를 합치고 모자라면 `대안`으로 채움), 카카오 응답에 없는 출발지→첫 정류장·마지막 정류장→목적지 도보 구간을 직접 만들어 넣는다. 도보 API는 가상 스레드로 병렬 호출하고 겹치는 구간은 한 번만 부르며, 30m 이내이거나 도보 API가 실패하면 직선 거리(Haversine, 시속 약 4km)로 대체한다. 지하철 역 내부 환승 도보는 보정하지 않는다
-
-```mermaid
-flowchart TD
-    A["대중교통 후보 경로<br/>(카카오 응답)"] --> B["후보 3개 선별<br/>추천 · 최단시간 · 최소환승"]
-    B --> C["도보 구간 수집<br/>출발지 → 첫 정류장<br/>역 밖 환승 도보<br/>마지막 정류장 → 도착지"]
-    C --> D{"직선거리<br/>30m 이상?"}
-    D -->|No| E["직선으로 대체<br/>Haversine + 도보 1.1m/s"]
-    D -->|Yes| F["도보 길찾기 API 호출<br/>(구간별 동시 호출)"]
-    F -->|실패| E
-    E --> G["구간 조립"]
-    F -->|성공| G
-    G --> H["후보별 경로·요금·환승 횟수 응답"]
-```
 
 ### 임베딩
 
@@ -241,13 +207,13 @@ RAG 파이프라인은 질문 변환 → 임베딩 → 검색·후처리(thresho
 
 ```mermaid
 flowchart TD
-    A["사용자 질문 + 최근 대화 이력(5턴)"] --> B["질문 변환 (LLM 1회)<br/>FAQ용 질의 · 요금제용 질의<br/>최상급·정형 여부 · 매장 질문 여부"]
+    A["사용자 질문 + 최근 대화 이력(5턴)"] --> B["질문 변환 (LLM 1회)<br/>FAQ용 질의 · 의도별 FAQ 질의(최대 3개)<br/>요금제용 질의 · 최상급·정형 여부 · 매장 질문 여부"]
     B --> C{"질문 유형"}
     C -->|"최상급 + 정형"| Y["정형 조회만<br/>PlanLookup<br/>범용 요금제를<br/>월정액·데이터량 ORDER BY"]
     C -->|"매장·제휴 질문"| S["매장 조회만<br/>ChatStoreFinder<br/>store_result"]
     C -->|"조건만 있는 요금제 질문<br/>(FAQ 검색 생략)"| G
     C -->|"그 외"| E["질문 임베딩<br/>embedQuery()<br/>multilingual-e5-base<br/>768차원"]
-    E --> F["FAQ 유사도 검색<br/>후보 30개 → 분류 이름 가산점<br/>같은 답변 중복 제거 → 상위 10개"]
+    E --> F["FAQ 유사도 검색<br/>후보 30개(의도별 질의가 있으면 질의마다 검색해 합침)<br/>→ 분류 이름 가산점 → 같은 답변 중복 제거 → 상위 10개"]
     E --> G["요금제 검색<br/>PlanSearchService<br/>조건 매칭 + 벡터 유사도"]
     F --> H{"유사도<br/>≥ 0.83?"}
     G --> I{"조건 매칭됨<br/>또는<br/>유사도 ≥ 0.79?"}
@@ -272,6 +238,7 @@ flowchart TD
 | 필드 | 내용 |
 |---|---|
 | `faq_query` | FAQ 검색용 질의. `조건`/`질문`/`핵심 키워드` 라벨 형식("조건: 해외 출국 / 질문: 해외에서 데이터를 이용하려면 어떻게 하나요? / 핵심 키워드: 해외, 데이터, 로밍"). FAQ와 무관한 질문이면 `null` |
+| `faq_sub_queries` | 질문에 서로 다른 FAQ 의도가 둘 이상일 때 의도마다 하나씩 만든 FAQ 질의(최대 3개, `faq_query`와 같은 형식). 의도가 하나면 빈 배열. 요금제 조회·매장 위치·제휴 매장 찾기는 FAQ 의도로 세지 않는다 |
 | `plan_query` | 요금제 검색용 질의. `금액`/`데이터`/`대상`/`조건`/`핵심 키워드` 라벨 중 질문에서 확인되는 것만. 요금제와 무관하면 `null` |
 | `is_extreme`, `sort_key`, `limit`, `min/max_price_won`, `min/max_data_gb` | "가장 저렴한", "데이터 제일 많은 3개", "3만원대 중 가장 저렴한" 같은 최상급 질문의 정렬 기준·개수·범위 조건 |
 | `is_structured` | 요금제 정보 조회만으로 답이 나오고 FAQ 문서 검색이 필요 없는 질문인지 |
@@ -292,6 +259,11 @@ flowchart TD
 - **분류 이름 가산점**: 질문에 분류 이름 단어(예: "로밍", "유심")가 있으면 그 분류의 후보를 +0.01 앞세워 순위만 다시 매긴다(유사도 값은 그대로)
 - **같은 답변의 중복 제거**: 표현만 바꿔 늘린 FAQ 때문에 상위 후보가 같은 답변의 변형으로 채워지는 것을 막으려고, 후보 30개를 가져와 (카테고리, 세부분류, 답변)이 같은 항목은 가장 유사한 하나만 남기고 상위 10개를 고른다
 - **FAQ·요금제는 UNION이 아니라 별도 쿼리 후 병합**: 두 테이블의 유사도 분포와 threshold가 달라 한 번에 정렬·컷오프하면 한쪽이 불리해진다
+
+**질문 분해**: 질문 변환이 한 문장으로 요약하면서 복합 질문("A도 알려주고 B도 알려줘")의 의도 일부를 빠뜨려, 복합 질문에서 원문 검색보다 순서가 낮아지는 문제가 있었다. 변환 LLM이 의도별 질의(`faq_sub_queries`)를 직접 쓰고, `RetrievalPipeline`이 원래 질의와 의도별 질의로 각각 임베딩·검색한 뒤 후보 풀을 합친다(코드가 문장을 자르지 않는다).
+- 합칠 때 같은 FAQ는 가장 높은 유사도 하나만 남기고 유사도 순으로 정렬해 후보 30개로 자른다. 이후 후처리(분류 가산점 → 같은 답변 중복 제거 → 상위 10개 → threshold 0.83)는 같다
+- 파서(`LlmQueryTransformer`)가 빈 항목·중복·`faq_query`와 같은 항목을 버리고 최대 3개만 쓰며, 남은 것이 2개 미만이면 분해가 아닌 것으로 본다. 원래 질의도 함께 검색하므로 분해가 잘못돼도 기존 변환과 같은 결과는 유지된다
+- `search.pipeline.faq-decompose-enabled=false`로 끌 수 있다(기본 켜짐). 변환 LLM 호출은 질문당 1회 그대로이고, 늘어나는 것은 출력 토큰과 복합 질문의 임베딩·검색 횟수다
 
 **threshold는 실측으로 정했다**
 - **FAQ 0.83** — 카테고리를 늘린 데이터로 재측정한 값이다. "심카드를 새로 받아야 하는데..."처럼 "유심"을 피한 질문의 top1이 엉뚱한 요금/납부 FAQ로 0.8179가 나온 적이 있는데, 0.83은 로밍/요금 파라프레이즈 정답(0.8423/0.8547)은 통과시키고 이 오매칭(0.8179)과 무관 질문(\~0.80)은 걸러내는 경계값이다
@@ -317,9 +289,18 @@ flowchart TD
 
 규칙을 넓히기 전의 회귀 측정에서 정상 질문 오탐 0건(1,863개)이었고 threshold를 넘어 새던 무관 질문의 45–79%를 막았다. `retrieval.irrelevant-rule.enabled=false`로 즉시 끌 수 있다.
 
-**미해결 질문 자동 감지**: 답변이 끝날 때 context가 있거나 매장·제휴 질문이면 해결(`NULL`), context가 비었으면 검색 최고 유사도 0.80 이상은 `LOW_SIMILARITY`, 그 아래는 `NO_MATCH`, 답변 생성 실패는 `ANSWER_FAILED`로 `chat_messages.unresolved_reason`에 남긴다. 사용자 신고(`USER_REPORT`)·아쉬워요(`DISLIKED`)와 합쳐 관리자 대시보드(`GET /admin/stats/chat`)가 같은 질문끼리 묶어 보여 주며, 실시간 분기가 아니라 FAQ·threshold·프롬프트 개선 재료로 쓴다.
+**미해결 질문 자동 감지**: 답변이 끝날 때 context가 있거나 매장·제휴 질문이면 해결(`NULL`), context가 비었으면 검색 최고 유사도 0.80 이상은 `LOW_SIMILARITY`, 그 아래는 `NO_MATCH`, 답변 생성 실패는 `ANSWER_FAILED`로 `chat_messages.unresolved_reason`에 남긴다. 아쉬워요(`DISLIKED`, 누르면 관리자에게 자동 신고)와 합쳐 관리자 대시보드(`GET /admin/stats/chat`)가 같은 질문끼리 묶어 보여 주며, 실시간 분기가 아니라 FAQ·threshold·프롬프트 개선 재료로 쓴다.
 
 **검색 정확도 회귀 테스트**: FAQ 230문항 + 요금제 90문항 + 무관 질문 100문항 = 420문항을 `SearchAccuracyRegressionRunner`로 다시 돌릴 수 있다(`search.regression.enabled=true`, 기본 꺼짐). FAQ threshold(0.83) 유지가 맞다는 결론도 이 테스트로 확인했다. `faqs`/`plans`에는 HNSW/IVFFlat 없이 완전탐색을 쓰며, 이 규모에서는 인덱스의 이득이 없다.
+
+### 질문 처리 기록(Trace/Span)
+
+질문 1건이 어떻게 처리됐는지(질문 변환 → FAQ·요금제 검색 → 요금제·매장 조회 → 답변 생성)를 그 순간의 원문 그대로 DB에 남겨, 틀린 답변이 나왔을 때 어느 단계에서 어긋났는지 추적한다. 모델의 내부 추론(reasoning)은 기록하지 않고, 각 단계의 입력·출력과 선택 근거만 남긴다.
+
+- **기록 단위**: 질문 1건 = trace 1개, 단계 = span(`transform`, `faq_retrieve`, `plan_retrieve`, `plan_lookup`, `store_lookup`, `generation`). 단계마다 `history`(JSONB)에 그 단계의 원문 스냅샷(변환 프롬프트·응답·토큰 수, FAQ 후보 풀 순위와 유사도·threshold 판정, 걸린 무관 질문 규칙, 답변 프롬프트 등)을 담는다
+- **원문 복사**: FAQ·요금제는 나중에 수정될 수 있어 id만 저장하지 않고 당시 내용을 복사한다(FK 없음). 그 시점의 설정(threshold·모델·프롬프트 해시)과 앱 버전도 trace에 남겨 설정이 바뀐 뒤에도 같은 조건으로 재현할 수 있다
+- **답변에 영향을 주지 않는다**: 저장은 별도 실행기에서 하고, 저장소 예외나 실행기 포화가 나도 예외를 삼켜 답변 흐름은 그대로 간다. `TRACE_ENABLED=false`로 즉시 끈다
+- **개인정보**: 질문 원문에는 PII가 들어갈 수 있어 조회 응답에서 마스킹하고(`/admin/**`는 ADMIN만), 90일이 지난 기록은 매일 03:30에 삭제한다
 
 ### 검색 품질 평가와 방식 선택
 
@@ -331,7 +312,9 @@ flowchart TD
 | `PlanEvalRunner` | 요금제 평가셋 v2 — 158문항(요금제 20종 기준, 전체 목록 질문 8개 포함) | Recall·정밀도·정확 일치·nDCG, 누수(요금제 아님 질문에 요금제가 전달된 수), 대안 전달, 조건 매칭/벡터/정형 조회 경로별 점수 | `search.plan-eval.enabled=true` |
 | `SearchAccuracyRegressionRunner` | threshold·무관 질문 규칙 회귀 420문항 | 정상·무관 질문 판정 손익 | `search.regression.enabled=true` |
 
-LLM 질문 변환은 호출마다 결과가 달라질 수 있어, 평가 러너는 변환 결과를 파일로 저장해(`search.eval.transform-cache`) "변환을 바꾼 실험"과 "그 위에서 검색 방식만 바꾼 실험"을 같은 변환 결과로 비교한다.
+LLM 질문 변환은 모델 응답이 완전히 결정적이라고 보장할 수 없고 호출 비용도 들어서, 평가 러너는 변환 결과를 파일로 저장해(`search.eval.transform-cache`) "변환을 바꾼 실험"과 "그 위에서 검색 방식만 바꾼 실험(예: 분해 검색 끄기)"을 같은 변환 결과로 비교한다.
+
+> 아래 표의 C는 질문 분해를 넣기 전의 질문 변환이며, 이후에는 "기존 C"라고 부른다.
 
 **방식 비교 (FAQ 평가셋 v2.2 200문항으로 측정, 같은 코드·DB·정답지)**
 
@@ -348,14 +331,29 @@ LLM 질문 변환은 호출마다 결과가 달라질 수 있어, 평가 러너�
 
 질문 변환을 저장 파일 없이 실제로 다시 호출해 요금제 조건 추출 확장 이후 코드·요금제 평가셋 v2로 재측정한 결과도 같은 방향이었다(FAQ nDCG A 77.4%, C 78.3%, C+H 79.2%).
 
-- **현재 적용: 질문 변환(C) + 벡터 검색.** 원문(A) 대비 FAQ nDCG 차이는 +0.2–0.9%p로 작아 신뢰구간이 0을 포함한다(질문 변환의 실행 간 흔들림이 ±0.7%p 안팎). 다만 질문 변환 결과는 정형·매장·최상급 분기에 어차피 필요해, 검색 질의로 쓰는 데 추가 비용이 들지 않는다.
+- **현재 적용: 질문 변환 + 질문 분해(C) + 벡터 검색.** 기존 C는 원문(A) 대비 FAQ nDCG 차이가 +0.2–0.9%p로 작아 신뢰구간이 0을 포함했고, 복합 질문에서는 의도 일부를 빠뜨려 A보다 낮았다(복합 질문 500문항 nDCG@10 A 91.7%, 기존 C 88.5%). 질문 분해를 더한 C는 복합 질문에서 A를 넘는다(아래). 질문 변환 결과는 정형·매장·최상급 분기에 어차피 필요해 검색 질의로 쓰는 데 추가 비용이 들지 않는다.
 - **영어 번역(B·D)은 도입하지 않았다.** FAQ에서 한국어와 같거나 낮고 요금제에서는 더 낮았다. 영어 유사도가 한국어보다 낮아 threshold(실험 당시 FAQ 0.83·요금제 0.81)에 더 많이 걸리고, 번역문에 한국어 조각이 남거나 문서와 용어 표기가 어긋나는 사례가 있었다. 결정 후 번역기·영어 검색기·D 변환기와 실험 플래그(`vita.experiment.translate-question`)는 코드에서 제거했고, 영어 번역본 테이블(`faqs_en`, `plans_en`)과 마이그레이션만 남겼다.
 - **요금제의 BM25는 도입하지 않았다.** 요금제 후보가 20개뿐이고 조건 규칙이 대부분의 질문을 처리해 어느 버전에서도 이득이 없었다.
 - **FAQ 검색에만 Hybrid(BM25 + 벡터)를 더하는 구성(요금제는 벡터 유지)이 점수는 가장 높다**(질문 변환 대비 nDCG +1%p 안팎, 신뢰구간은 0 경계). BM25는 pg_search 확장이 필요해 AWS RDS에서는 쓸 수 없어 Hybrid 구현은 develop에 포함하지 않았다.
 
+**질문 분해(C) 검증 (A: 원문 그대로 vs C)**: 평가 러너(`RetrievalEvalRunner`·`PlanEvalRunner`)로 검색 단계까지 측정했고, 질문과 정답은 모두 Claude가 작성했으며 팀원 검수 전이다. 신뢰구간은 같은 질문끼리 짝지은 차이의 부트스트랩 95%다.
+
+| 평가 | 문항 | 선택 방식 | nDCG@10 A → C | C − A [95% CI] |
+|---|---|---|---|---|
+| FAQ 복합 질문 재검증 | 190 | 앞선 평가에서 C가 앞선 유형(복합2·복합3·복합+매장·사연형)만 새 질문으로 작성 | 90.5% → 94.9% | **+4.4%p [+2.6, +6.3]** |
+| 요금제 재검증(정답 있는 질문) | 97 | 앞선 평가에서 변환이 앞선 유형(대상 그룹·통화·문자·서술형)만 새 질문으로 작성 | 69.2% → 79.5% | **+10.4%p [+4.5, +16.8]** |
+| (참고) FAQ 복합 질문 | 500 | 유형을 고르지 않음 | 91.7% → 94.3% | +2.6%p [+1.5, +3.8] |
+| (참고) FAQ 단일 질문 | 200 | 유형을 고르지 않음(회귀 확인) | 91.6% → 93.5% | +1.9%p [−0.5, +4.5] |
+
+- **개선은 분해 검색에서 나온다.** 같은 변환 결과에서 분해 검색만 끄면 A와 차이가 없고(FAQ 재검증 +0.7%p [−1.5, +2.9]) 켜면 +3.7%p [+2.2, +5.2]가 더해진다. 정답을 찾는 개수보다 정답을 더 위로 올리는 효과가 크다(Hit@1 91.1% → 96.3%)
+- **유형별로 반복 확인된 것**: 복합+매장(+4.9%p), 의도 2개인 사연형(+9.1%p), 요금제 서술형(+30.9%p, 문항 20개라 구간이 넓다), 요금제 대상 그룹(+5.1%p), 요금제가 아닌 질문에 요금제가 딸려 나가는 비율 59% → 15%. 복합2·복합3과 요금제 통화·문자는 구간이 0을 포함해 이득이 불분명하다
+- **약점**: 분해가 제대로 돼도 두 번째·세 번째 정답이 인접 주제의 FAQ에 밀리는 경우, 변환이 "통화 무제한"을 데이터 무제한으로 읽는 오류, 요금제성 FAQ를 요금제 검색으로만 보내 FAQ에서 빼는 경우가 확인됐다
+- **응답 시간(변환 LLM 호출, 20문항씩)**: 요금제 질문 +69ms(+3.5%), 복합 질문 +744ms(+31%)이고, 복합 질문은 의도별 임베딩·검색이 순차로 +130~200ms 더 든다
+- **한계**: 재검증 두 평가는 C에게 유리한 유형만 골라 전체 성능이 아니라 상한이다. 검색 단계까지만 평가해 답변 생성 품질은 다루지 않았고, 단일 질문은 200문항만 확인했다
+
 ### LLM 연동
 
-- **모델**: AWS Bedrock, 기본 모델 `global.anthropic.claude-sonnet-4-6`(Claude Sonnet 4.6, 글로벌 추론 프로필), 리전 `ap-northeast-1`(도쿄)이며 EC2·RDS의 리전(서울)과 다르다. 이전에는 `openai.gpt-oss-120b-1:0`을 썼다. 리전과 모델 ID는 환경변수(`AWS_REGION`, `BEDROCK_MODEL_ID`)로 바꿀 수 있다. Spring AI `ChatClient`(Bedrock Converse API)로 래핑해 향후 다른 LLM 제공자로 교체 가능한 구조 유지(NFR-EXT01). 생성 옵션은 `temperature 0.3`, `max-tokens 4096`으로 사실 기반 답변 위주의 낮은 무작위성을 택함. 질문 변환과 답변 생성이 같은 옵션을 쓴다. Anthropic 모델은 계정에서 사용 목적(use case) 양식을 제출해야 하고, 최신 세대(Sonnet 5 등)는 이 계정에서 접근이 허용되지 않아 Sonnet 4.6을 쓴다
+- **모델**: AWS Bedrock, 기본 모델 `global.anthropic.claude-sonnet-4-6`(Claude Sonnet 4.6, 글로벌 추론 프로필), 리전 `ap-northeast-1`(도쿄)이며 EC2·RDS의 리전(서울)과 다르다. 이전에는 `openai.gpt-oss-120b-1:0`을 썼다. 리전과 모델 ID는 환경변수(`AWS_REGION`, `BEDROCK_MODEL_ID`)로 바꿀 수 있다. Spring AI `ChatClient`(Bedrock Converse API)로 래핑해 향후 다른 LLM 제공자로 교체 가능한 구조 유지(NFR-EXT01). 생성 옵션은 `temperature 0.0`(2026-10-19 0.3에서 변경), `max-tokens 4096`으로 사실 기반 답변 위주의 낮은 무작위성을 택함. 질문 변환과 답변 생성이 같은 옵션을 쓴다. Anthropic 모델은 계정에서 사용 목적(use case) 양식을 제출해야 하고, 최신 세대(Sonnet 5 등)는 이 계정에서 접근이 허용되지 않아 Sonnet 4.6을 쓴다
 - **Context 직렬화**: 검색 결과를 LLM이 근거와 잡담을 구분하기 쉽게 태그 블록으로 바꾸고(값은 `PromptEscaper`로 `<`, `>`, `&`를 이스케이프해 태그 주입을 막는다), 아래 순서로 이어 붙인다. 최근 5턴(메시지 10개)의 대화 이력은 `역할: 내용` 한 줄씩 직렬화한다.
 
   | 태그 | 내용 |
@@ -434,7 +432,7 @@ temperature를 올리면 지어내는 답이 늘어나는지 보려고 같은 �
 <img src="https://github.com/user-attachments/assets/7dd26521-ad13-4f8f-91cd-a1e90ad3b94a" alt="과잉 거부 횟수(60문항)" width="800" />
 
 **결론**
-- temperature는 답을 고치는 수단이 아니다. 낮은 temperature(0–0.3)는 모델의 기본 답을 그대로 반복해 틀린 답은 계속 틀리고 맞는 답은 계속 맞으며, 0.5·0.7은 0.3과 평균이 같아 얻는 것이 없었고 1.0은 환각이 늘었다. **현재 `temperature 0.3`을 유지**한다
+- temperature는 답을 고치는 수단이 아니다. 낮은 temperature(0–0.3)는 모델의 기본 답을 그대로 반복해 틀린 답은 계속 틀리고 맞는 답은 계속 맞으며, 0.5·0.7은 0.3과 평균이 같아 얻는 것이 없었고 1.0은 환각이 늘었다. **당시에는 `temperature 0.3`을 유지하기로 했고, 이후 0.0으로 바꿨다**
 - 남은 문제(W01, W23)는 temperature가 아니라 프롬프트의 문제였다(질문 속 전제를 사실로 받아들임, context에 없는 이유 만들기). 이후 프롬프트 개정에 "이유·목적 만들기 금지" 규칙이 들어갔다
 - 같은 서비스 프롬프트 형식으로 6유형(근거 없음·부분 근거·거짓 전제·유사 오답·개인 정보·지시문 주입) 30문항 × 5단계를 자동 채점한 별도 평가에서도 전 단계 30/30 통과였다. 이 평가는 문항이 작고(95% 구간 하한 88.6%) 채점 규칙 3건을 결과 확인 후 교정했다는 한계가 있어, 위 사람 판정 결과를 근거로 삼는다
 
