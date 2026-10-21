@@ -132,7 +132,6 @@
 | `user_oauths` | 소셜 로그인 연동(LOCAL/GOOGLE/KAKAO/NAVER), 한 사용자가 여러 소셜 계정 연결 가능 |
 | `faqs` | FAQ 본문(`category`/`subcategory`/`question`/`answer`) + `embedding vector(768)`(intfloat/multilingual-e5-base, 질문+답변 결합 임베딩). 삭제는 `status`를 `INACTIVE`로 바꾸는 소프트 삭제이며, RAG 검색은 `status='ACTIVE'`만 대상. `source_faq_id`/`source_policy_ids`는 FAQ 원본 재적재(upsert) 키 |
 | `plans` | 가상 요금제 20종(범용 + 연령대별 키즈·틴·청년·시니어 + 기기 전용 워치·태블릿). `target_group`은 GENERAL/TEEN/YOUTH/SENIOR/KIDS/TABLET/WATCH이고 `min_age`/`max_age`로 가입 연령을 둔다. `monthly_fee`/`network_type`/`target_group`/`data_policy`/`voice_policy`/`sms_policy` 등 정형 컬럼과, 이를 자연어로 풀어 쓴 `description`(임베딩 대상)을 함께 가짐 — FAQ와 동일 모델·차원 사용. 관리자 API(`/admin/plans`)로 등록하거나 설명을 수정하면 임베딩을 함께 갱신하고, 삭제는 `status` 비활성화 방식 |
-| `faqs_en` / `plans_en` | FAQ·요금제의 영어 번역본(원본과 같은 id를 PK로 공유, 영어 임베딩 포함). 영어로 번역해 검색하는 실험용이며 서비스 검색에는 쓰지 않는다(실험 코드는 제거했고 테이블과 마이그레이션만 남아 있다) |
 | `stores` | 매장 정보(좌표, 영업시간, 연락처) + `consult_services`/`provided_services`(상담 가능 업무·제공 서비스 배열) + `store_type`(`PHONE` 통신 매장 / `PARTNER` 제휴 매장, CHECK 제약, 기본 `PHONE`). 제휴 매장도 같은 테이블의 행이라 상세 조회·길찾기는 그대로 동작하고, "가장 가까운 매장"·"주변 매장" 검색은 통신 매장(`PHONE`)만 대상 |
 | `benefits` / `store_benefits` | 제휴 혜택과 매장-혜택 매핑(N:M). 혜택은 브랜드(`brand`, UNIQUE)당 1개이며 업종(`category`)은 혜택에만 두고 매장의 업종은 `store_benefits`를 따라가 구한다. 제휴 매장은 이름이 브랜드명과 같거나 "브랜드명 + 공백"으로 시작하면 해당 혜택에 연결되고(11개 브랜드), 매장의 혜택 보유 여부는 컬럼이 아니라 `store_benefits` 행 존재로 판단. 조회 API(`GET /benefits/list`, `GET /benefits/{category}/stores`)와 관리자 API(`/admin/benefits`)가 있다. 업종은 카페·아이스크림·영화·외식·자동차·쇼핑·여가 7종 |
 | `chat_sessions` / `chat_messages` | 대화 세션과 메시지. 세션은 회원(`user_id`) 또는 비회원 게스트(`guest_id`, UUID) 중 **정확히 하나**에 속하며(CHECK 제약), 게스트 세션은 로그인하면 해당 회원 계정으로 이어지며(프론트가 로그인 직후 세션별 claim API를 호출해 `user_id`로 이전, 이전 후 `guest_id`는 비움). `chat_messages.status`로 생성중/완료/실패/재시도 상태 관리, 응답 시간은 컬럼으로 저장하지 않고 요청마다 DTO에서 계산해 반환. 답변에는 `feedback`(LIKE/DISLIKE), 매장 질문의 지도·버튼(`store_map`, `actions`: JSONB), 미해결 질문 자동 감지 결과(`unresolved_reason`)와 검색 최고 유사도(`top_similarity`)도 함께 저장한다. 세션에는 사용자가 지운 시각(`deleted_at`, 행은 남기는 소프트 삭제)과 고정 여부(`pinned`)가 있다 |
@@ -332,7 +331,7 @@ LLM 질문 변환은 모델 응답이 완전히 결정적이라고 보장할 수
 질문 변환을 저장 파일 없이 실제로 다시 호출해 요금제 조건 추출 확장 이후 코드·요금제 평가셋 v2로 재측정한 결과도 같은 방향이었다(FAQ nDCG A 77.4%, C 78.3%, C+H 79.2%).
 
 - **현재 적용: 질문 변환 + 질문 분해(C) + 벡터 검색.** 기존 C는 원문(A) 대비 FAQ nDCG 차이가 +0.2–0.9%p로 작아 신뢰구간이 0을 포함했고, 복합 질문에서는 의도 일부를 빠뜨려 A보다 낮았다(복합 질문 500문항 nDCG@10 A 91.7%, 기존 C 88.5%). 질문 분해를 더한 C는 복합 질문에서 A를 넘는다(아래). 질문 변환 결과는 정형·매장·최상급 분기에 어차피 필요해 검색 질의로 쓰는 데 추가 비용이 들지 않는다.
-- **영어 번역(B·D)은 도입하지 않았다.** FAQ에서 한국어와 같거나 낮고 요금제에서는 더 낮았다. 영어 유사도가 한국어보다 낮아 threshold(실험 당시 FAQ 0.83·요금제 0.81)에 더 많이 걸리고, 번역문에 한국어 조각이 남거나 문서와 용어 표기가 어긋나는 사례가 있었다. 결정 후 번역기·영어 검색기·D 변환기와 실험 플래그(`vita.experiment.translate-question`)는 코드에서 제거했고, 영어 번역본 테이블(`faqs_en`, `plans_en`)과 마이그레이션만 남겼다.
+- **영어 번역(B·D)은 도입하지 않았다.** FAQ에서 한국어와 같거나 낮고 요금제에서는 더 낮았다. 영어 유사도가 한국어보다 낮아 threshold(실험 당시 FAQ 0.83·요금제 0.81)에 더 많이 걸리고, 번역문에 한국어 조각이 남거나 문서와 용어 표기가 어긋나는 사례가 있었다. 결정 후 번역기·영어 검색기·D 변환기와 실험 플래그(`vita.experiment.translate-question`)는 코드에서 제거했고, 영어 번역본 테이블(`faqs_en`, `plans_en`)도 삭제했다(`V32`).
 - **요금제의 BM25는 도입하지 않았다.** 요금제 후보가 20개뿐이고 조건 규칙이 대부분의 질문을 처리해 어느 버전에서도 이득이 없었다.
 - **FAQ 검색에만 Hybrid(BM25 + 벡터)를 더하는 구성(요금제는 벡터 유지)이 점수는 가장 높다**(질문 변환 대비 nDCG +1%p 안팎, 신뢰구간은 0 경계). BM25는 pg_search 확장이 필요해 AWS RDS에서는 쓸 수 없어 Hybrid 구현은 develop에 포함하지 않았다.
 
