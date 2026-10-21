@@ -11,7 +11,11 @@ import com.vita.search.service.FaqCategoryTermBooster;
 import com.vita.search.service.IrrelevantQueryDetector;
 import com.vita.search.service.NonMobilePlanQueryDetector;
 import com.vita.search.service.PlanSearchService;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -44,9 +48,18 @@ public class RetrievalPipeline {
 	private final FaqRetriever faqRetriever;
 	private final PlanSearchService planSearchService;
 	private final RetrievalSettings settings;
+	/** 질문에 FAQ 의도가 여러 개일 때 의도별로 따로 검색해 합칠지. false면 {@code faqQuery} 하나로만 검색한다. */
+	private final boolean faqDecomposeEnabled;
 
 	public RetrievalPipeline(EmbeddingProvider embeddingProvider, QueryTransformer queryTransformer,
 			FaqRetriever faqRetriever, PlanSearchService planSearchService, RetrievalSettings settings) {
+		this(embeddingProvider, queryTransformer, faqRetriever, planSearchService, settings, true);
+	}
+
+	public RetrievalPipeline(EmbeddingProvider embeddingProvider, QueryTransformer queryTransformer,
+			FaqRetriever faqRetriever, PlanSearchService planSearchService, RetrievalSettings settings,
+			boolean faqDecomposeEnabled) {
+		this.faqDecomposeEnabled = faqDecomposeEnabled;
 		this.embeddingProvider = embeddingProvider;
 		this.queryTransformer = queryTransformer;
 		this.faqRetriever = faqRetriever;
@@ -64,7 +77,7 @@ public class RetrievalPipeline {
 	 * 이 방법으로 갈아끼운다. 서비스 빈은 바뀌지 않는다.
 	 */
 	public RetrievalPipeline with(QueryTransformer transformer, FaqRetriever retriever) {
-		return new RetrievalPipeline(embeddingProvider, transformer, retriever, planSearchService, settings);
+		return new RetrievalPipeline(embeddingProvider, transformer, retriever, planSearchService, settings, faqDecomposeEnabled);
 	}
 
 	/**
@@ -72,7 +85,8 @@ public class RetrievalPipeline {
 	 * (Hybrid 등)까지 갈아끼울 때 쓴다. 서비스 빈은 바뀌지 않는다.
 	 */
 	public RetrievalPipeline with(QueryTransformer transformer, FaqRetriever retriever, PlanRetriever planRetriever) {
-		return new RetrievalPipeline(embeddingProvider, transformer, retriever, planSearchService.with(planRetriever), settings);
+		return new RetrievalPipeline(embeddingProvider, transformer, retriever, planSearchService.with(planRetriever), settings,
+				faqDecomposeEnabled);
 	}
 
 	/** 실제 서비스와 같은 옵션으로 검색한다. 질문 변환기로 질문을 변환한 뒤 검색한다. */
@@ -113,6 +127,15 @@ public class RetrievalPipeline {
 		return execute(new TransformedQuery(originalQuery, faqQuery, planQuery), 0L, new LapClock(), options);
 	}
 
+	/**
+	 * {@link #run(String, String, String, RetrievalOptions)}에 의도별 FAQ 질문을 더한 진입점. {@code faqSubQueries}가 있으면
+	 * {@code faqQuery}와 각 질문으로 따로 검색한 뒤 후보를 합친다(설정으로 끌 수 있다).
+	 */
+	public RetrievalResult run(String originalQuery, String faqQuery, List<String> faqSubQueries, String planQuery,
+			RetrievalOptions options) {
+		return execute(new TransformedQuery(originalQuery, faqQuery, planQuery, faqSubQueries, null), 0L, new LapClock(), options);
+	}
+
 	/** 변환된 질문으로 임베딩 → 후보 검색 → 요금제 검색 → Context 구성을 실행한다. */
 	private RetrievalResult execute(TransformedQuery transformed, long transformNanos, LapClock clock, RetrievalOptions options) {
 		String query = transformed.original();
@@ -125,7 +148,7 @@ public class RetrievalPipeline {
 		}
 		boolean searchPlans = options.includePlans() && transformed.planQuery() != null && !nonMobilePlanQuestion;
 		if (!searchFaq && !searchPlans) {
-			return emptyResult(transformed, transformNanos);
+			return emptyResult(transformed, transformNanos, nonMobilePlanQuestion, options);
 		}
 
 		// 2. 임베딩. FAQ와 요금제는 같은 임베딩 모델·차원이라, 두 질문이 같으면 벡터 변환을 한 번만 한다. null인 쪽은 건너뛴다.
@@ -137,11 +160,13 @@ public class RetrievalPipeline {
 					: embeddingProvider.embedQuery(transformed.planQuery());
 		}
 		long embeddingNanos = clock.lap();
+		RetrievalTrace trace = new RetrievalTrace(faqVector, planVector, searchFaq, searchPlans, nonMobilePlanQuestion,
+				settings, options);
 
 		// 3. FAQ 후보 검색. threshold 미달 후보의 최고 점수도 topSimilarity로 알려야 해서, 검색기는 threshold 없이 후보를
 		// 가까운 순으로 가져오고 threshold는 후처리에서 적용한다(정렬이 유사도 순이라 결과 집합은 동일).
 		List<FaqSimilarityResult> pool = searchFaq
-				? faqRetriever.retrieve(new RetrievalQuery(transformed.faqQuery(), faqVector), options.poolSize())
+				? retrieveFaqPool(transformed, faqVector, options.poolSize())
 				: List.of();
 		long faqSearchNanos = clock.lap();
 
@@ -189,7 +214,7 @@ public class RetrievalPipeline {
 			FaqRetrievalContext blocked = new FaqRetrievalContext(List.of(), List.of(), blockedTop);
 			StageTimings blockedTimings = new StageTimings(transformNanos, embeddingNanos, faqSearchNanos, planSearchNanos, clock.lap());
 			return finish(transformed, faq, planOutcome, List.of(), planTopSimilarity, blockedTop, irrelevantRules,
-					blockedTimings, blocked, options);
+					blockedTimings, blocked, trace, options);
 		}
 
 		// 조건으로 좁혀진 결과는 "3만1천원"처럼 임베딩 유사도가 낮게 나오는 질문도 포함하므로 threshold를 적용하지 않는다.
@@ -226,14 +251,43 @@ public class RetrievalPipeline {
 
 		StageTimings timings = new StageTimings(transformNanos, embeddingNanos, faqSearchNanos, planSearchNanos, clock.lap());
 		return finish(transformed, faq, planOutcome, planResults, planTopSimilarity, topSimilarity, irrelevantRules,
-				timings, context, options);
+				timings, context, trace, options);
+	}
+
+	/**
+	 * FAQ 후보 풀을 가져온다. 의도별 질문이 있으면(그리고 켜져 있으면) {@code faqQuery}와 각 질문으로 따로 검색한 풀을 합친다.
+	 * 합칠 때는 같은 FAQ를 가장 높은 유사도로 한 번만 남기고 유사도 순으로 정렬해 poolSize개로 자른다. 의도마다 가장 가까운 FAQ는
+	 * 그 의도만 담은 질문으로 찾은 것이라 유사도가 높게 나오므로, 합친 풀의 앞쪽에 의도별 정답이 함께 오른다. 유사도 값은 그 후보를
+	 * 찾은 질문 기준의 코사인 유사도 그대로라 threshold 판정도 같은 기준으로 한다.
+	 */
+	private List<FaqSimilarityResult> retrieveFaqPool(TransformedQuery transformed, float[] faqVector, int poolSize) {
+		List<FaqSimilarityResult> main = faqRetriever.retrieve(new RetrievalQuery(transformed.faqQuery(), faqVector), poolSize);
+		if (!faqDecomposeEnabled || transformed.faqSubQueries().isEmpty()) {
+			return main;
+		}
+		Map<Long, FaqSimilarityResult> merged = new LinkedHashMap<>();
+		main.forEach(candidate -> merged.merge(candidate.id(), candidate, RetrievalPipeline::moreSimilar));
+		for (String subQuery : transformed.faqSubQueries()) {
+			float[] subVector = embeddingProvider.embedQuery(subQuery);
+			faqRetriever.retrieve(new RetrievalQuery(subQuery, subVector), poolSize)
+					.forEach(candidate -> merged.merge(candidate.id(), candidate, RetrievalPipeline::moreSimilar));
+		}
+		List<FaqSimilarityResult> pool = new ArrayList<>(merged.values());
+		pool.sort(Comparator.comparingDouble(FaqSimilarityResult::similarity).reversed());
+		return pool.size() > poolSize ? List.copyOf(pool.subList(0, poolSize)) : List.copyOf(pool);
+	}
+
+	private static FaqSimilarityResult moreSimilar(FaqSimilarityResult a, FaqSimilarityResult b) {
+		return b.similarity() > a.similarity() ? b : a;
 	}
 
 	/** FAQ도 요금제도 검색하지 않는 경우(두 질문이 모두 null)의 빈 결과. */
-	private RetrievalResult emptyResult(TransformedQuery transformed, long transformNanos) {
+	private RetrievalResult emptyResult(TransformedQuery transformed, long transformNanos, boolean nonMobileGuard,
+			RetrievalOptions options) {
 		FaqSelection emptySelection = new FaqSelection(List.of(), List.of(), List.of(), List.of(), 0.0);
 		return new RetrievalResult(transformed, emptySelection, new PlanSearchService.PlanSearchOutcome(List.of(), false),
-				List.of(), 0.0, 0.0, Set.of(), new StageTimings(transformNanos, 0L, 0L, 0L, 0L), FaqRetrievalContext.empty());
+				List.of(), 0.0, 0.0, Set.of(), new StageTimings(transformNanos, 0L, 0L, 0L, 0L), FaqRetrievalContext.empty(),
+				new RetrievalTrace(null, null, false, false, nonMobileGuard, settings, options));
 	}
 
 	/**
@@ -261,12 +315,12 @@ public class RetrievalPipeline {
 	private RetrievalResult finish(TransformedQuery transformed, FaqSelection faq,
 			PlanSearchService.PlanSearchOutcome planOutcome, List<PlanSimilarityResult> planResults,
 			double planTopSimilarity, double topSimilarity, Set<IrrelevantQueryDetector.Rule> irrelevantRules,
-			StageTimings timings, FaqRetrievalContext context, RetrievalOptions options) {
+			StageTimings timings, FaqRetrievalContext context, RetrievalTrace trace, RetrievalOptions options) {
 		if (options.logDetails()) {
 			log.info("검색 단계별 시간: {}", timings.summary());
 		}
 		return new RetrievalResult(transformed, faq, planOutcome, planResults, planTopSimilarity, topSimilarity,
-				irrelevantRules, timings, context);
+				irrelevantRules, timings, context, trace);
 	}
 
 	/**

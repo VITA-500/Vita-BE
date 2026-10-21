@@ -1,5 +1,5 @@
 # EC2 dev 환경용. 09_인프라구성.md 2~3절 기준. 로컬에서 실행하지 않음 — EC2에서만.
-# postgres는 컨테이너로 안 올림(RDS 사용), redis/embedding만 컨테이너로 띄운다.
+# postgres는 컨테이너로 안 올림(RDS 사용), embedding만 컨테이너로 띄운다.
 # 배포: docker compose -f docker-compose.dev.yml up -d --build
 name: vita-dev
 
@@ -16,14 +16,11 @@ services:
       - "8080:8080"
     env_file:
       - .env.dev
+    environment:
+      # 배포 워크플로가 export한 커밋 해시. 없으면 빈 값이고 traces.app_version은 비어 저장된다(기능에는 영향 없음).
+      APP_VERSION: ${APP_VERSION:-}
     depends_on:
-      - redis
       - embedding
-    restart: unless-stopped
-
-  redis:
-    image: redis:7
-    container_name: vita-redis-dev
     restart: unless-stopped
 
   # RAG 검색(질문 임베딩 변환)용 TEI 서버. 로컬(docker-compose.embedding.yml)과 같은 이미지/모델.

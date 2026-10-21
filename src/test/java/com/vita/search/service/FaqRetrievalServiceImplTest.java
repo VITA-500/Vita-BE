@@ -42,4 +42,15 @@ class FaqRetrievalServiceImplTest {
 
 		assertThat(actual).isSameAs(context);
 	}
+
+	@Test
+	void searchWithDetailsReturnsTheWholePipelineResultForTheServiceOptions() {
+		RetrievalPipeline pipeline = mock(RetrievalPipeline.class);
+		RetrievalResult result = mock(RetrievalResult.class);
+		when(pipeline.run(eq("원문"), eq("FAQ용"), eq("요금제용"), any(RetrievalOptions.class))).thenReturn(result);
+
+		RetrievalResult actual = new FaqRetrievalServiceImpl(pipeline).searchWithDetails("원문", "FAQ용", "요금제용", 10);
+
+		assertThat(actual).isSameAs(result);
+	}
 }

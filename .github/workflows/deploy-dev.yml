@@ -59,6 +59,9 @@ jobs:
             git pull origin develop
             # 배포마다 쌓이는 빌드 캐시가 디스크(20GB)를 채워 빌드가 실패한 적이 있어, 빌드 전에 먼저 비운다.
             docker builder prune -f --filter "until=24h"
-            docker compose -f docker-compose.dev.yml up -d --build
+            # 이 배포의 커밋 해시를 컨테이너에 알려 준다. 백엔드가 traces.app_version에 기록해서, 답변이 어느 배포에서 나왔는지 구분하는 데 쓴다.
+            # jar를 이 커밋으로 러너에서 빌드했으므로 github.sha가 실제로 실행되는 코드와 같다.
+            export APP_VERSION=${{ github.sha }}
+            docker compose -f docker-compose.dev.yml up -d --build --remove-orphans
             # 재빌드로 태그를 뺏긴 이전 이미지(dangling)를 정리한다. 실행 중인 이미지와 볼륨은 건드리지 않는다.
             docker image prune -f

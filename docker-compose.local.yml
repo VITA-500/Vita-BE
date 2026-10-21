@@ -12,7 +12,6 @@ services:
       - .env.local
     depends_on:
       - postgres
-      - redis
     restart: unless-stopped
 
   postgres:
@@ -27,13 +26,6 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./init/init-extensions.sql:/docker-entrypoint-initdb.d/init-extensions.sql
-    restart: unless-stopped
-
-  redis:
-    image: redis:7
-    container_name: vita-redis-local
-    ports:
-      - "6379:6379"
     restart: unless-stopped
 
 volumes:

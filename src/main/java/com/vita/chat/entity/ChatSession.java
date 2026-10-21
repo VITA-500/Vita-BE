@@ -92,4 +92,9 @@ public class ChatSession {
         this.pinned = pinned;
     }
 
+    /** 사용자가 대화 이름을 바꿈. */
+    public void rename(String title){
+        this.title = title;
+    }
+
 }

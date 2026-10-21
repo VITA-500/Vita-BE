@@ -3,6 +3,7 @@ package com.vita.search.service;
 import com.vita.search.dto.PlanReference;
 import com.vita.search.repository.PlanLookupRepository;
 import java.util.List;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 
 /** {@link PlanLookupService}의 실제 구현. */
@@ -21,5 +22,10 @@ public class PlanLookupServiceImpl implements PlanLookupService {
 			throw new IllegalArgumentException("limit은 1 이상이어야 합니다.");
 		}
 		return planLookupRepository.findByExtreme(sortKey, limit, targetGroup);
+	}
+
+	@Override
+	public Set<String> matchingPlanCodes(PlanQueryConditions conditions) {
+		return planLookupRepository.findPlanCodesByConditions(conditions);
 	}
 }

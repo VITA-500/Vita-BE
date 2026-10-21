@@ -22,6 +22,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ChatSessionService {
 
+	private static final int TITLE_MAX_LENGTH = 30;
+
 	private final ChatSessionRepository chatSessionRepository;
 	private final ChatMessageService chatMessageService;
 
@@ -101,6 +103,24 @@ public class ChatSessionService {
 		ChatSession session = chatMessageService.getOwnedSession(sessionId, userId, null);
 		session.pin(pinned);
 		return ChatSessionPinResponse.from(session);
+	}
+
+	/**
+	 * 대화 이름 변경. 본인 세션만 가능
+	 * 앞뒤 공백을 지우고 줄바꿈, 연속 공백은 한 칸으로 바꾼 뒤 1~30자
+	 * 고정과 같이 updatedAt은 바꾸지 않는다.
+	 */
+	@Transactional
+	public ChatSessionTitleResponse renameSession(Long sessionId, Long userId, String title) {
+		String normalized = title == null ? "" : title.strip().replaceAll("\\s+", " ");
+		int length = normalized.codePointCount(0, normalized.length());
+		if (length == 0 || length > TITLE_MAX_LENGTH) {
+			throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+					"대화 이름은 1~" + TITLE_MAX_LENGTH + "자여야 합니다.");
+		}
+		ChatSession session = chatMessageService.getOwnedSession(sessionId, userId, null);
+		session.rename(normalized);
+		return ChatSessionTitleResponse.from(session);
 	}
 
 }

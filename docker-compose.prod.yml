@@ -1,5 +1,5 @@
 # EC2 prod(발표/데모)용. 09_인프라구성.md 2~3절 기준. 로컬에서 실행하지 않음 — EC2에서만.
-# postgres는 컨테이너로 안 올림(RDS 사용), redis만 컨테이너로 띄운다.
+# postgres는 컨테이너로 안 올림(RDS 사용), 백엔드만 컨테이너로 띄운다.
 # dev와 같은 EC2 인스턴스에서 포트로만 구분해서 같이 띄운다 (8080=dev, 8000=prod).
 # 임베딩(TEI) 서버는 메모리 때문에 prod에서 따로 띄우지 않고 dev의 vita-embedding-dev를 같이 쓴다.
 # dev 스택(docker-compose.dev.yml)이 먼저 떠 있어야 하며, 없으면 아래 external 네트워크를 못 찾아 prod도 기동하지 않는다.
@@ -19,18 +19,14 @@ services:
       - "8000:8080"
     env_file:
       - .env.prod
-    depends_on:
-      - redis
-    # default는 prod 내부(redis), embedding-net은 dev의 임베딩 서버(vita-embedding-dev)에 닿기 위한 네트워크다.
-    # redis처럼 dev와 이름이 겹치는 서비스를 헷갈리지 않도록 .env.prod에는 컨테이너 이름(vita-embedding-dev)을 쓴다.
+    environment:
+      # 배포 워크플로가 export한 커밋 해시. 없으면 빈 값이고 traces.app_version은 비어 저장된다(기능에는 영향 없음).
+      APP_VERSION: ${APP_VERSION:-}
+    # default는 prod 내부 네트워크, embedding-net은 dev의 임베딩 서버(vita-embedding-dev)에 닿기 위한 네트워크다.
+    # dev와 이름이 겹치는 서비스를 헷갈리지 않도록 .env.prod에는 컨테이너 이름(vita-embedding-dev)을 쓴다.
     networks:
       - default
       - embedding-net
-    restart: always
-
-  redis:
-    image: redis:7
-    container_name: vita-redis-prod
     restart: always
 
 networks:

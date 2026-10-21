@@ -71,15 +71,7 @@ public final class FaqCategoryTermBooster {
 			return candidates;
 		}
 
-		List<Predicate<FaqSimilarityResult>> hits = new ArrayList<>();
-		String remaining = query;
-		for (Rule rule : RULES) {
-			Matcher matcher = rule.pattern().matcher(remaining);
-			if (matcher.find()) {
-				hits.add(rule.favors());
-				remaining = matcher.replaceAll(" ");
-			}
-		}
+		List<Predicate<FaqSimilarityResult>> hits = scan(query).hits();
 		if (hits.isEmpty()) {
 			return candidates;
 		}
@@ -89,6 +81,33 @@ public final class FaqCategoryTermBooster {
 				.sorted(Comparator.comparingDouble((FaqSimilarityResult candidate) -> boostedScore(candidate, hits, bonus))
 						.reversed())
 				.toList();
+	}
+
+	/** 질문에서 찾은 분류 단어 하나하나의 가산점 조건(hits)과, 찾은 단어 글자(terms). 둘은 같은 순서다. */
+	private record Scan(List<Predicate<FaqSimilarityResult>> hits, List<String> terms) {
+	}
+
+	private static Scan scan(String query) {
+		List<Predicate<FaqSimilarityResult>> hits = new ArrayList<>();
+		List<String> terms = new ArrayList<>();
+		String remaining = query;
+		for (Rule rule : RULES) {
+			Matcher matcher = rule.pattern().matcher(remaining);
+			if (matcher.find()) {
+				hits.add(rule.favors());
+				terms.add(matcher.group());
+				remaining = matcher.replaceAll(" ");
+			}
+		}
+		return new Scan(hits, terms);
+	}
+
+	/**
+	 * 질문에서 가산점 대상으로 잡힌 분류 단어(질문에 적힌 글자 그대로)를 순서대로 돌려준다. 가산점이 실제로 어떤 단어 때문에 붙었는지
+	 * 기록(trace)에 남기는 용도이며, 순위 계산에는 영향이 없다. 없으면 빈 목록.
+	 */
+	public static List<String> matchedTerms(String query) {
+		return query == null ? List.of() : List.copyOf(scan(query).terms());
 	}
 
 	private static double boostedScore(FaqSimilarityResult candidate, List<Predicate<FaqSimilarityResult>> hits, double bonus) {

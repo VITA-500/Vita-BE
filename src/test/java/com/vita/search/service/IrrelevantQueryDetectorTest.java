@@ -177,9 +177,115 @@ class IrrelevantQueryDetectorTest {
 	}
 
 	@Test
+	void detectsPersonalUsageQuestionsWithoutFirstPerson() {
+		assertThat(detect("지난달 요금이 얼마 나왔는지 알려줘")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("이번 달 데이터 남은 거 얼마야?")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("이번 달 통화 몇 분 썼는지 알려줘")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("지난달 청구된 금액이 얼마였는지 확인해줘")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("어제 쓴 데이터 양이 얼마야?")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("이번 달 문자 사용량 확인해 주세요")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("올해 로밍으로 쓴 금액이 총 얼마인지 궁금해요")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("남은 데이터가 얼마나 되는지 궁금해요")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("우리 집 인터넷 요금 얼마 나왔는지 확인해줘")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("우리 가족 회선 요금 얼마 나왔는지 조회해줘")).contains(Rule.PERSONAL_LOOKUP);
+	}
+
+	@Test
+	void detectsQuestionsAboutWhatTheAccountCurrentlyHolds() {
+		assertThat(detect("지금 사용 중인 요금제 이름이 뭐예요?")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("지금 이용 중인 요금제가 어떤 거죠?")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("현재 가입된 부가서비스가 뭐뭐 있는지 알려줘")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("내 계정에 등록된 카드가 뭐지?")).contains(Rule.PERSONAL_LOOKUP);
+	}
+
+	@Test
+	void doesNotFlagPriceScheduleOrPolicyQuestionsThatMentionPeriodsAndUsage() {
+		assertThat(detect("이번 달에 가입하면 받을 수 있는 혜택이 뭔가요?")).isEmpty();
+		assertThat(detect("이번 달 요금제 가격은 얼마인가요?")).isEmpty();
+		assertThat(detect("이번 달 요금이 청구됐는데 납부 기한이 언제까지예요?")).isEmpty();
+		assertThat(detect("지난달에 사용한 데이터가 이번 달로 이월되나요?")).isEmpty();
+		assertThat(detect("남은 데이터를 다음 달로 이월할 수 있나요?")).isEmpty();
+		assertThat(detect("문자 정액 상품을 이번 달에 다 못 썼는데 남은 건수를 다음 달에 쓸 수 있는지 문의드립니다.")).isEmpty();
+		assertThat(detect("이번 달 안에 해지하면 위약금이 있나요?")).isEmpty();
+		assertThat(detect("로밍 요금은 하루에 얼마인가요?")).isEmpty();
+	}
+
+	@Test
+	void doesNotFlagQuestionsAboutChangingWhatTheAccountCurrentlyHolds() {
+		assertThat(detect("현재 사용 중인 요금제를 변경하려면 어떻게 해야 하나요?")).isEmpty();
+		assertThat(detect("지금 쓰는 요금제에서 데이터를 추가하는 방법이 있나요?")).isEmpty();
+		assertThat(detect("지금 쓰는 요금제는 데이터가 모자라서 한 20기가 정도 주는 걸로 바꾸고 싶은데 뭐가 있어요?")).isEmpty();
+		assertThat(detect("현재 가입 가능한 요금제를 알려주세요")).isEmpty();
+		assertThat(detect("사용 중인 요금제의 약정을 확인하는 방법을 알려주세요")).isEmpty();
+	}
+
+	@Test
+	void doesNotFlagQuestionsAskingWhetherARecordCanBeViewed() {
+		// 기록을 볼 수 있는지 묻는 질문은 FAQ가 답한다("…내 인증 내역을 볼 수 있나요?"). 1인칭이 있어도 잡지 않는다.
+		assertThat(detect("휴대폰번호 보호서비스에서 내 인증 내역을 볼 수 있나요?")).isEmpty();
+		assertThat(detect("제 요금 납부 내역 좀 조회할 수 있을까요?")).isEmpty();
+	}
+
+	@Test
+	void detectsGenericCompetitorWhenTheCurrentCarrierIsComparedWithThisService() {
+		assertThat(detect("지금 쓰는 통신사에서 여기로 옮기면 더 이득인가요?")).contains(Rule.COMPETITOR_GENERIC);
+		assertThat(detect("기존에 쓰던 통신사가 더 저렴한 것 같은데 어때요?")).contains(Rule.COMPETITOR_GENERIC);
+		assertThat(detect("현재 쓰는 통신사랑 여기 중에 어디가 더 이득이에요?")).contains(Rule.COMPETITOR_GENERIC);
+		assertThat(detect("예전에 쓰던 통신사랑 요금 차이가 얼마나 나요?")).contains(Rule.COMPETITOR_GENERIC);
+	}
+
+	@Test
+	void doesNotFlagCurrentCarrierQuestionsWithoutComparison() {
+		assertThat(detect("기존 통신사에서 번호이동 하려면 어떻게 해야 하나요?")).isEmpty();
+		assertThat(detect("지금 쓰는 통신사에서 번호이동하려면 필요한 서류가 뭐예요?")).isEmpty();
+		assertThat(detect("다른 통신사에서 쓰던 휴대폰도 사용할 수 있나요?")).isEmpty();
+	}
+
+	@Test
 	void returnsEmptyForNullBlankOrPlainQuestions() {
 		assertThat(detect(null)).isEmpty();
 		assertThat(detect("  ")).isEmpty();
 		assertThat(detect("자동이체 계좌를 변경하고 싶어요")).isEmpty();
+	}
+
+	@Test
+	void doesNotTreatASelfIntroductionBeforeARequestAsPersonalLookup() {
+		// 사용자가 실제로 겪은 질문: "나는"이 1인칭으로, "궁금"이 조회 표현으로 잡혀 검색 결과가 전부 비워졌다.
+		assertThat(detect("어떤 요금제가 있는지 궁금해. 나는 대학생이고, 데이터를 많이 사용해")).isEmpty();
+		assertThat(detect("나는 대학생이고, 데이터를 많이 사용해 어떤 요금제가 있는지 궁금해.")).isEmpty();
+		assertThat(detect("나는 대학생이고 데이터를 많이 사용하는데 어떤 요금제가 있어?")).isEmpty();
+		assertThat(detect("나는 대학생이야. 요금제 알려줘")).isEmpty();
+		assertThat(detect("저는 군인인데 할인되는 요금제 알려주세요")).isEmpty();
+		assertThat(detect("저는 60대인데 시니어 요금제 알려주세요")).isEmpty();
+		assertThat(detect("제가 가족이 4명인데 결합 할인 알려주세요")).isEmpty();
+		assertThat(detect("저는 해외여행을 자주 가는데 로밍 요금 알려주세요")).isEmpty();
+	}
+
+	@Test
+	void doesNotTreatPriceOrTimingWordsAfterASelfIntroductionAsPersonalLookup() {
+		// "얼마", "언제"는 가격·가입 시점을 묻는 말에도 쓰인다.
+		assertThat(detect("저는 영상을 많이 보는데 월 얼마짜리 요금제가 좋아요?")).isEmpty();
+		assertThat(detect("나는 대학생인데 제일 싼 요금제는 얼마야?")).isEmpty();
+		assertThat(detect("저는 대학생인데 언제 가입하면 할인돼?")).doesNotContain(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("나는 직장인인데 요금제 추천해줘")).isEmpty();
+	}
+
+	@Test
+	void stillDetectsPersonalLookupWrittenWithASubjectFirstPerson() {
+		assertThat(detect("제가 쓰는 요금제 알려주세요")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("제가 가입한 부가서비스 알려주세요")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("저는 이번 달에 얼마 냈나요?")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("나는 지금 데이터 얼마 남았어?")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("저는 언제 가입했는지 궁금해요")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("내가 지난달에 쓴 통화량 알려줘")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("내가 마지막으로 결제한 날짜가 언제였지?")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("내가 예전에 문의한 내역 보여줘")).contains(Rule.PERSONAL_LOOKUP);
+	}
+
+	@Test
+	void stillDetectsPossessiveFirstPersonWithOnlyAGenericRequestWord() {
+		// "내/제 + 대상"은 본인 소유를 직접 가리키므로 "알려줘"만 있어도 본인 기록 조회다.
+		assertThat(detect("내 요금 알려줘")).contains(Rule.PERSONAL_LOOKUP);
+		assertThat(detect("제 데이터 사용 현황이 궁금해요")).contains(Rule.PERSONAL_LOOKUP);
 	}
 }

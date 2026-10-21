@@ -1,6 +1,8 @@
 package com.vita.search.service;
 
 import com.vita.search.dto.FaqRetrievalContext;
+import com.vita.search.pipeline.RetrievalResult;
+import java.util.List;
 
 /**
  * BE4(Chat/LLM)가 호출하는 RAG 검색 진입점. BE4는 이 인터페이스만 알면 되고,
@@ -31,4 +33,20 @@ public interface FaqRetrievalService {
 	 * @return 둘 다 null이면 빈 컨텍스트
 	 */
 	FaqRetrievalContext search(String originalQuery, String faqQuery, String planQuery, int topK);
+
+	/**
+	 * {@link #search(String, String, String, int)}과 같은 검색을 하되, BE4에 전달하는 컨텍스트뿐 아니라 그 결과가 만들어진 과정
+	 * (후보 풀, 중간 결과, threshold 판정, 질문 벡터, 걸린 규칙, 단계별 시간)까지 돌려준다. 처리 과정을 기록(Trace/Span)하는
+	 * 호출자가 쓰며, 검색 동작은 위 메서드와 같다. 컨텍스트는 {@code result.context()}다.
+	 */
+	RetrievalResult searchWithDetails(String originalQuery, String faqQuery, String planQuery, int topK);
+
+	/**
+	 * {@link #searchWithDetails(String, String, String, int)}에 의도별 FAQ 질문을 더한 진입점. 질문에 서로 다른 FAQ 의도가 여럿일 때
+	 * 의도마다 하나씩 만든 질문을 faqSubQueries로 넘기면 faqQuery와 함께 따로 검색해 후보를 합친다. 기본 구현은 의도별 질문을 무시한다.
+	 */
+	default RetrievalResult searchWithDetails(String originalQuery, String faqQuery, List<String> faqSubQueries, String planQuery,
+			int topK) {
+		return searchWithDetails(originalQuery, faqQuery, planQuery, topK);
+	}
 }

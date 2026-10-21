@@ -23,7 +23,7 @@ public class RetrievalPipelineConfig {
 	@Bean
 	public RetrievalSettings retrievalSettings(
 			@Value("${retrieval.similarity-threshold:0.83}") double faqThreshold,
-			@Value("${plan.retrieval.similarity-threshold:0.81}") double planThreshold,
+			@Value("${plan.retrieval.similarity-threshold:0.79}") double planThreshold,
 			@Value("${retrieval.irrelevant-rule.enabled:true}") boolean irrelevantRuleEnabled,
 			@Value("${retrieval.category-boost.bonus:0.01}") double categoryBoostBonus,
 			@Value("${plan.retrieval.top-k:5}") int planTopK,
@@ -52,13 +52,15 @@ public class RetrievalPipelineConfig {
 			PlanSearchService planSearchService,
 			RetrievalSettings settings,
 			@Value("${search.pipeline.query-transformer:" + IdentityQueryTransformer.BEAN_NAME + "}") String queryTransformerName,
-			@Value("${search.pipeline.faq-retriever:" + VectorFaqRetriever.BEAN_NAME + "}") String faqRetrieverName) {
+			@Value("${search.pipeline.faq-retriever:" + VectorFaqRetriever.BEAN_NAME + "}") String faqRetrieverName,
+			@Value("${search.pipeline.faq-decompose-enabled:true}") boolean faqDecomposeEnabled) {
 		return new RetrievalPipeline(
 				embeddingProvider,
 				pick(queryTransformers, queryTransformerName, "search.pipeline.query-transformer"),
 				pick(faqRetrievers, faqRetrieverName, "search.pipeline.faq-retriever"),
 				planSearchService,
-				settings);
+				settings,
+				faqDecomposeEnabled);
 	}
 
 	/**

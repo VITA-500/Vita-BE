@@ -47,6 +47,7 @@ VITA 이용 안내: 제휴 혜택, 챗봇 상담, 매장 찾기·예약, 계정�
 9. 요금제 이름에 들어 있는 숫자("시니어 20", "태블릿 20" 등)는 요금제 이름이다. "원", "만원", "GB" 같은 단위가 없는 숫자를 금액이나 데이터 조건으로 바꾸지 않는다. 요금제 이름은 핵심 키워드에 그대로 둔다.
 10. 질문에 요금제 이름, 가입 대상(청년, 시니어, 키즈, 워치, 태블릿 등), 문자·통화 제공량, 사용 기기나 상황이 나오면 요금제 질문이다. 요금제 이름만 있는 질문도 plan_query를 작성한다.
 11. 질문이 짧을 때는 질문에 나온 기기, 상품, 서비스 이름(태블릿, 워치, 키즈폰 등)을 질문 문장과 핵심 키워드에 그대로 포함한다. 짧은 질문을 일반적인 질문으로 넓히거나 상위 개념으로 바꾸지 않는다. 오타는 바로잡되 다른 단어로 바꾸지 않는다.
+12. FAQ로 물어볼 의도가 서로 다른 둘 이상이면(예: "명세서를 이메일로 받는 방법이랑 납부 영수증 발급") faq_query에는 모든 의도를 빠뜨리지 않고 담고, faq_sub_queries에 의도마다 하나씩(최대 3개) 따로 작성한다. 각 항목은 faq_query와 같은 형식(조건/질문/핵심 키워드)으로, 그 의도 하나만 담는다. 한 항목에 다른 의도를 섞지 않는다. 의도가 하나뿐이면 faq_sub_queries는 빈 배열로 둔다. 요금제 조회, 매장 위치, 제휴 매장 찾기는 FAQ 의도로 세지 않는다.
 </rules>
 
 <analysis_format>
@@ -70,13 +71,14 @@ VITA 이용 안내: 제휴 혜택, 챗봇 상담, 매장 찾기·예약, 계정�
 - store_services: PHONE일 때 질문에 나온 서비스만 다음 값으로. 요금수납, 로밍상담, 분실·정지 신고, 휴대폰상담, 인터넷상담, 요금제변경, 주차 가능, 방문예약 가능. 없으면 [].
 - open_now: "지금 영업 중", "지금 문 연"처럼 현재 영업 조건이 있으면 true, 아니면 false.
 - open_at: "밤 11시에", "18시에 하는"처럼 특정 시각 조건이 있으면 24시간 "HH:mm". 시각이 분명하지 않으면 null.
-- store_place: 매장을 찾을 장소로 역, 동네, 건물 이름이 나오면 그 이름만 그대로. 예: "방학역 근처" -> "방학역", "잠실 쪽" -> "잠실". "근처", "여기", "우리 집", "회사", "내 위치"처럼 특정 장소 이름이 아니면 null.
+- store_places: 매장을 찾을 장소로 역, 동네, 건물 이름이 나오면 그 이름만 그대로 목록으로. 예: "방학역 근처" -> ["방학역"], "잠실 쪽" -> ["잠실"]. 장소가 여러 개면 나온 순서대로 하나씩 나눈다. 예: "안양역과 선릉역 근처" -> ["안양역", "선릉역"]. 한 항목에 여러 장소를 쉼표로 합치지 않는다. "근처", "여기", "우리 집", "회사", "내 위치"처럼 특정 장소 이름이 아니면 [].
+- store_min_km, store_max_km: 거리 조건이 있으면 km 숫자로. "1km 이상", "1km 넘게", "1km 밖" -> store_min_km 1. "500m 이내", "3km 안", "2km까지" -> store_max_km 0.5, 3, 2. "걸어서 10분"처럼 도보 시간이면 1분에 0.07km로 계산해 store_max_km. "근처", "가까운"처럼 숫자가 없으면 둘 다 null.
 - store_name: 질문에 특정 매장 이름이 나오면 그 이름만 그대로. 예: "비타 강남역 8번출구점", "루나빈 강남대로 5호점". 역이나 동네, 브랜드 이름만 있으면 null.
 - store_type이 PHONE 또는 PARTNER이면 faq_query, plan_query는 질문에 FAQ나 요금제 내용이 함께 있을 때만 작성한다.
 </store_analysis>
 
 <output_format>
-{"faq_query": string|null, "plan_query": string|null, "is_extreme": boolean, "sort_key": string|null, "limit": number|null, "is_structured": boolean, "min_price_won": number|null, "max_price_won": number|null, "min_data_gb": number|null, "max_data_gb": number|null, "store_type": string, "benefit_category": string|null, "benefit_brand": string|null, "store_services": string[], "open_now": boolean, "open_at": string|null, "store_place": string|null, "store_name": string|null}
+{"faq_query": string|null, "plan_query": string|null, "is_extreme": boolean, "sort_key": string|null, "limit": number|null, "is_structured": boolean, "min_price_won": number|null, "max_price_won": number|null, "min_data_gb": number|null, "max_data_gb": number|null, "store_type": string, "benefit_category": string|null, "benefit_brand": string|null, "store_services": string[], "open_now": boolean, "open_at": string|null, "store_places": string[], "store_min_km": number|null, "store_max_km": number|null, "store_name": string|null, "faq_sub_queries": string[]}
 </output_format>
 
 <examples>
@@ -95,6 +97,9 @@ VITA 이용 안내: 제휴 혜택, 챗봇 상담, 매장 찾기·예약, 계정�
 질문: 청년 요금제 가입 조건이랑 해지할 때 위약금 있어요?
 출력: {"faq_query": "조건: 청년 요금제 이용 중 해지\n질문: 청년 요금제를 해지하면 위약금이 발생하나요?\n핵심 키워드: 청년 요금제, 해지, 위약금", "plan_query": "대상: 청년\n조건: 가입 조건\n핵심 키워드: 청년 요금제, 가입 조건", "is_extreme": false, "sort_key": null, "limit": null, "is_structured": false, "min_price_won": null, "max_price_won": null, "min_data_gb": null, "max_data_gb": null}
 
+질문: 명세서를 이메일로 받을 수 있는지랑 납부 영수증은 어떻게 발급받는지 알려주세요
+출력: {"faq_query": "질문: 요금 명세서를 이메일로 받는 방법과 납부 영수증 발급 방법은 어떻게 되나요?\n핵심 키워드: 명세서, 이메일, 납부 영수증, 발급", "plan_query": null, "is_extreme": false, "sort_key": null, "limit": null, "is_structured": false, "min_price_won": null, "max_price_won": null, "min_data_gb": null, "max_data_gb": null, "faq_sub_queries": ["질문: 요금 명세서를 이메일로 받을 수 있나요?\n핵심 키워드: 명세서, 이메일, 수신", "질문: 납부 영수증은 어떻게 발급받나요?\n핵심 키워드: 납부 영수증, 발급"]}
+
 질문: 안녕하세요
 출력: {"faq_query": null, "plan_query": null, "is_extreme": false, "sort_key": null, "limit": null, "is_structured": false, "min_price_won": null, "max_price_won": null, "min_data_gb": null, "max_data_gb": null}
 
@@ -105,19 +110,25 @@ VITA 이용 안내: 제휴 혜택, 챗봇 상담, 매장 찾기·예약, 계정�
 출력: {"faq_query": null, "plan_query": "데이터: 10GB 이상\n핵심 키워드: 10GB 이상 최저가 요금제", "is_extreme": true, "sort_key": "CHEAPEST", "limit": 1, "is_structured": true, "min_price_won": null, "max_price_won": null, "min_data_gb": 10, "max_data_gb": null}
 
 질문: 강남역 근처에 로밍 상담 되는 매장 있어?
-출력: {"faq_query": null, "plan_query": null, "is_extreme": false, "sort_key": null, "limit": null, "is_structured": false, "min_price_won": null, "max_price_won": null, "min_data_gb": null, "max_data_gb": null, "store_type": "PHONE", "benefit_category": null, "benefit_brand": null, "store_services": ["로밍상담"], "open_now": false, "open_at": null, "store_place": "강남역", "store_name": null}
+출력: {"faq_query": null, "plan_query": null, "is_extreme": false, "sort_key": null, "limit": null, "is_structured": false, "min_price_won": null, "max_price_won": null, "min_data_gb": null, "max_data_gb": null, "store_type": "PHONE", "benefit_category": null, "benefit_brand": null, "store_services": ["로밍상담"], "open_now": false, "open_at": null, "store_places": ["강남역"], "store_min_km": null, "store_max_km": null, "store_name": null}
 
 질문: 지금 문 연 카페 중에 할인 되는 곳 알려줘
-출력: {"faq_query": null, "plan_query": null, "is_extreme": false, "sort_key": null, "limit": null, "is_structured": false, "min_price_won": null, "max_price_won": null, "min_data_gb": null, "max_data_gb": null, "store_type": "PARTNER", "benefit_category": "카페", "benefit_brand": null, "store_services": [], "open_now": true, "open_at": null, "store_place": null, "store_name": null}
+출력: {"faq_query": null, "plan_query": null, "is_extreme": false, "sort_key": null, "limit": null, "is_structured": false, "min_price_won": null, "max_price_won": null, "min_data_gb": null, "max_data_gb": null, "store_type": "PARTNER", "benefit_category": "카페", "benefit_brand": null, "store_services": [], "open_now": true, "open_at": null, "store_places": [], "store_min_km": null, "store_max_km": null, "store_name": null}
 
 질문: 밤 11시에도 하는 루나빈 있어?
-출력: {"faq_query": null, "plan_query": null, "is_extreme": false, "sort_key": null, "limit": null, "is_structured": false, "min_price_won": null, "max_price_won": null, "min_data_gb": null, "max_data_gb": null, "store_type": "PARTNER", "benefit_category": null, "benefit_brand": "루나빈", "store_services": [], "open_now": false, "open_at": "23:00", "store_place": null, "store_name": null}
+출력: {"faq_query": null, "plan_query": null, "is_extreme": false, "sort_key": null, "limit": null, "is_structured": false, "min_price_won": null, "max_price_won": null, "min_data_gb": null, "max_data_gb": null, "store_type": "PARTNER", "benefit_category": null, "benefit_brand": "루나빈", "store_services": [], "open_now": false, "open_at": "23:00", "store_places": [], "store_min_km": null, "store_max_km": null, "store_name": null}
 
 질문: 비타 방학역 3번출구 2호점 전화번호 알려줘
-출력: {"faq_query": null, "plan_query": null, "is_extreme": false, "sort_key": null, "limit": null, "is_structured": false, "min_price_won": null, "max_price_won": null, "min_data_gb": null, "max_data_gb": null, "store_type": "PHONE", "benefit_category": null, "benefit_brand": null, "store_services": [], "open_now": false, "open_at": null, "store_place": null, "store_name": "비타 방학역 3번출구 2호점"}
+출력: {"faq_query": null, "plan_query": null, "is_extreme": false, "sort_key": null, "limit": null, "is_structured": false, "min_price_won": null, "max_price_won": null, "min_data_gb": null, "max_data_gb": null, "store_type": "PHONE", "benefit_category": null, "benefit_brand": null, "store_services": [], "open_now": false, "open_at": null, "store_places": [], "store_min_km": null, "store_max_km": null, "store_name": "비타 방학역 3번출구 2호점"}
+
+질문: 역삼역에서 2km 넘게 떨어진 매장 알려줘
+출력: {"faq_query": null, "plan_query": null, "is_extreme": false, "sort_key": null, "limit": null, "is_structured": false, "min_price_won": null, "max_price_won": null, "min_data_gb": null, "max_data_gb": null, "store_type": "PHONE", "benefit_category": null, "benefit_brand": null, "store_services": [], "open_now": false, "open_at": null, "store_places": ["역삼역"], "store_min_km": 2, "store_max_km": null, "store_name": null}
+
+질문: 합정역이랑 망원역 근처 카페 할인 되는 곳
+출력: {"faq_query": null, "plan_query": null, "is_extreme": false, "sort_key": null, "limit": null, "is_structured": false, "min_price_won": null, "max_price_won": null, "min_data_gb": null, "max_data_gb": null, "store_type": "PARTNER", "benefit_category": "카페", "benefit_brand": null, "store_services": [], "open_now": false, "open_at": null, "store_places": ["합정역", "망원역"], "store_min_km": null, "store_max_km": null, "store_name": null}
 
 질문: 매장 방문 예약은 어떻게 해요?
-출력: {"faq_query": "질문: 매장 방문 예약은 어떻게 하나요?\n핵심 키워드: 매장, 방문 예약, 예약 방법", "plan_query": null, "is_extreme": false, "sort_key": null, "limit": null, "is_structured": false, "min_price_won": null, "max_price_won": null, "min_data_gb": null, "max_data_gb": null, "store_type": "NONE", "benefit_category": null, "benefit_brand": null, "store_services": [], "open_now": false, "open_at": null, "store_place": null, "store_name": null}
+출력: {"faq_query": "질문: 매장 방문 예약은 어떻게 하나요?\n핵심 키워드: 매장, 방문 예약, 예약 방법", "plan_query": null, "is_extreme": false, "sort_key": null, "limit": null, "is_structured": false, "min_price_won": null, "max_price_won": null, "min_data_gb": null, "max_data_gb": null, "store_type": "NONE", "benefit_category": null, "benefit_brand": null, "store_services": [], "open_now": false, "open_at": null, "store_places": [], "store_min_km": null, "store_max_km": null, "store_name": null}
 
 질문: 시니어 15 요금제 혜택이 뭐예요?
 출력: {"faq_query": null, "plan_query": "대상: 시니어\n핵심 키워드: 시니어 15, 요금제, 혜택", "is_extreme": false, "sort_key": null, "limit": null, "is_structured": true, "min_price_won": null, "max_price_won": null, "min_data_gb": null, "max_data_gb": null}

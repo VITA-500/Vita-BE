@@ -66,6 +66,10 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 	@Value("${retrieval.category-boost.bonus:0.01}")
 	private double categoryBoostBonus;
 
+	/** 실제 검색과 같은 요금제 유사도 기준. 로그의 비교 기준이 설정을 바꿔도 어긋나지 않게 설정값을 그대로 읽는다. */
+	@Value("${plan.retrieval.similarity-threshold:0.79}")
+	private double planThreshold;
+
 	/** top은 실제로 검색된 상위 결과(CSV에서 어떤 답이 나왔는지 확인하기 위해 보관). */
 	private record FaqResultRow(String category, String subcategory, String style, String query,
 			boolean top1Match, boolean top3Match, boolean category1Match, boolean category3Match,
@@ -427,7 +431,8 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 		log.info("=== 요금제 회귀 테스트 ({}문항) ===", results.size());
 		log.info("[엄격 기준: 질문마다 정답 요금제 1개로 고정] Top-1 정확도: {}%  Top-3 정확도: {}%",
 				String.format("%.1f", top1Rate), String.format("%.1f", top3Rate));
-		log.info("Top-1 정답 중 최저 유사도(현재 threshold=0.81과 비교): {}", String.format("%.4f", minTop1SimilarityOfMatches));
+		log.info("Top-1 정답 중 최저 유사도(현재 threshold={}과 비교): {}", planThreshold,
+				String.format("%.4f", minTop1SimilarityOfMatches));
 		printPlanConditionSummary(results);
 
 		Map<String, List<PlanResultRow>> byAspect = results.stream().collect(Collectors.groupingBy(PlanResultRow::aspect));
@@ -481,13 +486,13 @@ public class SearchAccuracyRegressionRunner implements CommandLineRunner {
 		double maxFaqSimilarity = results.stream().mapToDouble(NegativeResultRow::faqTop1Similarity).max().orElse(0.0);
 		double maxPlanSimilarity = results.stream().mapToDouble(NegativeResultRow::planTop1Similarity).max().orElse(0.0);
 		long faqFalsePositives = results.stream().filter(r -> r.faqTop1Similarity() >= 0.83).count();
-		long planFalsePositives = results.stream().filter(r -> r.planTop1Similarity() >= 0.81).count();
+		long planFalsePositives = results.stream().filter(r -> r.planTop1Similarity() >= planThreshold).count();
 
 		log.info("=== 무관 질문 회귀 테스트 ({}문항) ===", results.size());
 		log.info("FAQ 쪽 최고 유사도(현재 threshold=0.83과 비교): {}  (0.83 이상으로 잘못 걸린 개수: {})",
 				String.format("%.4f", maxFaqSimilarity), faqFalsePositives);
-		log.info("요금제 쪽 최고 유사도(현재 threshold=0.81과 비교): {}  (0.81 이상으로 잘못 걸린 개수: {})",
-				String.format("%.4f", maxPlanSimilarity), planFalsePositives);
+		log.info("요금제 쪽 최고 유사도(현재 threshold={}과 비교): {}  ({} 이상으로 잘못 걸린 개수: {})",
+				planThreshold, String.format("%.4f", maxPlanSimilarity), planThreshold, planFalsePositives);
 
 		Map<String, List<NegativeResultRow>> byTopic = results.stream().collect(Collectors.groupingBy(NegativeResultRow::topic));
 		byTopic.entrySet().stream()

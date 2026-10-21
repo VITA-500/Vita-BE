@@ -568,4 +568,26 @@ class PlanQueryConditionExtractorTest {
 		assertThat(PlanQueryConditionExtractor.targetGroupOf("청년이랑 시니어 중 제일 싼 요금제")).isNull();
 		assertThat(PlanQueryConditionExtractor.targetGroupOf(null)).isNull();
 	}
+
+	@Test
+	void extractAssumingPlanContextReadsConditionsEvenWithoutThePlanWord() {
+		// 극값 질문은 이미 요금제 질문으로 확정된 뒤라 "요금제" 단어가 없어도 조건을 읽는다.
+		PlanQueryConditions conditions = PlanQueryConditionExtractor.extractAssumingPlanContext("5만원 이하 중에 데이터 제일 많이 주는 거");
+
+		assertThat(conditions.feeMax()).isEqualTo(50_000);
+		assertThat(conditions.feeMin()).isNull();
+		assertThat(PlanQueryConditionExtractor.extract("5만원 이하 중에 데이터 제일 많이 주는 거").isEmpty()).isTrue();
+	}
+
+	@Test
+	void extractAssumingPlanContextReadsPriceBandAndUnlimited() {
+		PlanQueryConditions band = PlanQueryConditionExtractor.extractAssumingPlanContext("3만원대 중에서 가장 저렴한 요금제");
+		PlanQueryConditions unlimited = PlanQueryConditionExtractor.extractAssumingPlanContext("무제한 요금제 중에 제일 싼 거");
+
+		assertThat(band.feeMin()).isEqualTo(30_000);
+		assertThat(band.feeMax()).isEqualTo(39_999);
+		assertThat(unlimited.dataPolicy()).isEqualTo("UNLIMITED");
+		assertThat(PlanQueryConditionExtractor.extractAssumingPlanContext("가장 저렴한 요금제가 뭐야?").withoutTargetGroup().isEmpty()).isTrue();
+		assertThat(PlanQueryConditionExtractor.extractAssumingPlanContext(null).isEmpty()).isTrue();
+	}
 }

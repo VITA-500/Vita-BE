@@ -7,6 +7,7 @@ import java.util.List;
 
 import com.vita.chat.UnresolvedReason;
 import com.vita.chat.dto.ChatAction;
+import com.vita.chat.dto.ChatPlanCard;
 import com.vita.chat.dto.ChatStoreMap;
 import com.vita.chat.ChatMessageFeedback;
 import com.vita.chat.ChatMessageRole;
@@ -65,10 +66,19 @@ public class ChatMessage {
 	@Column(columnDefinition = "feedback_type")
 	private ChatMessageFeedback feedback;
 
+	// 피드백을 누른 시각 (취소하면 비움)
+	@Column(name = "feedback_at")
+	private LocalDateTime feedbackAt;
+
 	// 답변과 함께 보낸 매장 지도
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(name = "store_map", columnDefinition = "jsonb")
 	private ChatStoreMap storeMap;
+
+	// 답변과 함께 보낸 요금제 카드
+	@JdbcTypeCode(SqlTypes.JSON)
+	@Column(columnDefinition = "jsonb")
+	private List<ChatPlanCard> plans;
 
 	// 답변 아래 추천 버튼
 	@JdbcTypeCode(SqlTypes.JSON)
@@ -79,6 +89,10 @@ public class ChatMessage {
 	@Enumerated(EnumType.STRING)
 	@Column(name = "unresolved_reason", length = 30)
 	private UnresolvedReason unresolvedReason;
+
+	// 관리자가 미해결 목록에서 무시한 시각
+	@Column(name = "unresolved_dismissed_at")
+	private LocalDateTime unresolvedDismissedAt;
 
 	// 검색 최고 유사도
 	@Column(name = "top_similarity")
@@ -117,17 +131,33 @@ public class ChatMessage {
 		markCompleted(content, storeMap, actions, null, null);
 	}
 
-	/** 매장 지도·추천 버튼·미해결 여부와 함께 완료 처리. 빈 버튼 목록은 null로 저장 */
 	public void markCompleted(String content, ChatStoreMap storeMap, List<ChatAction> actions,
+	                          UnresolvedReason unresolvedReason, Double topSimilarity) {
+		markCompleted(content, storeMap, List.of(), actions, unresolvedReason, topSimilarity);
+	}
+
+	/** 매장 지도, 요금제 카드, 추천 버튼, 미해결 여부와 함께 완료 처리. */
+	public void markCompleted(String content, ChatStoreMap storeMap, List<ChatPlanCard> plans, List<ChatAction> actions,
 	                          UnresolvedReason unresolvedReason, Double topSimilarity) {
 		this.content = content;
 		this.status = ChatMessageStatus.COMPLETED;
 		this.storeMap = storeMap;
+		this.plans = (plans == null || plans.isEmpty()) ? null : plans;
 		this.actions = (actions == null || actions.isEmpty()) ? null : actions;
 		this.unresolvedReason = unresolvedReason;
 		this.topSimilarity = topSimilarity;
 	}
+
+	/** 요금제 카드. */
+	public List<ChatPlanCard> getPlans() {
+		return plans == null ? List.of() : plans;
+	}
 	
+	/** 답변 생성이 실패해 한 번 더 시도하는 중 */
+	public void markRetrying() {
+		this.status = ChatMessageStatus.RETRYING;
+	}
+
 	/**
 	 * 실패 시
 	 */
@@ -142,7 +172,18 @@ public class ChatMessage {
 	 * @param feedback
 	 */
 	public void applyFeedback(ChatMessageFeedback feedback) {
+		// 같은 피드백을 다시 보내면(이유만 바꿀 때) 누른 시각은 그대로 둔다
+		if(this.feedback != feedback) {
+			this.feedbackAt = feedback == null ? null : LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+		}
         this.feedback = feedback;
     }
+
+	/** 관리자 "무시": 자동 감지된 미해결 답변을 목록에서 내린다. 자동 감지가 아니면 아무것도 하지 않는다 */
+	public void dismissUnresolved() {
+		if(this.unresolvedReason != null && this.unresolvedDismissedAt == null) {
+			this.unresolvedDismissedAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+		}
+	}
 	
 }
