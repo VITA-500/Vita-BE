@@ -123,7 +123,7 @@
 
 ## 5. ERD
 
-<img width="3600" height="3157" alt="erd (1)" src="https://github.com/user-attachments/assets/9970f9af-f9da-4379-bc4b-2ae47de88cff" />
+<img width="2045" height="1887" alt="Untitled" src="https://github.com/user-attachments/assets/ba21cd72-3163-4e08-b97d-ef61708dc970" />
 
 | 테이블 | 설명 |
 |---|---|
