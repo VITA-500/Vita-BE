@@ -31,6 +31,8 @@
 
 ## 1. 프로젝트 소개
 
+**VITA : Vector Information Telecom AI** 
+
 **"AI 상담 서비스 구현 프로젝트"** 과제를 바탕으로, 가상 통신 서비스의 FAQ 데이터와 매장 정보를 이용해 사용자 질문에 RAG(검색 증강 생성)로 자연어 답변을 하고, 위치 기반으로 가까운 매장을 안내하는 AI 상담·지도 서비스입니다.
 
 **핵심 경험 포인트**: Vector DB 기반 검색, LLM 응답 생성, 지도 API 활용, 위치 기반 서비스 설계, FE/BE 협업 API 설계
@@ -73,7 +75,7 @@
 | 기간 | 내용 |
 |---|---|
 | 9/9 \~ 9/15 | 주제 선정, 기획안 작성, 역할 분담, 공통 작업(패키지 구조, API 규격, DB 스키마 설계) |
-| 9/16 \~ 9/29 | **Phase 1 (MVP)** — 인증, FAQ 생성/적재, RAG 검색, Chat API, 매장 CRUD, Docker 환경 구성 |
+| 9/16 \~ 9/29 | Phase 1 (MVP) — 인증, FAQ 생성/적재, RAG 검색, Chat API, 매장 CRUD, Docker 환경 구성 |
 | 9/30 \~ 10/13 | Phase 2 (Core) — 통합 테스트, 임베딩 동기화, 관리자 API, CI/CD 파이프라인 구성 |
 | 10/14 \~ 10/24 | Phase 3 (Hardening) — 예외 처리, 성능 점검, 배포 안정화 |
 | 10/25 \~ 10/28 | 발표 준비 및 최종 점검 |
@@ -105,7 +107,7 @@
 
 ## 4. 시스템 아키텍처
 
-<img width="1920" height="1080" alt="시스템 아키텍처 (2)" src="https://github.com/user-attachments/assets/5c28a5ee-54f4-43a1-9670-3d42d209d0fc" />
+<img width="1920" height="1080" alt="시스템 아키텍처_vita" src="https://github.com/user-attachments/assets/728324f3-0a34-424a-9c77-74b4718a5cf3" />
 
 ```
 [Next.js/Vercel] --HTTPS--> [Nginx(EC2)] --> [Spring Boot] --+--> [RDS: PostgreSQL+pgvector]
@@ -123,7 +125,7 @@
 
 ## 5. ERD
 
-<img width="3600" height="3157" alt="erd (1)" src="https://github.com/user-attachments/assets/9970f9af-f9da-4379-bc4b-2ae47de88cff" />
+<img width="2045" height="1887" alt="Untitled" src="https://github.com/user-attachments/assets/ba21cd72-3163-4e08-b97d-ef61708dc970" />
 
 | 테이블 | 설명 |
 |---|---|
