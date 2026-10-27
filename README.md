@@ -105,7 +105,7 @@
 
 ## 4. 시스템 아키텍처
 
-<img width="1920" height="1080" alt="시스템 아키텍처 (2)" src="https://github.com/user-attachments/assets/5c28a5ee-54f4-43a1-9670-3d42d209d0fc" />
+<img width="1920" height="1080" alt="시스템 아키텍처_vita" src="https://github.com/user-attachments/assets/728324f3-0a34-424a-9c77-74b4718a5cf3" />
 
 ```
 [Next.js/Vercel] --HTTPS--> [Nginx(EC2)] --> [Spring Boot] --+--> [RDS: PostgreSQL+pgvector]
