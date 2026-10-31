@@ -31,6 +31,7 @@ bin/
 .env.local
 .env.dev
 .env.prod
+.env.db
 
 ### OS ###
 .DS_Store

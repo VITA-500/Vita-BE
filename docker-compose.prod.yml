@@ -1,5 +1,5 @@
 # EC2 prod(발표/데모)용. 09_인프라구성.md 2~3절 기준. 로컬에서 실행하지 않음 — EC2에서만.
-# postgres는 컨테이너로 안 올림(RDS 사용), 백엔드만 컨테이너로 띄운다.
+# DB는 이 파일의 postgres 컨테이너(vita-postgres-prod)다. 데이터는 named volume에 있으므로 `down -v`는 절대 쓰지 않는다.
 # dev와 같은 EC2 인스턴스에서 포트로만 구분해서 같이 띄운다 (8080=dev, 8000=prod).
 # 임베딩(TEI) 서버는 메모리 때문에 prod에서 따로 띄우지 않고 dev의 vita-embedding-dev를 같이 쓴다.
 # dev 스택(docker-compose.dev.yml)이 먼저 떠 있어야 하며, 없으면 아래 external 네트워크를 못 찾아 prod도 기동하지 않는다.
@@ -7,6 +7,25 @@
 name: vita-prod
 
 services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: vita-postgres-prod
+    # DB 이름·계정·암호는 .env.db에서 읽는다(처음 볼륨을 만들 때만 적용). .env.prod의 비밀값이 DB 컨테이너로 새지 않게 파일을 나눴다.
+    env_file:
+      - .env.db
+    # EC2 메모리(약 3.7GB)를 임베딩 서버·백엔드와 나눠 쓰므로 DB가 커지지 않게 상한을 건다.
+    command: postgres -c shared_buffers=128MB -c max_connections=50 -c work_mem=4MB
+    mem_limit: 512m
+    # 외부 포트는 열지 않는다. 같은 네트워크의 backend가 postgres:5432로만 접근한다.
+    volumes:
+      - postgres-prod-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
   backend:
     # jar는 deploy-prod.yml이 러너에서 빌드해 app-prod.jar로 올려둔다. 서버에서는 복사만 한다.
     build:
@@ -19,6 +38,9 @@ services:
       - "8000:8080"
     env_file:
       - .env.prod
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       # 배포 워크플로가 export한 커밋 해시. 없으면 빈 값이고 traces.app_version은 비어 저장된다(기능에는 영향 없음).
       APP_VERSION: ${APP_VERSION:-}
@@ -28,6 +50,9 @@ services:
       - default
       - embedding-net
     restart: always
+
+volumes:
+  postgres-prod-data:
 
 networks:
   # dev 스택의 기본 네트워크(프로젝트 이름 vita-dev). docker-compose.dev.yml의 name을 바꾸면 이 값도 같이 바꿔야 한다.
